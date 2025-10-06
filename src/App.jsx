@@ -4,8 +4,50 @@ import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Play, Pause, RotateCw, ChevronDown } from "lucide-react";
 import { LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, ReferenceLine } from "recharts";
+
+function IconBase({ children, className = "" }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={`h-4 w-4 ${className}`.trim()}
+      aria-hidden="true"
+    >
+      {children}
+    </svg>
+  );
+}
+
+const PlayIcon = (props) => (
+  <IconBase {...props}>
+    <polygon points="7 4 19 12 7 20" />
+  </IconBase>
+);
+
+const PauseIcon = (props) => (
+  <IconBase {...props}>
+    <line x1="8" y1="5" x2="8" y2="19" />
+    <line x1="16" y1="5" x2="16" y2="19" />
+  </IconBase>
+);
+
+const RotateIcon = (props) => (
+  <IconBase {...props}>
+    <polyline points="21 2 21 8 15 8" />
+    <path d="M21 8a9 9 0 1 1-3-6" />
+  </IconBase>
+);
+
+const ChevronDownIcon = (props) => (
+  <IconBase {...props}>
+    <polyline points="6 9 12 15 18 9" />
+  </IconBase>
+);
 
 // -----------------------------
 // Utility math & constants
@@ -481,272 +523,273 @@ export default function FTIR_Michelson_VCSEL_Sim() {
 
   const res = estimateResolutionNm(VVCSEL_NM, mirrorAmp_um);
 
-  // UI helpers
-  const sliderCls = "flex items-center gap-3 py-1";
-
   return (
-    <div className="p-6 max-w-[1200px] mx-auto space-y-6">
-      <div className="flex flex-col gap-2">
-        <h1 className="text-2xl font-semibold tracking-tight">FTIR Engine — Michelson Interferometer with VCSEL Metrology</h1>
-        <p className="text-sm text-muted-foreground">
-          Real-time simulation of a compact FT-NIR engine: beamsplitter, fixed & movable mirrors (MEMS), VCSEL metrology, interferogram acquisition, and FFT-based spectrum.
-        </p>
-      </div>
-
-      {/* --- Top controls bar --- */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle>Acquisition & Source Settings</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex flex-wrap items-center gap-3">
-            <Button onClick={() => setRunning(true)} variant="default" size="sm" className="gap-2"><Play className="w-4 h-4"/>Run</Button>
-            <Button onClick={() => setRunning(false)} variant="secondary" size="sm" className="gap-2"><Pause className="w-4 h-4"/>Pause</Button>
-            <Button onClick={() => { setAcqIndex(0); iBufferRef.current.set(cleanInterf); for (let i = 0; i < Npoints; i++) siBufferRef.current[i] = 1 + Math.cos(2 * Math.PI * VVCSEL_WNUM * opd_cm[i]); }} variant="ghost" size="sm" className="gap-2"><RotateCw className="w-4 h-4"/>Reset</Button>
+    <div className="min-h-screen bg-slate-950 text-slate-100">
+      <main className="px-4 py-10 lg:px-8">
+        <div className="mx-auto max-w-[1200px] space-y-6">
+          <div className="flex flex-col gap-2">
+            <h1 className="text-2xl font-semibold tracking-tight">FTIR Engine — Michelson Interferometer with VCSEL Metrology</h1>
+            <p className="text-sm text-slate-300">
+              Real-time simulation of a compact FT-NIR engine: beamsplitter, fixed & movable mirrors (MEMS), VCSEL metrology, interferogram acquisition, and FFT-based spectrum.
+            </p>
           </div>
 
-          {/* Sliders row */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            <div className="space-y-1 min-w-[260px]">
-              <Label>Mirror amplitude</Label>
-              <div className="flex items-center gap-3">
-                <Slider value={[mirrorAmp_um]} min={10} max={200} step={1} onValueChange={([v]) => setMirrorAmpUm(v)} className="flex-1"/>
-                <span className="tabular-nums w-20 text-right">{fmt(mirrorAmp_um,0)} µm</span>
+          {/* --- Top controls bar --- */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle>Acquisition & Source Settings</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex flex-wrap items-center gap-3">
+                <Button onClick={() => setRunning(true)} variant="default" size="sm" className="gap-2"><PlayIcon className="w-4 h-4"/>Run</Button>
+                <Button onClick={() => setRunning(false)} variant="secondary" size="sm" className="gap-2"><PauseIcon className="w-4 h-4"/>Pause</Button>
+                <Button onClick={() => { setAcqIndex(0); iBufferRef.current.set(cleanInterf); for (let i = 0; i < Npoints; i++) siBufferRef.current[i] = 1 + Math.cos(2 * Math.PI * VVCSEL_WNUM * opd_cm[i]); }} variant="ghost" size="sm" className="gap-2"><RotateIcon className="w-4 h-4"/>Reset</Button>
               </div>
-            </div>
-            <div className="space-y-1 min-w-[260px]">
-              <Label>Drive frequency</Label>
-              <div className="flex items-center gap-3">
-                <Slider value={[driveHz]} min={0} max={3} step={0.1} onValueChange={([v]) => setDriveHz(v)} className="flex-1"/>
-                <span className="tabular-nums w-20 text-right">{fmt(driveHz,1)} Hz</span>
-              </div>
-            </div>
-            <div className="space-y-1 min-w-[260px]">
-              <Label>Samples per scan</Label>
-              <div className="flex items-center gap-3">
-                <Slider value={[Npoints]} min={256} max={4096} step={256} onValueChange={([v]) => setNpoints(v)} className="flex-1"/>
-                <span className="tabular-nums w-20 text-right">{Npoints}</span>
-              </div>
-            </div>
-            <div className="space-y-1 min-w-[260px]">
-              <Label>Noise level</Label>
-              <div className="flex items-center gap-3">
-                <Slider value={[noise]} min={0} max={0.1} step={0.0005} onValueChange={([v]) => setNoise(v)} className="flex-1"/>
-                <span className="tabular-nums w-20 text-right">{fmt(noise,3)}</span>
-              </div>
-            </div>
-            <div className="space-y-1 min-w-[260px]">
-              <Label>Averaging (×)</Label>
-              <div className="flex items-center gap-3">
-                <Slider value={[avgCount]} min={1} max={32} step={1} onValueChange={([v]) => setAvgCount(v)} className="flex-1"/>
-                <span className="tabular-nums w-20 text-right">{avgCount}</span>
-              </div>
-            </div>
-          </div>
 
-          {/* Advanced (collapsed) */}
-          <div className="border rounded-lg p-3 bg-muted/40">
-            <button type="button" onClick={()=>setShowAdvanced(v=>!v)} className="w-full flex items-center justify-between text-left">
-              <span className="font-medium">Advanced</span>
-              <ChevronDown className={`w-4 h-4 transition-transform ${showAdvanced?"rotate-180":""}`} />
-            </button>
-            {showAdvanced && (
-              <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="flex items-center gap-3">
-                  <Switch checked={apodize} onCheckedChange={setApodize} id="apod" />
-                  <Label htmlFor="apod">Hann apodization</Label>
-                </div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <Label>Zero-fill</Label>
-                  <Button size="sm" variant={zeroFillFactor===1?"default":"outline"} onClick={() => setZeroFillFactor(1)}>×1</Button>
-                  <Button size="sm" variant={zeroFillFactor===2?"default":"outline"} onClick={() => setZeroFillFactor(2)}>×2</Button>
-                  <Button size="sm" variant={zeroFillFactor===4?"default":"outline"} onClick={() => setZeroFillFactor(4)}>×4</Button>
-                </div>
-                <div className="space-y-1">
-                  <Label>SC edge softness (nm)</Label>
+              {/* Sliders row */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="space-y-1 min-w-[260px]">
+                  <Label>Mirror amplitude</Label>
                   <div className="flex items-center gap-3">
-                    <Slider value={[scEdgeNm]} min={0} max={80} step={2} onValueChange={([v]) => setScEdgeNm(v)} className="flex-1"/>
-                    <span className="tabular-nums w-16 text-right">{fmt(scEdgeNm,0)}</span>
+                    <Slider value={[mirrorAmp_um]} min={10} max={200} step={1} onValueChange={([v]) => setMirrorAmpUm(v)} className="flex-1"/>
+                    <span className="tabular-nums w-20 text-right">{fmt(mirrorAmp_um,0)} µm</span>
+                  </div>
+                </div>
+                <div className="space-y-1 min-w-[260px]">
+                  <Label>Drive frequency</Label>
+                  <div className="flex items-center gap-3">
+                    <Slider value={[driveHz]} min={0} max={3} step={0.1} onValueChange={([v]) => setDriveHz(v)} className="flex-1"/>
+                    <span className="tabular-nums w-20 text-right">{fmt(driveHz,1)} Hz</span>
+                  </div>
+                </div>
+                <div className="space-y-1 min-w-[260px]">
+                  <Label>Samples per scan</Label>
+                  <div className="flex items-center gap-3">
+                    <Slider value={[Npoints]} min={256} max={4096} step={256} onValueChange={([v]) => setNpoints(v)} className="flex-1"/>
+                    <span className="tabular-nums w-20 text-right">{Npoints}</span>
+                  </div>
+                </div>
+                <div className="space-y-1 min-w-[260px]">
+                  <Label>Noise level</Label>
+                  <div className="flex items-center gap-3">
+                    <Slider value={[noise]} min={0} max={0.1} step={0.0005} onValueChange={([v]) => setNoise(v)} className="flex-1"/>
+                    <span className="tabular-nums w-20 text-right">{fmt(noise,3)}</span>
+                  </div>
+                </div>
+                <div className="space-y-1 min-w-[260px]">
+                  <Label>Averaging (×)</Label>
+                  <div className="flex items-center gap-3">
+                    <Slider value={[avgCount]} min={1} max={32} step={1} onValueChange={([v]) => setAvgCount(v)} className="flex-1"/>
+                    <span className="tabular-nums w-20 text-right">{avgCount}</span>
                   </div>
                 </div>
               </div>
-            )}
-          </div>
 
-          {/* Sources (mix) */}
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-            <div className="space-y-4">
-              <Label className="font-medium">Sources (mix)</Label>
-              <div className="space-y-3">
-                {/* Halogen */}
-                <div className="space-y-1">
-                  <div className="flex items-center justify-between"><span>Halogen</span><span className="tabular-nums">{fmt(halogenMag,2)}</span></div>
-                  <Slider value={[halogenMag]} min={0} max={2} step={0.01} onValueChange={([v]) => setHalogenMag(v)} />
-                </div>
-                {/* Flat */}
-                <div className="space-y-1">
-                  <div className="flex items-center justify-between"><span>Flat</span><span className="tabular-nums">{fmt(flatMag,2)}</span></div>
-                  <Slider value={[flatMag]} min={0} max={2} step={0.01} onValueChange={([v]) => setFlatMag(v)} />
-                </div>
-                {/* Xenon arc */}
-                <div className="pt-2 space-y-1">
-                  <div className="flex items-center justify-between"><span>Xenon arc (6000 K)</span><span className="tabular-nums">{fmt(xenonMag,2)}</span></div>
-                  <Slider value={[xenonMag]} min={0} max={2} step={0.01} onValueChange={([v]) => setXenonMag(v)} />
-                  <div className="grid grid-cols-2 gap-3 pt-1">
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between"><span>Ripple %</span><span className="tabular-nums">{fmt(xenonRipplePct*100,0)}%</span></div>
-                      <Slider value={[xenonRipplePct]} min={0} max={0.2} step={0.01} onValueChange={([v]) => setXenonRipplePct(v)} />
+              {/* Advanced (collapsed) */}
+              <div className="border rounded-lg p-3 bg-slate-800/40">
+                <button type="button" onClick={()=>setShowAdvanced(v=>!v)} className="w-full flex items-center justify-between text-left">
+                  <span className="font-medium">Advanced</span>
+                  <ChevronDownIcon className={`w-4 h-4 transition-transform ${showAdvanced?"rotate-180":""}`} />
+                </button>
+                {showAdvanced && (
+                  <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="flex items-center gap-3">
+                      <Switch checked={apodize} onCheckedChange={setApodize} id="apod" />
+                      <Label htmlFor="apod">Hann apodization</Label>
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Label>Zero-fill</Label>
+                      <Button size="sm" variant={zeroFillFactor===1?"default":"outline"} onClick={() => setZeroFillFactor(1)}>×1</Button>
+                      <Button size="sm" variant={zeroFillFactor===2?"default":"outline"} onClick={() => setZeroFillFactor(2)}>×2</Button>
+                      <Button size="sm" variant={zeroFillFactor===4?"default":"outline"} onClick={() => setZeroFillFactor(4)}>×4</Button>
                     </div>
                     <div className="space-y-1">
-                      <div className="flex items-center justify-between"><span>Ripple period (nm)</span><span className="tabular-nums">{fmt(xenonPeriodNm,0)}</span></div>
-                      <Slider value={[xenonPeriodNm]} min={5} max={80} step={1} onValueChange={([v]) => setXenonPeriodNm(v)} />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <Label className="font-medium">Laser & Supercontinuum</Label>
-              <div className="space-y-3">
-                {/* Laser */}
-                <div className="space-y-1">
-                  <div className="flex items-center justify-between"><span>Laser magnitude</span><span className="tabular-nums">{fmt(laserMag,2)}</span></div>
-                  <Slider value={[laserMag]} min={0} max={2} step={0.01} onValueChange={([v]) => setLaserMag(v)} />
-                </div>
-                <div className="space-y-1">
-                  <div className="flex items-center justify-between"><span>Laser wavelength</span><span className="tabular-nums">{fmt(laserNm,1)} nm</span></div>
-                  <Slider value={[laserNm]} min={1100} max={2500} step={1} onValueChange={([v]) => setLaserNm(v)} />
-                </div>
-                <div className="space-y-1">
-                  <div className="flex items-center justify-between"><span>Laser width</span><span className="tabular-nums">{fmt(laserWidth,1)} nm</span></div>
-                  <Slider value={[laserWidth]} min={0.5} max={20} step={0.5} onValueChange={([v]) => setLaserWidth(v)} />
-                </div>
-                {/* Supercontinuum */}
-                <div className="pt-2 space-y-1">
-                  <div className="flex items-center justify-between"><span>Supercontinuum</span><span className="tabular-nums">{fmt(scMag,2)}</span></div>
-                  <Slider value={[scMag]} min={0} max={2} step={0.01} onValueChange={([v]) => setScMag(v)} />
-                  <div className="grid gap-2">
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between"><span>Band (nm)</span><span className="tabular-nums">{fmt(scBand[0],0)}–{fmt(scBand[1],0)}</span></div>
-                      <Slider value={scBand} min={1100} max={2500} step={5} onValueChange={(vals) => setScBand([Math.min(vals[0], vals[1]), Math.max(vals[0], vals[1])])} />
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between"><span>Ripple %</span><span className="tabular-nums">{fmt(scRipplePct*100,0)}%</span></div>
-                        <Slider value={[scRipplePct]} min={0} max={0.3} step={0.01} onValueChange={([v]) => setScRipplePct(v)} />
-                      </div>
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between"><span>Ripple period (nm)</span><span className="tabular-nums">{fmt(scPeriodNm,0)}</span></div>
-                        <Slider value={[scPeriodNm]} min={2} max={60} step={1} onValueChange={([v]) => setScPeriodNm(v)} />
+                      <Label>SC edge softness (nm)</Label>
+                      <div className="flex items-center gap-3">
+                        <Slider value={[scEdgeNm]} min={0} max={80} step={2} onValueChange={([v]) => setScEdgeNm(v)} className="flex-1"/>
+                        <span className="tabular-nums w-16 text-right">{fmt(scEdgeNm,0)}</span>
                       </div>
                     </div>
                   </div>
+                )}
+              </div>
+
+              {/* Sources (mix) */}
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <Label className="font-medium">Sources (mix)</Label>
+                  <div className="space-y-3">
+                    {/* Halogen */}
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between"><span>Halogen</span><span className="tabular-nums">{fmt(halogenMag,2)}</span></div>
+                      <Slider value={[halogenMag]} min={0} max={2} step={0.01} onValueChange={([v]) => setHalogenMag(v)} />
+                    </div>
+                    {/* Flat */}
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between"><span>Flat</span><span className="tabular-nums">{fmt(flatMag,2)}</span></div>
+                      <Slider value={[flatMag]} min={0} max={2} step={0.01} onValueChange={([v]) => setFlatMag(v)} />
+                    </div>
+                    {/* Xenon arc */}
+                    <div className="pt-2 space-y-1">
+                      <div className="flex items-center justify-between"><span>Xenon arc (6000 K)</span><span className="tabular-nums">{fmt(xenonMag,2)}</span></div>
+                      <Slider value={[xenonMag]} min={0} max={2} step={0.01} onValueChange={([v]) => setXenonMag(v)} />
+                      <div className="grid grid-cols-2 gap-3 pt-1">
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between"><span>Ripple %</span><span className="tabular-nums">{fmt(xenonRipplePct*100,0)}%</span></div>
+                          <Slider value={[xenonRipplePct]} min={0} max={0.2} step={0.01} onValueChange={([v]) => setXenonRipplePct(v)} />
+                        </div>
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between"><span>Ripple period (nm)</span><span className="tabular-nums">{fmt(xenonPeriodNm,0)}</span></div>
+                          <Slider value={[xenonPeriodNm]} min={5} max={80} step={1} onValueChange={([v]) => setXenonPeriodNm(v)} />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
-                <div className="flex items-center gap-3 pt-1">
-                  <Switch checked={includeWaterPeaks} onCheckedChange={setIncludeWaterPeaks} id="wtr"/>
-                  <Label htmlFor="wtr">Apply water bands 1450/1930 nm</Label>
+                <div className="space-y-4">
+                  <Label className="font-medium">Laser & Supercontinuum</Label>
+                  <div className="space-y-3">
+                    {/* Laser */}
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between"><span>Laser magnitude</span><span className="tabular-nums">{fmt(laserMag,2)}</span></div>
+                      <Slider value={[laserMag]} min={0} max={2} step={0.01} onValueChange={([v]) => setLaserMag(v)} />
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between"><span>Laser wavelength</span><span className="tabular-nums">{fmt(laserNm,1)} nm</span></div>
+                      <Slider value={[laserNm]} min={1100} max={2500} step={1} onValueChange={([v]) => setLaserNm(v)} />
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between"><span>Laser width</span><span className="tabular-nums">{fmt(laserWidth,1)} nm</span></div>
+                      <Slider value={[laserWidth]} min={0.5} max={20} step={0.5} onValueChange={([v]) => setLaserWidth(v)} />
+                    </div>
+                    {/* Supercontinuum */}
+                    <div className="pt-2 space-y-1">
+                      <div className="flex items-center justify-between"><span>Supercontinuum</span><span className="tabular-nums">{fmt(scMag,2)}</span></div>
+                      <Slider value={[scMag]} min={0} max={2} step={0.01} onValueChange={([v]) => setScMag(v)} />
+                      <div className="grid gap-2">
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between"><span>Band (nm)</span><span className="tabular-nums">{fmt(scBand[0],0)}–{fmt(scBand[1],0)}</span></div>
+                          <Slider value={scBand} min={1100} max={2500} step={5} onValueChange={(vals) => setScBand([Math.min(vals[0], vals[1]), Math.max(vals[0], vals[1])])} />
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-1">
+                            <div className="flex items-center justify-between"><span>Ripple %</span><span className="tabular-nums">{fmt(scRipplePct*100,0)}%</span></div>
+                            <Slider value={[scRipplePct]} min={0} max={0.3} step={0.01} onValueChange={([v]) => setScRipplePct(v)} />
+                          </div>
+                          <div className="space-y-1">
+                            <div className="flex items-center justify-between"><span>Ripple period (nm)</span><span className="tabular-nums">{fmt(scPeriodNm,0)}</span></div>
+                            <Slider value={[scPeriodNm]} min={2} max={60} step={1} onValueChange={([v]) => setScPeriodNm(v)} />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3 pt-1">
+                      <Switch checked={includeWaterPeaks} onCheckedChange={setIncludeWaterPeaks} id="wtr"/>
+                      <Label htmlFor="wtr">Apply water bands 1450/1930 nm</Label>
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
-          </div>
 
-          <div className="pt-3 text-xs text-muted-foreground">
-            <div>Estimated resolution at {VVCSEL_NM} nm: <b>{fmt(res.dLambda,2)} nm</b> (≈{fmt(res.dv,2)} cm⁻¹) — increases with mirror travel.</div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* --- Graphs (side-by-side beneath settings) --- */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
-        <Card>
-          <CardHeader className="pb-2"><CardTitle>Live Interferogram</CardTitle></CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-6 pb-2">
-              <div className="flex items-center gap-2">
-                <Switch checked={showInGaAs} onCheckedChange={setShowInGaAs} id="showInGaAs" />
-                <Label htmlFor="showInGaAs">InGaAs PD (red)</Label>
+              <div className="pt-3 text-xs text-slate-300">
+                <div>Estimated resolution at {VVCSEL_NM} nm: <b>{fmt(res.dLambda,2)} nm</b> (≈{fmt(res.dv,2)} cm⁻¹) — increases with mirror travel.</div>
               </div>
-              <div className="flex items-center gap-2">
-                <Switch checked={showSi} onCheckedChange={setShowSi} id="showSi" />
-                <Label htmlFor="showSi">Si PD (blue)</Label>
-              </div>
-            </div>
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={interferogram} margin={{ left: 8, right: 8, top: 8, bottom: 8 }}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis type="number" dataKey="x" tickFormatter={(v)=>`${fmt(v,0)}`} label={{ value: "OPD (µm)", position: "insideBottomRight", offset: -4 }} domain={[interferogram.length?interferogram[0].x:0, interferogram.length?interferogram[interferogram.length-1].x:0]} />
-                  <YAxis tickFormatter={(v)=>fmt(v,2)} domain={["auto","auto"]} />
-                  <Tooltip formatter={(v)=>fmt(v,4)} labelFormatter={(v)=>`OPD ${fmt(v,1)} µm`} />
-                  <Legend />
-                  <>
-                    {showInGaAs && (
-                      <Line type="monotone" dataKey="ingaas" dot={false} isAnimationActive={false} name="InGaAs PD" stroke="#ef4444" />
-                    )}
-                    {showSi && (
-                      <Line type="monotone" dataKey="sipd" dot={false} isAnimationActive={false} name="Si PD" stroke="#3b82f6" />
-                    )}
-                  </>
-                  <>
-                    {showInGaAs && (
-                      <Line type="monotone" dataKey="ingaas_live" dot={false} isAnimationActive={false} name="Live (InGaAs)" stroke="#b91c1c" strokeWidth={LIVE_STROKE} />
-                    )}
-                    {showSi && (
-                      <Line type="monotone" dataKey="sipd_live" dot={false} isAnimationActive={false} name="Live (Si)" stroke="#1d4ed8" strokeWidth={LIVE_STROKE} />
-                    )}
-                  </>
-                  {cursorX != null && (
-                    <ReferenceLine x={cursorX} stroke="#64748b" strokeDasharray="4 4" />
-                  )}
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardHeader className="pb-2"><CardTitle>Spectrum (FFT of interferogram)</CardTitle></CardHeader>
-          <CardContent>
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={spectrum} margin={{ left: 8, right: 8, top: 8, bottom: 8 }}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="nm" type="number" domain={[1100,2500]} tickCount={8} label={{ value: "Wavelength (nm)", position: "insideBottomRight", offset: -4 }} />
-                  <YAxis domain={["auto","auto"]} tickFormatter={(v)=>fmt(v,1)} />
-                  <Tooltip formatter={(v)=>fmt(v,3)} labelFormatter={(v)=>`${fmt(v,0)} nm`} />
-                  <Legend />
-                  <Line type="monotone" dataKey="S" dot={false} isAnimationActive={false} name="Spectral amplitude" />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+          {/* --- Graphs (side-by-side beneath settings) --- */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+            <Card>
+              <CardHeader className="pb-2"><CardTitle>Live Interferogram</CardTitle></CardHeader>
+              <CardContent>
+                <div className="flex items-center gap-6 pb-2">
+                  <div className="flex items-center gap-2">
+                    <Switch checked={showInGaAs} onCheckedChange={setShowInGaAs} id="showInGaAs" />
+                    <Label htmlFor="showInGaAs">InGaAs PD (red)</Label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Switch checked={showSi} onCheckedChange={setShowSi} id="showSi" />
+                    <Label htmlFor="showSi">Si PD (blue)</Label>
+                  </div>
+                </div>
+                <div className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={interferogram} margin={{ left: 8, right: 8, top: 8, bottom: 8 }}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis type="number" dataKey="x" tickFormatter={(v)=>`${fmt(v,0)}`} label={{ value: "OPD (µm)", position: "insideBottomRight", offset: -4 }} domain={[interferogram.length?interferogram[0].x:0, interferogram.length?interferogram[interferogram.length-1].x:0]} />
+                      <YAxis tickFormatter={(v)=>fmt(v,2)} domain={["auto","auto"]} />
+                      <Tooltip formatter={(v)=>fmt(v,4)} labelFormatter={(v)=>`OPD ${fmt(v,1)} µm`} />
+                      <Legend />
+                      <>
+                        {showInGaAs && (
+                          <Line type="monotone" dataKey="ingaas" dot={false} isAnimationActive={false} name="InGaAs PD" stroke="#ef4444" />
+                        )}
+                        {showSi && (
+                          <Line type="monotone" dataKey="sipd" dot={false} isAnimationActive={false} name="Si PD" stroke="#3b82f6" />
+                        )}
+                      </>
+                      <>
+                        {showInGaAs && (
+                          <Line type="monotone" dataKey="ingaas_live" dot={false} isAnimationActive={false} name="Live (InGaAs)" stroke="#b91c1c" strokeWidth={LIVE_STROKE} />
+                        )}
+                        {showSi && (
+                          <Line type="monotone" dataKey="sipd_live" dot={false} isAnimationActive={false} name="Live (Si)" stroke="#1d4ed8" strokeWidth={LIVE_STROKE} />
+                        )}
+                      </>
+                      {cursorX != null && (
+                        <ReferenceLine x={cursorX} stroke="#64748b" strokeDasharray="4 4" />
+                      )}
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </CardContent>
+            </Card>
 
-      {/* --- Diagram (below both graphs) --- */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle>Optical Layout (Michelson)</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="w-full h-[32rem]">
-            <OpticalDiagram offsetPx={memsOffsetPx} mirrorAmp_um={mirrorAmp_um} pdLevel={pdLevel} />
+            <Card>
+              <CardHeader className="pb-2"><CardTitle>Spectrum (FFT of interferogram)</CardTitle></CardHeader>
+              <CardContent>
+                <div className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={spectrum} margin={{ left: 8, right: 8, top: 8, bottom: 8 }}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="nm" type="number" domain={[1100,2500]} tickCount={8} label={{ value: "Wavelength (nm)", position: "insideBottomRight", offset: -4 }} />
+                      <YAxis domain={["auto","auto"]} tickFormatter={(v)=>fmt(v,1)} />
+                      <Tooltip formatter={(v)=>fmt(v,3)} labelFormatter={(v)=>`${fmt(v,0)} nm`} />
+                      <Legend />
+                      <Line type="monotone" dataKey="S" dot={false} isAnimationActive={false} name="Spectral amplitude" />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </CardContent>
+            </Card>
           </div>
-        </CardContent>
-      </Card>
 
-      <Card>
-        <CardHeader className="pb-2"><CardTitle>Notes</CardTitle></CardHeader>
-        <CardContent className="text-sm text-muted-foreground space-y-1">
-          <ul className="list-disc ml-5 space-y-1">
-            <li>OPD (optical path difference) is <b>twice</b> the physical mirror displacement; centerburst occurs at zero OPD.</li>
-            <li>Increasing mirror amplitude improves spectral resolution (∆v ≈ 1/(4·L₁)). Zero-fill adds interpolation points but does not improve true resolution.</li>
-            <li>VCSEL metrology is illustrated as a red path sharing the interferometer via a dichroic; its fringes provide uniform OPD sampling.</li>
-          </ul>
-        </CardContent>
-      </Card>
+          {/* --- Diagram (below both graphs) --- */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle>Optical Layout (Michelson)</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="w-full h-[32rem]">
+                <OpticalDiagram offsetPx={memsOffsetPx} mirrorAmp_um={mirrorAmp_um} pdLevel={pdLevel} />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-2"><CardTitle>Notes</CardTitle></CardHeader>
+            <CardContent className="text-sm text-slate-300 space-y-1">
+              <ul className="list-disc ml-5 space-y-1">
+                <li>OPD (optical path difference) is <b>twice</b> the physical mirror displacement; centerburst occurs at zero OPD.</li>
+                <li>Increasing mirror amplitude improves spectral resolution (∆v ≈ 1/(4·L₁)). Zero-fill adds interpolation points but does not improve true resolution.</li>
+                <li>VCSEL metrology is illustrated as a red path sharing the interferometer via a dichroic; its fringes provide uniform OPD sampling.</li>
+              </ul>
+            </CardContent>
+          </Card>
+        </div>
+      </main>
     </div>
   );
 }
@@ -773,7 +816,7 @@ function OpticalDiagram({ offsetPx, mirrorAmp_um, pdLevel = 1 }) {
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-full">
       {(() => { const pad = 24; return (
-        <rect x={pad} y={pad} width={W - 2*pad} height={H - 2*pad} rx={12} className="fill-muted/30" />
+        <rect x={pad} y={pad} width={W - 2*pad} height={H - 2*pad} rx={12} className="fill-slate-800/40" />
       ); })()}
 
       {/* Marker definitions for arrowheads */}
