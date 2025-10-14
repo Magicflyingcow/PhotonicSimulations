@@ -496,18 +496,13 @@ export default function PmtSimulator() {
       emitGrouped(nDet, false);
       emitGrouped(nDark, true);
 
-      const desiredVis = Math.min(
-        Math.max(0, samplePoisson(Math.max(0, electronVisualRate) * dt)),
-        visualEventPool.length
-      );
       const queueCapacity = Math.max(0, MAX_ELECTRONS * 4 - electronSpawnsRef.current.length);
-      const K = Math.min(desiredVis, queueCapacity);
-      for (let k = 0; k < K; k++) {
-        if (!visualEventPool.length) break;
-        const idx = Math.floor(Math.random() * visualEventPool.length);
-        const event = visualEventPool[idx];
-        visualEventPool[idx] = visualEventPool[visualEventPool.length - 1];
-        visualEventPool.pop();
+      const keepProbability =
+        electronRate > 0 ? Math.min(1, Math.max(0, electronVisualRate) / electronRate) : 0;
+      let kept = 0;
+      for (let i = 0; i < visualEventPool.length && kept < queueCapacity; i++) {
+        const event = visualEventPool[i];
+        if (keepProbability < 1 && Math.random() >= keepProbability) continue;
         const y = beamY + (Math.random() - 0.5) * (H * 0.2);
         electronSpawnsRef.current.push({ t: event.time, y });
         if (!event.isDark && photonsRef.current.length < MAX_ANIMATED_PHOTONS) {
@@ -525,6 +520,7 @@ export default function PmtSimulator() {
             photonsRef.current.push(new Photon(startX, y, photonSpeed, delay));
           }
         }
+        kept++;
       }
 
       const visualPhotonRate = highPhotonFlux ? 800 : p.flux;
