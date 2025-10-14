@@ -1,8 +1,9 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
-import App from "./App.jsx";
 import IndexPage from "./pages/Index.jsx";
+import FtirSimulator from "./pages/FtirSimulator.jsx";
+import PmtSimulator from "./pages/PmtSimulator.jsx";
 import "./index.css";
 
 const router = createBrowserRouter([
@@ -12,7 +13,11 @@ const router = createBrowserRouter([
   },
   {
     path: "/ftir",
-    element: <App />,
+    element: <FtirSimulator />,
+  },
+  {
+    path: "/pmt",
+    element: <PmtSimulator />,
   },
 ]);
 

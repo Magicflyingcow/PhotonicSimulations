@@ -13,12 +13,12 @@ export default function IndexPage() {
           <header className="space-y-3 text-center lg:text-left">
             <h1 className="text-3xl font-semibold tracking-tight">Photonic Simulations</h1>
             <p className="mx-auto max-w-2xl text-sm text-slate-300 lg:mx-0">
-              Explore interactive tools for understanding optical hardware, signal processing, and spectroscopy. This index will grow
-              as we publish more experiments.
+              Explore interactive tools for understanding optical hardware, signal processing, and spectroscopy. This index will
+              grow as we publish more experiments.
             </p>
           </header>
 
-          <section className="grid gap-4 sm:grid-cols-2">
+          <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <Card className="flex flex-col border-slate-800 bg-slate-900/70">
               <CardHeader className="space-y-1">
                 <CardTitle className="text-xl">FTIR Michelson Interferometer</CardTitle>
@@ -26,12 +26,24 @@ export default function IndexPage() {
               </CardHeader>
               <CardContent className="flex flex-1 flex-col justify-between gap-4 text-sm text-slate-300">
                 <p>
-                  Launch the full simulation environment for a compact Fourier-transform infrared spectrometer, including interactive
-                  controls for mirrors, sources, and signal processing.
+                  Launch the full simulation environment for a compact Fourier-transform infrared spectrometer, including
+                  interactive controls for mirrors, sources, and signal processing.
                 </p>
-                <Button onClick={() => navigate("/ftir")}>
-                  Open simulation
-                </Button>
+                <Button onClick={() => navigate("/ftir")}>Open simulation</Button>
+              </CardContent>
+            </Card>
+
+            <Card className="flex flex-col border-slate-800 bg-slate-900/60">
+              <CardHeader className="space-y-1">
+                <CardTitle className="text-xl">PMT Photon Counter</CardTitle>
+                <p className="text-sm text-slate-400">Transit dynamics · TTL pulse shaping · live scopes</p>
+              </CardHeader>
+              <CardContent className="flex flex-1 flex-col justify-between gap-4 text-sm text-slate-300">
+                <p>
+                  Visualize how a photomultiplier tube converts photon arrivals into analog voltage pulses and digital TTL
+                  outputs, with animated particles and comparator timing controls.
+                </p>
+                <Button onClick={() => navigate("/pmt")}>Open simulation</Button>
               </CardContent>
             </Card>
 
@@ -41,7 +53,8 @@ export default function IndexPage() {
               </CardHeader>
               <CardContent className="flex flex-1 flex-col justify-center text-sm text-slate-400">
                 <p>
-                  We&apos;re curating additional photonics demos—from laser tuning to spectral retrieval. Check back for new launches!
+                  We&apos;re curating additional photonics demos—from laser tuning to spectral retrieval. Check back for new
+                  launches!
                 </p>
               </CardContent>
             </Card>
