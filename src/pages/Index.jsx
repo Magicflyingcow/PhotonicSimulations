@@ -47,7 +47,21 @@ export default function IndexPage() {
               </CardContent>
             </Card>
 
-            <Card className="flex flex-col border-slate-800 bg-slate-900/40">
+            <Card className="flex flex-col border-slate-800 bg-slate-900/50">
+              <CardHeader className="space-y-1">
+                <CardTitle className="text-xl">Profile Sensor Speckle Demo</CardTitle>
+                <p className="text-sm text-slate-400">Laser speckle · row/column projections · animated motion</p>
+              </CardHeader>
+              <CardContent className="flex flex-1 flex-col justify-between gap-4 text-sm text-slate-300">
+                <p>
+                  Explore a tileable speckle field sampled by a 2D detector. Drag to pan the sensor window, visualize row/column
+                  sums, and animate smooth subpixel motion.
+                </p>
+                <Button onClick={() => navigate("/profile-sensor")}>Open simulation</Button>
+              </CardContent>
+            </Card>
+
+            <Card className="flex flex-col border-slate-800 bg-slate-900/30">
               <CardHeader>
                 <CardTitle className="text-xl text-slate-400">More simulations coming soon</CardTitle>
               </CardHeader>
