@@ -523,15 +523,6 @@ export default function PmtSimulator() {
         kept++;
       }
 
-      const visualPhotonRate = highPhotonFlux ? 800 : p.flux;
-      const photonCapacity = Math.max(0, MAX_ANIMATED_PHOTONS - photonsRef.current.length);
-      const nPhVis = Math.min(photonCapacity, samplePoisson(Math.max(0, visualPhotonRate) * dt));
-      for (let i = 0; i < nPhVis; i++) {
-        const x = photonSourceX + Math.random() * (targetX - photonSourceX);
-        const y = beamY + (Math.random() - 0.5) * (H * 0.2);
-        photonsRef.current.push(new Photon(x, y, photonSpeed));
-      }
-
       if (pmtCanvas) {
         const ctx = pmtCanvas.getContext("2d");
         if (ctx) {
