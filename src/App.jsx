@@ -5,6 +5,7 @@ import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, ReferenceLine } from "recharts";
+import { useNavigate } from "react-router-dom";
 
 function IconBase({ children, className = "" }) {
   return (
@@ -366,6 +367,8 @@ export default function FTIR_Michelson_VCSEL_Sim() {
   const [showSi, setShowSi] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
 
+  const navigate = useNavigate();
+
   // Build mixed source spectrum B(λ)
   const source = useMemo(() => buildSourceMix({
     halogenMag, flatMag, laserMag, laserNm, laserWidth, includeWaterPeaks,
@@ -527,11 +530,21 @@ export default function FTIR_Michelson_VCSEL_Sim() {
     <div className="min-h-screen bg-slate-950 text-slate-100">
       <main className="px-4 py-10 lg:px-8">
         <div className="mx-auto max-w-[1200px] space-y-6">
-          <div className="flex flex-col gap-2">
-            <h1 className="text-2xl font-semibold tracking-tight">FTIR Engine — Michelson Interferometer with VCSEL Metrology</h1>
-            <p className="text-sm text-slate-300">
-              Real-time simulation of a compact FT-NIR engine: beamsplitter, fixed & movable mirrors (MEMS), VCSEL metrology, interferogram acquisition, and FFT-based spectrum.
-            </p>
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="flex flex-col gap-2">
+              <h1 className="text-2xl font-semibold tracking-tight">FTIR Engine — Michelson Interferometer with VCSEL Metrology</h1>
+              <p className="text-sm text-slate-300">
+                Real-time simulation of a compact FT-NIR engine: beamsplitter, fixed & movable mirrors (MEMS), VCSEL metrology, interferogram acquisition, and FFT-based spectrum.
+              </p>
+            </div>
+            <Button
+              onClick={() => navigate("/")}
+              variant="ghost"
+              size="sm"
+              className="self-start whitespace-nowrap"
+            >
+              ← Back to simulations
+            </Button>
           </div>
 
           {/* --- Top controls bar --- */}
