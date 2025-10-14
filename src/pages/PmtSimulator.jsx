@@ -83,15 +83,25 @@ function stepTowards(current, target, dt, tau = 0.15) {
 
 // ================= PARTICLES & DRAWING =================
 class Photon {
-  constructor(x, y, speed) {
+  constructor(x, y, speed, delay = 0) {
     this.x = x;
     this.y = y;
     this.speed = speed;
+    this.delay = delay;
     this.alive = true;
   }
 
   update(dt, targetX) {
-    this.x += this.speed * dt;
+    let remaining = dt;
+    if (this.delay > 0) {
+      if (remaining <= this.delay) {
+        this.delay -= remaining;
+        return;
+      }
+      remaining -= this.delay;
+      this.delay = 0;
+    }
+    this.x += this.speed * remaining;
     if (this.x >= targetX) this.alive = false;
   }
 }
@@ -455,16 +465,19 @@ export default function PmtSimulator() {
 
       const photonSpeed = W * 0.6;
       const electronSpeed = W * 1.2;
-      const electronTransitTime = Math.max(0, (xEndAnode - (targetX + 2)) / Math.max(1e-6, electronSpeed));
+      const photonSourceX = xLeft - 20;
+      const electronStartX = targetX + 2;
+      const electronTransitTime = Math.max(0, (xEndAnode - electronStartX) / Math.max(1e-6, electronSpeed));
+      const photonTravel = Math.max(0, (targetX - photonSourceX) / Math.max(1e-6, photonSpeed));
 
       const lambdaDet = p.flux * p.qe * dt;
       const lambdaDark = p.darkRate * dt;
       const nDet = samplePoisson(lambdaDet);
       const nDark = samplePoisson(lambdaDark);
 
-      const photonTravel = (targetX - -10) / Math.max(1e-6, photonSpeed);
       const MAX_GROUPS = 800;
-      const spawnTimes = [];
+      const visualEventPool = [];
+      const intervalStart = tRef.current - dt;
 
       function emitGrouped(count, isDark) {
         if (count <= 0) return;
@@ -472,12 +485,11 @@ export default function PmtSimulator() {
         const baseA = p.gain * (isDark ? 0.9 : 1);
         const share = count / groups;
         for (let g = 0; g < groups; g++) {
-          const u = Math.random() * dt;
-          const tDet = tRef.current + u;
-          const tSpawn = isDark ? tDet : tDet + photonTravel;
+          const tEvent = intervalStart + Math.random() * dt;
+          const tSpawn = tEvent;
           const t0 = tSpawn + electronTransitTime;
           pulsesRef.current.push({ t0, A: baseA * share });
-          spawnTimes.push(tSpawn);
+          visualEventPool.push({ time: tSpawn, isDark });
         }
       }
 
@@ -486,26 +498,40 @@ export default function PmtSimulator() {
 
       const desiredVis = Math.min(
         Math.max(0, samplePoisson(Math.max(0, electronVisualRate) * dt)),
-        spawnTimes.length
+        visualEventPool.length
       );
       const queueCapacity = Math.max(0, MAX_ELECTRONS * 4 - electronSpawnsRef.current.length);
       const K = Math.min(desiredVis, queueCapacity);
       for (let k = 0; k < K; k++) {
-        const idx = Math.floor(Math.random() * spawnTimes.length);
-        const tS = spawnTimes[idx];
-        spawnTimes[idx] = spawnTimes[spawnTimes.length - 1];
-        spawnTimes.pop();
+        if (!visualEventPool.length) break;
+        const idx = Math.floor(Math.random() * visualEventPool.length);
+        const event = visualEventPool[idx];
+        visualEventPool[idx] = visualEventPool[visualEventPool.length - 1];
+        visualEventPool.pop();
         const y = beamY + (Math.random() - 0.5) * (H * 0.2);
-        electronSpawnsRef.current.push({ t: tS, y });
+        electronSpawnsRef.current.push({ t: event.time, y });
+        if (!event.isDark && photonsRef.current.length < MAX_ANIMATED_PHOTONS) {
+          const emissionTime = event.time - photonTravel;
+          const age = tRef.current - emissionTime;
+          let delay = 0;
+          let startX = photonSourceX;
+          if (age < 0) {
+            delay = -age;
+          } else {
+            startX = photonSourceX + photonSpeed * age;
+          }
+          startX = Math.max(photonSourceX, Math.min(targetX - 0.5, startX));
+          if (startX < targetX) {
+            photonsRef.current.push(new Photon(startX, y, photonSpeed, delay));
+          }
+        }
       }
 
       const visualPhotonRate = highPhotonFlux ? 800 : p.flux;
-      const nPhVis = Math.min(
-        MAX_ANIMATED_PHOTONS - photonsRef.current.length,
-        samplePoisson(Math.max(0, visualPhotonRate) * dt)
-      );
+      const photonCapacity = Math.max(0, MAX_ANIMATED_PHOTONS - photonsRef.current.length);
+      const nPhVis = Math.min(photonCapacity, samplePoisson(Math.max(0, visualPhotonRate) * dt));
       for (let i = 0; i < nPhVis; i++) {
-        const x = -10 + photonSpeed * (Math.random() * dt);
+        const x = photonSourceX + Math.random() * (targetX - photonSourceX);
         const y = beamY + (Math.random() - 0.5) * (H * 0.2);
         photonsRef.current.push(new Photon(x, y, photonSpeed));
       }
@@ -526,7 +552,7 @@ export default function PmtSimulator() {
             drawFluxBlur(ctx, xStart, xEnd, beamY, Math.max(4, H * 0.14), intensity);
           }
           if (electronRate > 1e3) {
-            const xStartEl = targetX + 2;
+            const xStartEl = electronStartX;
             const xEndEl = xEndAnode;
             const intensityE = Math.min(1, Math.max(0, (Math.log10(Math.max(1, electronRate)) - 3) / 4));
             drawElectronBlur(ctx, xStartEl, xEndEl, beamY, Math.max(3, H * 0.12), intensityE);
@@ -537,7 +563,7 @@ export default function PmtSimulator() {
             for (const s of electronSpawnsRef.current) {
               if (s.t <= tRef.current && electronsRef.current.length < MAX_ELECTRONS) {
                 const age = Math.max(0, tRef.current - s.t);
-                const x0 = targetX + 2 + electronSpeed * age;
+                const x0 = electronStartX + electronSpeed * age;
                 if (x0 < xEndAnode) {
                   electronsRef.current.push(new Electron(x0, s.y, electronSpeed, xEndAnode));
                 }
