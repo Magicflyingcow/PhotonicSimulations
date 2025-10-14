@@ -4,6 +4,7 @@ import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import IndexPage from "./pages/Index.jsx";
 import FtirSimulator from "./pages/FtirSimulator.jsx";
 import PmtSimulator from "./pages/PmtSimulator.jsx";
+import ProfileSensor from "./pages/ProfileSensor.jsx";
 import "./index.css";
 
 const router = createBrowserRouter([
@@ -18,6 +19,10 @@ const router = createBrowserRouter([
   {
     path: "/pmt",
     element: <PmtSimulator />,
+  },
+  {
+    path: "/profile-sensor",
+    element: <ProfileSensor />,
   },
 ]);
 

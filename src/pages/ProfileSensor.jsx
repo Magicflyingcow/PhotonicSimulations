@@ -15,7 +15,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
  */
 
 // ---------- Small UI helpers ----------
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, children }) {
   return (
     <div className="bg-white rounded-2xl shadow border border-gray-200 p-4 overflow-hidden">
       <h2 className="text-sm font-semibold text-gray-800 mb-3 uppercase tracking-wide">{title}</h2>
@@ -31,21 +31,10 @@ function LabeledSlider({
   step,
   value,
   onChange,
-  format = (v: number) => String(v),
+  format = (v) => String(v),
   unit = "",
   isFloat = true,
   listId,
-}: {
-  label: string;
-  min: number;
-  max: number;
-  step: number;
-  value: number;
-  onChange: (v: number) => void;
-  format?: (v: number) => string;
-  unit?: string;
-  isFloat?: boolean;
-  listId?: string;
 }) {
   return (
     <div className="flex flex-wrap items-center gap-3 min-w-0">
@@ -74,7 +63,7 @@ function LabeledSlider({
   );
 }
 
-function Toggle({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
+function Toggle({ label, checked, onChange }) {
   return (
     <label className="flex items-center gap-2 text-sm text-gray-700 select-none">
       <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} className="scale-110" />
@@ -114,18 +103,18 @@ export default function ProfileSensorDemo() {
   const baseOffset = useRef({ x: 0, y: 0 });
 
   // Canvas & dragging
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const canvasRef = useRef(null);
   const [dragging, setDragging] = useState(false);
-  const dragStartRef = useRef({ x: 0, y: 0, ox: 0, oy: 0, id: 0 as number | null });
+  const dragStartRef = useRef({ x: 0, y: 0, ox: 0, oy: 0, id: null });
 
   // Animation refs
-  const rafRef = useRef<number | null>(null);
-  const t0Ref = useRef<number | null>(null);
+  const rafRef = useRef(null);
+  const t0Ref = useRef(null);
   const lastTRef = useRef(0);
 
   // ---------- Utilities ----------
-  const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
-  const mod = (n: number, m: number) => ((n % m) + m) % m; // wrap for negatives
+  const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+  const mod = (n, m) => ((n % m) + m) % m; // wrap for negatives
 
   // Nice colormap (purple→teal→yellow)
   const colorStops = useMemo(
@@ -138,8 +127,8 @@ export default function ProfileSensorDemo() {
     ],
     []
   );
-  const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
-  function colormap(v: number) {
+  const lerp = (a, b, t) => a + (b - a) * t;
+  function colormap(v) {
     const n = colorStops.length - 1;
     const t = clamp(v, 0, 1) * n;
     const i = Math.floor(t);
@@ -155,7 +144,7 @@ export default function ProfileSensorDemo() {
   // ---------- Speckle generation (tileable) ----------
   const speckleRef = useRef(new Float32Array(TEX * TEX));
 
-  function gaussianKernel1D(s: number) {
+  function gaussianKernel1D(s) {
     const radius = Math.max(1, Math.ceil(3 * s));
     const size = radius * 2 + 1;
     const k = new Float32Array(size);
@@ -170,7 +159,7 @@ export default function ProfileSensorDemo() {
     return { k, radius };
   }
 
-  function convolveWrapX(src: Float32Array, dst: Float32Array, width: number, height: number, k: Float32Array, radius: number) {
+  function convolveWrapX(src, dst, width, height, k, radius) {
     for (let y = 0; y < height; y++) {
       const row = y * width;
       for (let x = 0; x < width; x++) {
@@ -184,7 +173,7 @@ export default function ProfileSensorDemo() {
     }
   }
 
-  function convolveWrapY(src: Float32Array, dst: Float32Array, width: number, height: number, k: Float32Array, radius: number) {
+  function convolveWrapY(src, dst, width, height, k, radius) {
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
         let acc = 0;
@@ -239,7 +228,7 @@ export default function ProfileSensorDemo() {
   }, [sigma]);
 
   // ---------- Viewport sampling (smooth or nearest) ----------
-  function sampleViewport(offY: number, offX: number) {
+  function sampleViewport(offY, offX) {
     const src = speckleRef.current;
     const view = new Float32Array(H * W);
 
@@ -288,7 +277,7 @@ export default function ProfileSensorDemo() {
   }
 
   // ---------- Build composite (image + projections) ----------
-  function buildComposite(view: Float32Array) {
+  function buildComposite(view) {
     const sumX = new Float32Array(W);
     const sumY = new Float32Array(H);
     for (let y = 0; y < H; y++) {
@@ -298,7 +287,7 @@ export default function ProfileSensorDemo() {
         sumY[y] += v;
       }
     }
-    const norm = (arr: Float32Array) => {
+    const norm = (arr) => {
       let min = Infinity,
         max = -Infinity;
       for (let i = 0; i < arr.length; i++) {
@@ -340,7 +329,7 @@ export default function ProfileSensorDemo() {
   }
 
   // ---------- Render ----------
-  function render(comp: Float32Array, ctx: CanvasRenderingContext2D) {
+  function render(comp, ctx) {
     ctx.clearRect(0, 0, compW * scale, compH * scale);
     for (let y = 0; y < compH; y++) {
       for (let x = 0; x < compW; x++) {
@@ -351,7 +340,7 @@ export default function ProfileSensorDemo() {
     }
   }
 
-  const drawWithOffset = (offY: number, offX: number) => {
+  const drawWithOffset = (offY, offX) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
@@ -372,7 +361,7 @@ export default function ProfileSensorDemo() {
     t0Ref.current = null;
     if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
 
-    const animate = (now: number) => {
+    const animate = (now) => {
       if (t0Ref.current === null) t0Ref.current = now;
       const t = (now - t0Ref.current) / 1000; // seconds
       lastTRef.current = t;
@@ -394,7 +383,7 @@ export default function ProfileSensorDemo() {
   }, [scale, size, xFreq, yFreq, xMag, yMag, smooth]);
 
   // ---------- Pointer interactions ----------
-  const onPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
+  const onPointerDown = (e) => {
     const rect = e.currentTarget.getBoundingClientRect();
     const px = e.clientX - rect.left;
     const py = e.clientY - rect.top;
@@ -407,7 +396,7 @@ export default function ProfileSensorDemo() {
     }
   };
 
-  const onPointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
+  const onPointerMove = (e) => {
     if (!dragging) return;
     const rect = e.currentTarget.getBoundingClientRect();
     const px = e.clientX - rect.left;
@@ -425,12 +414,17 @@ export default function ProfileSensorDemo() {
     drawWithOffset(baseOffset.current.y + ay, baseOffset.current.x + ax);
   };
 
-  const onPointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
+  const onPointerUp = (e) => {
     if (!dragging) return;
     setDragging(false);
-    try {
-      e.currentTarget.releasePointerCapture(dragStartRef.current.id!);
-    } catch {}
+    const captureId = dragStartRef.current.id;
+    if (captureId !== null && captureId !== undefined) {
+      try {
+        e.currentTarget.releasePointerCapture(captureId);
+      } catch (err) {
+        // Ignore release errors (browser may auto-release on pointer up)
+      }
+    }
   };
 
   // ---------- UI helpers ----------
