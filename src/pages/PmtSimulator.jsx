@@ -344,7 +344,7 @@ function drawTTLOscope(canvas, samples, timeWindow) {
 function Control({ label, value, min, max, step, onValueChange }) {
   return (
     <div className="space-y-2">
-      <Label className="text-slate-300">{label}</Label>
+      <Label className="text-slate-700">{label}</Label>
       <Slider value={value} min={min} max={max} step={step} onValueChange={onValueChange} />
     </div>
   );
@@ -790,7 +790,7 @@ export default function PmtSimulator() {
       />
       <div className="flex items-center gap-4">
         <Switch checked={running} onCheckedChange={setRunning} id="pmt-running" />
-        <Label htmlFor="pmt-running" className="text-slate-300">
+        <Label htmlFor="pmt-running" className="text-slate-600">
           {running ? "Running" : "Paused"}
         </Label>
         <Button variant="outline" size="sm" onClick={reset}>
@@ -801,7 +801,7 @@ export default function PmtSimulator() {
   );
 
   return (
-    <div className="min-h-screen w-full bg-gradient-to-b from-slate-950 to-slate-900 px-4 py-6 text-slate-200 md:px-8 md:py-10">
+    <div className="min-h-screen w-full bg-gradient-to-b from-slate-100 via-slate-50 to-white px-4 py-6 text-slate-900 md:px-8 md:py-10">
       <div className="mx-auto flex max-w-6xl flex-col gap-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <motion.h1
@@ -816,23 +816,23 @@ export default function PmtSimulator() {
           </Button>
         </div>
 
-        <p className="max-w-3xl text-sm text-slate-300">
+        <p className="max-w-3xl text-sm text-slate-600">
           Voltage pulses feed a comparator. On a rising threshold crossing (and not during dead time) the photon counter emits a
           fixed-width TTL pulse. Photons travel into the brown photocathode; when detected, a blue electron launches toward the
           anode after a transit delay, contributing to the oscilloscope trace.
         </p>
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <div className="rounded-xl border border-slate-800/80 bg-slate-900/60 p-3">
-            <div className="text-xs text-slate-400">TTL count rate</div>
+          <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+            <div className="text-xs text-slate-500">TTL count rate</div>
             <div className="text-lg font-semibold">{ttlRate.toFixed(0)} cps</div>
           </div>
-          <div className="rounded-xl border border-slate-800/80 bg-slate-900/60 p-3">
-            <div className="text-xs text-slate-400">Photon flux</div>
+          <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+            <div className="text-xs text-slate-500">Photon flux</div>
             <div className="text-lg font-semibold">{compact(flux)} /s</div>
           </div>
-          <div className="rounded-xl border border-slate-800/80 bg-slate-900/60 p-3">
-            <div className="text-xs text-slate-400">Quantum efficiency</div>
+          <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+            <div className="text-xs text-slate-500">Quantum efficiency</div>
             <div className="text-lg font-semibold">{(qe * 100).toFixed(0)}%</div>
           </div>
         </div>
@@ -840,13 +840,13 @@ export default function PmtSimulator() {
         <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[1.1fr_0.9fr]">
           <Card className="h-[520px]">
             <CardContent className="grid h-full grid-rows-[1fr_auto_0.6fr] gap-3 pt-3">
-              <div className="h-full rounded-md border border-slate-800/60 bg-slate-900/40">
+              <div className="h-full rounded-md border border-slate-200 bg-slate-50">
                 <canvas ref={pmtCanvasRef} className="h-full w-full" />
               </div>
-              <div className="h-[150px] rounded-md border border-slate-800/60 bg-slate-900/40">
+              <div className="h-[150px] rounded-md border border-slate-200 bg-slate-50">
                 <canvas ref={oscCanvasRef} className="h-full w-full" />
               </div>
-              <div className="h-[100px] rounded-md border border-slate-800/60 bg-slate-900/40">
+              <div className="h-[100px] rounded-md border border-slate-200 bg-slate-50">
                 <canvas ref={ttlCanvasRef} className="h-full w-full" />
               </div>
             </CardContent>

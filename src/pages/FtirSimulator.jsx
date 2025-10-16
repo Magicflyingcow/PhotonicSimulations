@@ -527,13 +527,13 @@ export default function FTIR_Michelson_VCSEL_Sim() {
   const res = estimateResolutionNm(VVCSEL_NM, mirrorAmp_um);
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100">
+    <div className="min-h-screen bg-slate-50 text-slate-900">
       <main className="px-4 py-10 lg:px-8">
         <div className="mx-auto max-w-[1200px] space-y-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div className="flex flex-col gap-2">
               <h1 className="text-2xl font-semibold tracking-tight">FTIR Engine — Michelson Interferometer with VCSEL Metrology</h1>
-              <p className="text-sm text-slate-300">
+              <p className="text-sm text-slate-600">
                 Real-time simulation of a compact FT-NIR engine: beamsplitter, fixed & movable mirrors (MEMS), VCSEL metrology, interferogram acquisition, and FFT-based spectrum.
               </p>
             </div>
@@ -599,7 +599,7 @@ export default function FTIR_Michelson_VCSEL_Sim() {
               </div>
 
               {/* Advanced (collapsed) */}
-              <div className="border rounded-lg p-3 bg-slate-800/40">
+              <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
                 <button type="button" onClick={()=>setShowAdvanced(v=>!v)} className="w-full flex items-center justify-between text-left">
                   <span className="font-medium">Advanced</span>
                   <ChevronDownIcon className={`w-4 h-4 transition-transform ${showAdvanced?"rotate-180":""}`} />
@@ -706,7 +706,7 @@ export default function FTIR_Michelson_VCSEL_Sim() {
                 </div>
               </div>
 
-              <div className="pt-3 text-xs text-slate-300">
+              <div className="pt-3 text-xs text-slate-600">
                 <div>Estimated resolution at {VVCSEL_NM} nm: <b>{fmt(res.dLambda,2)} nm</b> (≈{fmt(res.dv,2)} cm⁻¹) — increases with mirror travel.</div>
               </div>
             </CardContent>
@@ -793,7 +793,7 @@ export default function FTIR_Michelson_VCSEL_Sim() {
 
           <Card>
             <CardHeader className="pb-2"><CardTitle>Notes</CardTitle></CardHeader>
-            <CardContent className="text-sm text-slate-300 space-y-1">
+            <CardContent className="space-y-1 text-sm text-slate-600">
               <ul className="list-disc ml-5 space-y-1">
                 <li>OPD (optical path difference) is <b>twice</b> the physical mirror displacement; centerburst occurs at zero OPD.</li>
                 <li>Increasing mirror amplitude improves spectral resolution (∆v ≈ 1/(4·L₁)). Zero-fill adds interpolation points but does not improve true resolution.</li>
@@ -829,7 +829,7 @@ function OpticalDiagram({ offsetPx, mirrorAmp_um, pdLevel = 1 }) {
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-full">
       {(() => { const pad = 24; return (
-        <rect x={pad} y={pad} width={W - 2*pad} height={H - 2*pad} rx={12} className="fill-slate-800/40" />
+        <rect x={pad} y={pad} width={W - 2*pad} height={H - 2*pad} rx={12} className="fill-slate-100" />
       ); })()}
 
       {/* Marker definitions for arrowheads */}
