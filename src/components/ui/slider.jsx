@@ -39,6 +39,7 @@ export function Slider({ value = [0], min = 0, max = 100, step = 1, onValueChang
         step={step}
         value={value[0]}
         onChange={handleSingleChange}
+        onInput={handleSingleChange}
         {...props}
       />
     );
@@ -74,6 +75,7 @@ export function Slider({ value = [0], min = 0, max = 100, step = 1, onValueChang
         step={step}
         value={value[0]}
         onChange={handleRangeChange(0)}
+        onInput={handleRangeChange(0)}
         className={cn(multiThumbStyles, thumbPseudoStyles)}
         {...rangeProps}
       />
@@ -84,6 +86,7 @@ export function Slider({ value = [0], min = 0, max = 100, step = 1, onValueChang
         step={step}
         value={value[1]}
         onChange={handleRangeChange(1)}
+        onInput={handleRangeChange(1)}
         className={cn(multiThumbStyles, thumbPseudoStyles)}
         {...rangeProps}
       />

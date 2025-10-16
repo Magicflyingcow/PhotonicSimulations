@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, useMotionValue, useSpring } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
@@ -342,10 +342,20 @@ function drawTTLOscope(canvas, samples, timeWindow) {
 }
 
 function Control({ label, value, min, max, step, onValueChange }) {
+  const [, startTransition] = useTransition();
+  const handleValueChange = useCallback(
+    (next) => {
+      startTransition(() => {
+        onValueChange?.(next);
+      });
+    },
+    [onValueChange, startTransition],
+  );
+
   return (
     <div className="space-y-2">
       <Label className="text-slate-700">{label}</Label>
-      <Slider value={value} min={min} max={max} step={step} onValueChange={onValueChange} />
+      <Slider value={value} min={min} max={max} step={step} onValueChange={handleValueChange} />
     </div>
   );
 }
