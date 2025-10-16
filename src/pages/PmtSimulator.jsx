@@ -36,44 +36,25 @@ function compact(n) {
 }
 
 // ================= SIMULATION HELPERS =================
-function samplePoisson(lambda) {
-  if (lambda <= 0) return 0;
-  if (lambda < 30) {
-    let L = Math.exp(-lambda);
-    let k = 0;
-    let p = 1;
-    while (p > L) {
-      k++;
-      p *= Math.random();
-    }
-    return k - 1;
-  }
-  const mean = lambda;
-  const std = Math.sqrt(lambda);
-  const u1 = Math.random();
-  const u2 = Math.random();
-  const z = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
-  return Math.max(0, Math.round(mean + std * z));
+function sampleExponential(rate) {
+  if (!(rate > 0)) return Infinity;
+  const u = Math.random();
+  const v = u <= 0 ? Number.MIN_VALUE : u;
+  return -Math.log(1 - v) / rate;
 }
 
-function pulseShape(t, t0, A, tauRise, tauFall) {
-  if (t <= t0) return 0;
-  const x = t - t0;
-  const y = Math.exp(-x / tauFall) - Math.exp(-x / tauRise);
-  const xPeak = (tauRise * tauFall * Math.log(tauFall / tauRise)) / (tauFall - tauRise);
-  const peak = Math.exp(-xPeak / tauFall) - Math.exp(-xPeak / tauRise);
-  const norm = peak > 0 ? y / peak : 0;
-  return A * norm;
-}
-
-function computeVoltage(tSample, pulses, tauRise, tauFall, darkNoise) {
-  let v = 0;
-  for (let i = 0; i < pulses.length; i++) {
-    const p = pulses[i];
-    v += pulseShape(tSample, p.t0, p.A, tauRise, tauFall);
+function advanceAnalogState(state, toTime, tauRise, tauFall) {
+  if (!state) return;
+  if (toTime <= state.lastTime) {
+    state.lastTime = Math.max(state.lastTime, toTime);
+    return;
   }
-  v += (Math.random() - 0.5) * 2 * darkNoise;
-  return v;
+  const dt = toTime - state.lastTime;
+  const decayRise = Math.exp(-dt / tauRise);
+  const decayFall = Math.exp(-dt / tauFall);
+  state.rise *= decayRise;
+  state.fall *= decayFall;
+  state.lastTime = toTime;
 }
 
 function stepTowards(current, target, dt, tau = 0.15) {
@@ -102,22 +83,41 @@ class Photon {
       this.delay = 0;
     }
     this.x += this.speed * remaining;
-    if (this.x >= targetX) this.alive = false;
+    if (this.x >= targetX) {
+      this.x = targetX;
+      this.alive = false;
+    }
   }
 }
 
 class Electron {
-  constructor(x, y, speed, xEnd) {
+  constructor(x, y, speed, xEnd, amplitude, createdAt, isDark = false) {
     this.x = x;
     this.y = y;
     this.speed = speed;
     this.xEnd = xEnd;
     this.alive = true;
+    this.amplitude = amplitude;
+    this.createdAt = createdAt;
+    this.isDark = isDark;
   }
 
-  update(dt) {
+  update(dt, currentTime) {
+    const prevX = this.x;
     this.x += this.speed * dt;
-    if (this.x >= this.xEnd) this.alive = false;
+    if (this.x >= this.xEnd) {
+      const distance = this.xEnd - prevX;
+      const travelTime = distance > 0 ? distance / this.speed : 0;
+      const arrivalTime = currentTime - dt + travelTime;
+      this.x = this.xEnd;
+      this.alive = false;
+      return {
+        t: Math.max(this.createdAt, arrivalTime),
+        amplitude: this.amplitude,
+        isDark: this.isDark,
+      };
+    }
+    return null;
   }
 }
 
@@ -386,14 +386,17 @@ export default function PmtSimulator() {
 
   const lastTsRef = useRef(null);
   const tRef = useRef(0);
-  const pulsesRef = useRef([]);
   const sampleRate = 240;
   const sampleInterval = 1 / sampleRate;
   const nextSampleTimeRef = useRef(0);
   const samplesRef = useRef([]);
   const photonsRef = useRef([]);
   const electronsRef = useRef([]);
-  const electronSpawnsRef = useRef([]);
+  const photonHitsRef = useRef([]);
+  const arrivalEventsRef = useRef([]);
+  const analogStateRef = useRef({ rise: 0, fall: 0, lastTime: 0 });
+  const nextPhotonTimeRef = useRef(null);
+  const nextDarkTimeRef = useRef(null);
   const ttlActiveUntilRef = useRef(0);
   const nextTriggerReadyRef = useRef(0);
   const prevAboveRef = useRef(false);
@@ -476,7 +479,6 @@ export default function PmtSimulator() {
 
       const highPhotonFlux = p.flux > 1e3;
       const electronRate = p.flux * p.qe + p.darkRate;
-      const electronVisualRate = electronRate > 1e3 ? Math.min(2000, electronRate) : electronRate;
 
       const photonSpeed = W * 0.6;
       const electronSpeed = W * 1.2;
@@ -485,57 +487,112 @@ export default function PmtSimulator() {
       const electronTransitTime = Math.max(0, (xEndAnode - electronStartX) / Math.max(1e-6, electronSpeed));
       const photonTravel = Math.max(0, (targetX - photonSourceX) / Math.max(1e-6, photonSpeed));
 
-      const lambdaDet = p.flux * p.qe * dt;
-      const lambdaDark = p.darkRate * dt;
-      const nDet = samplePoisson(lambdaDet);
-      const nDark = samplePoisson(lambdaDark);
+      const amplitudeForEvent = (isDark) => {
+        const variation = 0.85 + Math.random() * 0.3;
+        const base = p.gain * variation;
+        return isDark ? base * 0.9 : base;
+      };
 
-      const MAX_GROUPS = 800;
-      const visualEventPool = [];
-      const intervalStart = tRef.current - dt;
-
-      function emitGrouped(count, isDark) {
-        if (count <= 0) return;
-        const groups = Math.min(count, MAX_GROUPS);
-        const baseA = p.gain * (isDark ? 0.9 : 1);
-        const share = count / groups;
-        for (let g = 0; g < groups; g++) {
-          const tEvent = intervalStart + Math.random() * dt;
-          const tSpawn = tEvent;
-          const t0 = tSpawn + electronTransitTime;
-          pulsesRef.current.push({ t0, A: baseA * share });
-          visualEventPool.push({ time: tSpawn, isDark });
+      const registerArrival = (event) => {
+        const queue = arrivalEventsRef.current;
+        if (!queue.length || queue[queue.length - 1].t <= event.t) {
+          queue.push(event);
+          return;
         }
+        const idx = queue.findIndex((e) => e.t > event.t);
+        if (idx === -1) queue.push(event);
+        else queue.splice(idx, 0, event);
+      };
+
+      const spawnElectron = (eventTime, y, amplitude, isDark) => {
+        if (!Number.isFinite(eventTime)) return;
+        const arrivalTime = eventTime + electronTransitTime;
+        if (arrivalTime <= tRef.current) {
+          registerArrival({ t: arrivalTime, amplitude, isDark });
+          return;
+        }
+        if (electronsRef.current.length >= MAX_ELECTRONS) {
+          registerArrival({ t: arrivalTime, amplitude, isDark });
+          return;
+        }
+        const age = Math.max(0, tRef.current - eventTime);
+        if (age >= electronTransitTime) {
+          registerArrival({ t: arrivalTime, amplitude, isDark });
+          return;
+        }
+        const startX = electronStartX + electronSpeed * age;
+        if (startX >= xEndAnode) {
+          registerArrival({ t: arrivalTime, amplitude, isDark });
+          return;
+        }
+        electronsRef.current.push(
+          new Electron(startX, y, electronSpeed, xEndAnode, amplitude, eventTime, isDark),
+        );
+      };
+
+      const enqueuePhotonHit = (arrivalTime, y, willConvert) => {
+        photonHitsRef.current.push({ t: arrivalTime, y, willConvert });
+      };
+
+      const spawnPhotonEvent = (emissionTime) => {
+        const y = beamY + (Math.random() - 0.5) * (H * 0.2);
+        const arrivalTime = emissionTime + photonTravel;
+        const willConvert = Math.random() < p.qe;
+        enqueuePhotonHit(arrivalTime, y, willConvert);
+        if (photonsRef.current.length >= MAX_ANIMATED_PHOTONS) return;
+        const age = Math.max(0, tRef.current - emissionTime);
+        if (age >= photonTravel) return;
+        const startX = Math.max(
+          photonSourceX,
+          Math.min(targetX - 0.5, photonSourceX + photonSpeed * age),
+        );
+        if (startX < targetX) {
+          photonsRef.current.push(new Photon(startX, y, photonSpeed));
+        }
+      };
+
+      const spawnDarkElectron = (eventTime) => {
+        const y = beamY + (Math.random() - 0.5) * (H * 0.2);
+        const amplitude = amplitudeForEvent(true);
+        spawnElectron(eventTime, y, amplitude, true);
+      };
+
+      if (!(p.flux > 0)) {
+        nextPhotonTimeRef.current = Infinity;
+      } else if (nextPhotonTimeRef.current == null || !isFinite(nextPhotonTimeRef.current)) {
+        nextPhotonTimeRef.current = tRef.current + sampleExponential(p.flux);
       }
 
-      emitGrouped(nDet, false);
-      emitGrouped(nDark, true);
+      if (!(p.darkRate > 0)) {
+        nextDarkTimeRef.current = Infinity;
+      } else if (nextDarkTimeRef.current == null || !isFinite(nextDarkTimeRef.current)) {
+        nextDarkTimeRef.current = tRef.current + sampleExponential(p.darkRate);
+      }
 
-      const queueCapacity = Math.max(0, MAX_ELECTRONS * 4 - electronSpawnsRef.current.length);
-      const keepProbability =
-        electronRate > 0 ? Math.min(1, Math.max(0, electronVisualRate) / electronRate) : 0;
-      let kept = 0;
-      for (let i = 0; i < visualEventPool.length && kept < queueCapacity; i++) {
-        const event = visualEventPool[i];
-        if (keepProbability < 1 && Math.random() >= keepProbability) continue;
-        const y = beamY + (Math.random() - 0.5) * (H * 0.2);
-        electronSpawnsRef.current.push({ t: event.time, y });
-        if (!event.isDark && photonsRef.current.length < MAX_ANIMATED_PHOTONS) {
-          const emissionTime = event.time - photonTravel;
-          const age = tRef.current - emissionTime;
-          let delay = 0;
-          let startX = photonSourceX;
-          if (age < 0) {
-            delay = -age;
+      while (nextPhotonTimeRef.current <= tRef.current) {
+        spawnPhotonEvent(nextPhotonTimeRef.current);
+        nextPhotonTimeRef.current += sampleExponential(p.flux);
+      }
+
+      while (nextDarkTimeRef.current <= tRef.current) {
+        spawnDarkElectron(nextDarkTimeRef.current);
+        nextDarkTimeRef.current += sampleExponential(p.darkRate);
+      }
+
+      if (photonHitsRef.current.length) {
+        const remainHits = [];
+        for (let i = 0; i < photonHitsRef.current.length; i++) {
+          const hit = photonHitsRef.current[i];
+          if (hit.t <= tRef.current) {
+            if (hit.willConvert) {
+              const amplitude = amplitudeForEvent(false);
+              spawnElectron(hit.t, hit.y, amplitude, false);
+            }
           } else {
-            startX = photonSourceX + photonSpeed * age;
-          }
-          startX = Math.max(photonSourceX, Math.min(targetX - 0.5, startX));
-          if (startX < targetX) {
-            photonsRef.current.push(new Photon(startX, y, photonSpeed, delay));
+            remainHits.push(hit);
           }
         }
-        kept++;
+        photonHitsRef.current = remainHits;
       }
 
       if (pmtCanvas) {
@@ -560,25 +617,12 @@ export default function PmtSimulator() {
             drawElectronBlur(ctx, xStartEl, xEndEl, beamY, Math.max(3, H * 0.12), intensityE);
           }
 
-          if (electronSpawnsRef.current.length) {
-            const remain = [];
-            for (const s of electronSpawnsRef.current) {
-              if (s.t <= tRef.current && electronsRef.current.length < MAX_ELECTRONS) {
-                const age = Math.max(0, tRef.current - s.t);
-                const x0 = electronStartX + electronSpeed * age;
-                if (x0 < xEndAnode) {
-                  electronsRef.current.push(new Electron(x0, s.y, electronSpeed, xEndAnode));
-                }
-              } else {
-                remain.push(s);
-              }
-            }
-            electronSpawnsRef.current = remain;
-          }
-
           for (let i = 0; i < electronsRef.current.length; i++) {
             const el = electronsRef.current[i];
-            el.update(dt);
+            const arrival = el.update(dt, tRef.current);
+            if (arrival) {
+              registerArrival(arrival);
+            }
             drawElectron(ctx, el);
           }
           electronsRef.current = electronsRef.current.filter((e) => e.alive);
@@ -596,7 +640,20 @@ export default function PmtSimulator() {
 
       while (nextSampleTimeRef.current <= tRef.current) {
         const tSample = nextSampleTimeRef.current;
-        const v_V = computeVoltage(tSample, pulsesRef.current, p.tauRise, p.tauFall, p.darkNoise);
+        const state = analogStateRef.current;
+        const queue = arrivalEventsRef.current;
+
+        while (queue.length && queue[0].t <= tSample) {
+          const event = queue.shift();
+          const eventTime = Math.max(event.t, state.lastTime);
+          advanceAnalogState(state, eventTime, p.tauRise, p.tauFall);
+          state.rise += event.amplitude;
+          state.fall += event.amplitude;
+        }
+
+        advanceAnalogState(state, tSample, p.tauRise, p.tauFall);
+        const vSignal = state.fall - state.rise;
+        const v_V = vSignal + (Math.random() - 0.5) * 2 * p.darkNoise;
 
         const above = v_V >= p.thresholdVoltage;
         const ttlWidth = p.ttlWidthMs / 1000;
@@ -625,9 +682,6 @@ export default function PmtSimulator() {
       while (samplesRef.current.length && samplesRef.current[0].t < tMin) {
         samplesRef.current.shift();
       }
-      const maxTau = Math.max(p.tauRise, p.tauFall) * 8;
-      pulsesRef.current = pulsesRef.current.filter((pl) => pl.t0 + maxTau > tRef.current);
-
       drawOscilloscope(oscCanvasRef.current, samplesRef.current, p.timeWindow, p.thresholdVoltage);
       drawTTLOscope(ttlCanvasRef.current, samplesRef.current, p.timeWindow);
 
@@ -656,17 +710,21 @@ export default function PmtSimulator() {
   }, []);
 
   const reset = () => {
-    pulsesRef.current = [];
     samplesRef.current = [];
     photonsRef.current = [];
     electronsRef.current = [];
-    electronSpawnsRef.current = [];
+    photonHitsRef.current = [];
+    arrivalEventsRef.current = [];
+    analogStateRef.current = { rise: 0, fall: 0, lastTime: 0 };
+    nextPhotonTimeRef.current = null;
+    nextDarkTimeRef.current = null;
     tRef.current = 0;
     nextSampleTimeRef.current = 0;
     lastTsRef.current = null;
     ttlActiveUntilRef.current = 0;
     nextTriggerReadyRef.current = 0;
     prevAboveRef.current = false;
+    eventsRef.current = [];
   };
 
   const Controls = () => (
