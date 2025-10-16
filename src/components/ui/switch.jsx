@@ -1,37 +1,17 @@
 import { cn } from "@/lib/utils";
 
-export function Switch({ checked = false, onCheckedChange, className, id }) {
-  const toggle = (next) => {
-    onCheckedChange?.(next);
-  };
-
+export function Switch({ checked = false, onCheckedChange, className, id, name }) {
   return (
-    <span className="inline-flex items-center">
-      <input
-        id={id}
-        type="checkbox"
-        className="sr-only"
-        checked={checked}
-        onChange={(event) => toggle(event.target.checked)}
-      />
-      <button
-        type="button"
-        role="switch"
-        aria-checked={checked}
-        onClick={() => toggle(!checked)}
-        className={cn(
-          "relative inline-flex h-5 w-9 items-center rounded-full border border-slate-300 transition-colors",
-          checked ? "bg-sky-500" : "bg-slate-200",
-          className
-        )}
-      >
-        <span
-          className={cn(
-            "inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform",
-            checked ? "translate-x-4" : "translate-x-0.5"
-          )}
-        />
-      </button>
-    </span>
+    <input
+      id={id}
+      name={name}
+      type="checkbox"
+      checked={checked}
+      onChange={(event) => onCheckedChange?.(event.target.checked)}
+      className={cn(
+        "h-5 w-5 cursor-pointer rounded border border-gray-400 bg-white text-gray-700 accent-gray-700 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-gray-400",
+        className
+      )}
+    />
   );
 }

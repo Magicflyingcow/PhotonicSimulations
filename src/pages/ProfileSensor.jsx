@@ -1,4 +1,6 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useId, useMemo, useRef, useState } from "react";
+import { Slider as RangeSlider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
 
 /**
  * Interactive Profile Sensor Demo (React)
@@ -39,15 +41,14 @@ function LabeledSlider({
   return (
     <div className="flex flex-wrap items-center gap-3 min-w-0">
       <label className="min-w-28 text-sm text-gray-700">{label}</label>
-      <input
-        type="range"
+      <RangeSlider
+        value={[value]}
         min={min}
         max={max}
         step={step}
-        value={value}
-        onChange={(e) => onChange(isFloat ? parseFloat(e.target.value) : parseInt(e.target.value, 10))}
+        onValueChange={([next]) => onChange(isFloat ? next : parseInt(next, 10))}
         list={listId}
-        className="flex-1 min-w-[140px] accent-gray-700"
+        className="flex-1 min-w-[140px]"
       />
       <input
         type="number"
@@ -63,12 +64,16 @@ function LabeledSlider({
   );
 }
 
-function Toggle({ label, checked, onChange }) {
+function Toggle({ label, checked, onChange, id }) {
+  const autoId = useId();
+  const inputId = id ?? autoId;
   return (
-    <label className="flex items-center gap-2 text-sm text-gray-700 select-none">
-      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} className="scale-110" />
-      {label}
-    </label>
+    <div className="flex items-center gap-2 text-sm text-gray-700 select-none">
+      <Switch id={inputId} checked={checked} onCheckedChange={onChange} />
+      <label htmlFor={inputId} className="cursor-pointer">
+        {label}
+      </label>
+    </div>
   );
 }
 
