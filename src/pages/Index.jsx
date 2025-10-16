@@ -7,18 +7,36 @@ export default function IndexPage() {
   const navigate = useNavigate();
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100">
-      <main className="px-4 py-10 lg:px-8">
-        <div className="mx-auto flex max-w-4xl flex-col gap-10">
-          <header className="space-y-3 text-center lg:text-left">
-            <h1 className="text-3xl font-semibold tracking-tight">Photonic Simulations</h1>
-            <p className="mx-auto max-w-2xl text-sm text-slate-300 lg:mx-0">
-              Explore interactive tools for understanding optical hardware, signal processing, and spectroscopy. This index will
-              grow as we publish more experiments.
-            </p>
-          </header>
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-100">
+      <div className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-6 py-16 md:px-10">
+        <header className="flex flex-wrap items-center justify-between gap-4 md:gap-6">
+          <div className="flex items-center gap-2">
+            <span className="text-lg font-semibold tracking-tight text-slate-100">Photonic Simulations</span>
+          </div>
+          <Button
+            className="shrink-0"
+            onClick={() => window.open("https://github.com/", "_blank", "noopener,noreferrer")}
+          >
+            View on GitHub
+          </Button>
+        </header>
 
-          <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <main className="mt-16 flex flex-1 flex-col gap-12">
+          <section className="space-y-6 text-center md:text-left">
+            <div className="space-y-4">
+              <h1 className="text-4xl font-semibold tracking-tight md:text-5xl">Simulate the Future of Photonics</h1>
+              <p className="mx-auto max-w-3xl text-base text-slate-300 md:text-lg md:mx-0">
+                Explore interactive tools for understanding optical hardware, signal processing, and spectroscopy. This index will
+                continue to expand as we launch new experiments and virtual labs.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center justify-center gap-4 md:justify-start">
+              <Button size="md" onClick={() => navigate("/ftir")}>Launch FTIR Simulation</Button>
+              <Button variant="secondary" size="md" onClick={() => navigate("/pmt")}>Explore PMT Demo</Button>
+            </div>
+          </section>
+
+          <section className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             <Card className="flex flex-col border-slate-800 bg-slate-900/70">
               <CardHeader className="space-y-1">
                 <CardTitle className="text-xl">FTIR Michelson Interferometer</CardTitle>
@@ -73,8 +91,8 @@ export default function IndexPage() {
               </CardContent>
             </Card>
           </section>
-        </div>
-      </main>
+        </main>
+      </div>
     </div>
   );
 }
