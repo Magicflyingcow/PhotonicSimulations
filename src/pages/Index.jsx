@@ -1,79 +1,53 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-
 export default function IndexPage() {
   const navigate = useNavigate();
 
+  const demos = [
+    {
+      name: "FTIR Michelson Interferometer",
+      description: "Live interferogram and spectrum tools.",
+      path: "/ftir",
+    },
+    {
+      name: "PMT Photon Counter",
+      description: "Pulse shaping and comparator timing demo.",
+      path: "/pmt",
+    },
+    {
+      name: "Profile Sensor Speckle",
+      description: "2D detector view with row/column projections.",
+      path: "/profile-sensor",
+    },
+  ];
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
-      <main className="px-4 py-10 lg:px-8">
-        <div className="mx-auto flex max-w-4xl flex-col gap-10">
-          <header className="space-y-3 text-center lg:text-left">
-            <h1 className="text-3xl font-semibold tracking-tight">Photonic Simulations</h1>
-            <p className="mx-auto max-w-2xl text-sm text-slate-300 lg:mx-0">
-              Explore interactive tools for understanding optical hardware, signal processing, and spectroscopy. This index will
-              grow as we publish more experiments.
-            </p>
-          </header>
+      <main className="mx-auto flex min-h-screen max-w-3xl flex-col justify-center gap-16 px-6 py-16">
+        <header className="space-y-3">
+          <p className="text-xs uppercase tracking-[0.4em] text-slate-500">Photonic Simulations</p>
+          <h1 className="text-4xl font-semibold tracking-tight">Simulation prototypes</h1>
+          <p className="text-sm text-slate-400">Internal tools for quick demonstration and validation.</p>
+        </header>
 
-          <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <Card className="flex flex-col border-slate-800 bg-slate-900/70">
-              <CardHeader className="space-y-1">
-                <CardTitle className="text-xl">FTIR Michelson Interferometer</CardTitle>
-                <p className="text-sm text-slate-400">VCSEL metrology · live interferogram · FFT spectrum</p>
-              </CardHeader>
-              <CardContent className="flex flex-1 flex-col justify-between gap-4 text-sm text-slate-300">
-                <p>
-                  Launch the full simulation environment for a compact Fourier-transform infrared spectrometer, including
-                  interactive controls for mirrors, sources, and signal processing.
-                </p>
-                <Button onClick={() => navigate("/ftir")}>Open simulation</Button>
-              </CardContent>
-            </Card>
+        <section className="space-y-4">
+          <p className="text-sm text-slate-400">Choose a module to launch:</p>
+          <ul className="space-y-3">
+            {demos.map((demo) => (
+              <li key={demo.path}>
+                <button
+                  onClick={() => navigate(demo.path)}
+                  className="group flex w-full items-center justify-between rounded-lg border border-slate-800 bg-slate-900/60 px-4 py-3 text-left transition hover:border-slate-700 hover:bg-slate-900"
+                >
+                  <span className="text-base font-medium text-slate-100 group-hover:text-white">{demo.name}</span>
+                  <span className="text-sm text-slate-500 group-hover:text-slate-300">{demo.description}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
 
-            <Card className="flex flex-col border-slate-800 bg-slate-900/60">
-              <CardHeader className="space-y-1">
-                <CardTitle className="text-xl">PMT Photon Counter</CardTitle>
-                <p className="text-sm text-slate-400">Transit dynamics · TTL pulse shaping · live scopes</p>
-              </CardHeader>
-              <CardContent className="flex flex-1 flex-col justify-between gap-4 text-sm text-slate-300">
-                <p>
-                  Visualize how a photomultiplier tube converts photon arrivals into analog voltage pulses and digital TTL
-                  outputs, with animated particles and comparator timing controls.
-                </p>
-                <Button onClick={() => navigate("/pmt")}>Open simulation</Button>
-              </CardContent>
-            </Card>
-
-            <Card className="flex flex-col border-slate-800 bg-slate-900/50">
-              <CardHeader className="space-y-1">
-                <CardTitle className="text-xl">Profile Sensor Speckle Demo</CardTitle>
-                <p className="text-sm text-slate-400">Laser speckle · row/column projections · animated motion</p>
-              </CardHeader>
-              <CardContent className="flex flex-1 flex-col justify-between gap-4 text-sm text-slate-300">
-                <p>
-                  Explore a tileable speckle field sampled by a 2D detector. Drag to pan the sensor window, visualize row/column
-                  sums, and animate smooth subpixel motion.
-                </p>
-                <Button onClick={() => navigate("/profile-sensor")}>Open simulation</Button>
-              </CardContent>
-            </Card>
-
-            <Card className="flex flex-col border-slate-800 bg-slate-900/30">
-              <CardHeader>
-                <CardTitle className="text-xl text-slate-400">More simulations coming soon</CardTitle>
-              </CardHeader>
-              <CardContent className="flex flex-1 flex-col justify-center text-sm text-slate-400">
-                <p>
-                  We&apos;re curating additional photonics demos—from laser tuning to spectral retrieval. Check back for new
-                  launches!
-                </p>
-              </CardContent>
-            </Card>
-          </section>
-        </div>
+        <footer className="text-xs text-slate-600">Version preview · For internal use only</footer>
       </main>
     </div>
   );
