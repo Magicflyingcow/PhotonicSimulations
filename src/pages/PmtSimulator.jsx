@@ -124,7 +124,11 @@ class Electron {
 const MAX_ANIMATED_PHOTONS = 500;
 const MAX_ELECTRONS = 800;
 
-function drawPMT(ctx, W, H) {
+function computePhotonEntryOffset(W) {
+  return Math.min(W * 0.25, 140);
+}
+
+function drawPMT(ctx, W, H, entryOffset = computePhotonEntryOffset(W)) {
   const cy = H * 0.5;
   const radius = Math.min(H * 0.22, W * 0.1);
   const tubeLen = Math.min(W * 0.75, W - 40);
@@ -162,7 +166,7 @@ function drawPMT(ctx, W, H) {
   ctx.strokeStyle = "rgba(250, 204, 21, 0.6)";
   ctx.lineWidth = 1.5;
   ctx.beginPath();
-  ctx.moveTo(xLeft - 20, cy);
+  ctx.moveTo(xLeft - entryOffset, cy);
   ctx.lineTo(pcX - pcR, cy);
   ctx.stroke();
   ctx.restore();
@@ -468,6 +472,7 @@ export default function PmtSimulator() {
       const pcX = xLeft + radius * 0.95;
       const targetX = pcX;
       const xEndAnode = xLeft + tubeLen - radius * 0.95;
+      const photonEntryOffset = computePhotonEntryOffset(W);
 
       const highPhotonFlux = p.flux > 1e3;
       const electronRate = p.flux * p.qe + p.darkRate;
@@ -475,7 +480,7 @@ export default function PmtSimulator() {
 
       const photonSpeed = W * 0.6;
       const electronSpeed = W * 1.2;
-      const photonSourceX = xLeft - 20;
+      const photonSourceX = xLeft - photonEntryOffset;
       const electronStartX = targetX + 2;
       const electronTransitTime = Math.max(0, (xEndAnode - electronStartX) / Math.max(1e-6, electronSpeed));
       const photonTravel = Math.max(0, (targetX - photonSourceX) / Math.max(1e-6, photonSpeed));
@@ -539,11 +544,11 @@ export default function PmtSimulator() {
           ctx.save();
           ctx.scale(dpr, dpr);
           ctx.clearRect(0, 0, W, H);
-          drawPMT(ctx, W, H);
+          drawPMT(ctx, W, H, photonEntryOffset);
 
           const pcR = Math.min(H * 0.22, W * 0.1) * 0.65;
           if (highPhotonFlux) {
-            const xStart = xLeft - 20;
+            const xStart = xLeft - photonEntryOffset;
             const xEnd = targetX - pcR;
             const intensity = Math.min(1, Math.max(0, (Math.log10(p.flux) - 3) / 4));
             drawFluxBlur(ctx, xStart, xEnd, beamY, Math.max(4, H * 0.14), intensity);
