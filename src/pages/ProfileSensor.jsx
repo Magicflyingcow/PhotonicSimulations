@@ -432,85 +432,89 @@ export default function ProfileSensorDemo() {
   const regenerate = () => regenerateSpeckle(sigma);
 
   return (
-    <div className="w-full mx-auto p-4">
-      <div className="mb-4">
-        <h1 className="text-xl font-semibold text-gray-900 dark:text-white drop-shadow-sm">Interactive Profile Sensor Demo</h1>
-        <p className="text-sm text-gray-700 dark:text-gray-200 drop-shadow-sm">Tileable laser speckle-like texture; drag to pan. Bottom: X sums · Right: Y sums. Animate with X/Y frequency and magnitude. Toggle smooth subpixel sampling.</p>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
-        {/* Canvas area */}
-        <div className="lg:col-span-8 xl:col-span-9">
-          <div className="rounded-2xl overflow-hidden shadow-lg border border-gray-200 inline-block bg-white">
-            <canvas
-              ref={canvasRef}
-              className="block"
-              width={compW * scale}
-              height={compH * scale}
-              onPointerDown={onPointerDown}
-              onPointerMove={onPointerMove}
-              onPointerUp={onPointerUp}
-            />
-          </div>
-          
+    <div className="min-h-screen bg-slate-50 py-8 px-4 text-slate-900">
+      <div className="mx-auto w-full max-w-6xl">
+        <div className="mb-4">
+          <h1 className="text-xl font-semibold text-slate-900 drop-shadow-sm">Interactive Profile Sensor Demo</h1>
+          <p className="text-sm text-slate-600 drop-shadow-sm">
+            Tileable laser speckle-like texture; drag to pan. Bottom: X sums · Right: Y sums. Animate with X/Y frequency and magnitude.
+            Toggle smooth subpixel sampling.
+          </p>
         </div>
 
-        {/* Control panel */}
-        <div className="lg:col-span-4 xl:col-span-3 lg:sticky lg:top-4">
-          <div className="flex flex-col gap-4">
-            <Section title="Sensor">
-              <div className="flex flex-wrap items-center gap-3 mb-3">
-                <label className="min-w-28 text-sm text-gray-700">Pixels</label>
-                <select
-                  className="px-3 py-2 rounded-xl border border-gray-300 bg-white shadow-sm text-sm w-full sm:max-w-[200px]"
-                  value={size}
-                  onChange={(e) => setSize(parseInt(e.target.value, 10))}
-                >
-                  <option value={64}>64</option>
-                  <option value={128}>128</option>
-                </select>
-              </div>
-              <LabeledSlider label="Display scale" min={3} max={12} step={1} value={scale} onChange={setScale} isFloat={false} />
-              <div className="text-[11px] text-gray-500 mt-2">Viewport: {W}×{H} px · Display scale: {scale}× · Texture: {TEX}×{TEX}</div>
-            </Section>
-
-            <Section title="Speckle">
-              <LabeledSlider
-                label="Grain σ"
-                min={1}
-                max={8}
-                step={0.5}
-                value={sigma}
-                onChange={setSigma}
-                format={(v) => v.toFixed(1)}
+        <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-12">
+          {/* Canvas area */}
+          <div className="lg:col-span-8 xl:col-span-9">
+            <div className="inline-block overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-lg">
+              <canvas
+                ref={canvasRef}
+                className="block"
+                width={compW * scale}
+                height={compH * scale}
+                onPointerDown={onPointerDown}
+                onPointerMove={onPointerMove}
+                onPointerUp={onPointerUp}
               />
-              <div className="mt-3 flex items-center justify-between">
-                <Toggle label="Smooth subpixel (bilinear)" checked={smooth} onChange={setSmooth} />
-                <button onClick={regenerate} className="px-3 py-1 rounded-2xl shadow text-sm bg-gray-100 hover:bg-gray-200">Regenerate</button>
-              </div>
-            </Section>
+            </div>
+          </div>
 
-            <Section title="Motion">
-              <datalist id="freqTicks">
-                <option value="0" />
-                <option value="0.5" />
-                <option value="1" />
-                <option value="1.5" />
-                <option value="2" />
-              </datalist>
-              <LabeledSlider label="X freq" min={0} max={2} step={0.01} value={xFreq} onChange={setXFreq} unit="Hz" listId="freqTicks" format={(v) => v.toFixed(2)} />
-              <LabeledSlider label="Y freq" min={0} max={2} step={0.01} value={yFreq} onChange={setYFreq} unit="Hz" listId="freqTicks" format={(v) => v.toFixed(2)} />
-              <LabeledSlider label="X mag" min={0} max={0.5} step={0.01} value={xMag} onChange={setXMag} unit="%" format={(v) => `${Math.round(v * 100)}` } />
-              <LabeledSlider label="Y mag" min={0} max={0.5} step={0.01} value={yMag} onChange={setYMag} unit="%" format={(v) => `${Math.round(v * 100)}` } />
-              <div className="text-[11px] text-gray-500 mt-1">Magnitude is a fraction of viewport size. 0.25 = 25% of width/height.</div>
-            </Section>
+          {/* Control panel */}
+          <div className="lg:col-span-4 xl:col-span-3 lg:sticky lg:top-4">
+            <div className="flex flex-col gap-4">
+              <Section title="Sensor">
+                <div className="mb-3 flex flex-wrap items-center gap-3">
+                  <label className="min-w-28 text-sm text-gray-700">Pixels</label>
+                  <select
+                    className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm sm:max-w-[200px]"
+                    value={size}
+                    onChange={(e) => setSize(parseInt(e.target.value, 10))}
+                  >
+                    <option value={64}>64</option>
+                    <option value={128}>128</option>
+                  </select>
+                </div>
+                <LabeledSlider label="Display scale" min={3} max={12} step={1} value={scale} onChange={setScale} isFloat={false} />
+                <div className="mt-2 text-[11px] text-gray-500">Viewport: {W}×{H} px · Display scale: {scale}× · Texture: {TEX}×{TEX}</div>
+              </Section>
 
-            <Section title="Actions">
-              <div className="flex items-center gap-2 flex-wrap">
-                <button onClick={resetOffsets} className="px-3 py-1 rounded-2xl shadow text-sm bg-gray-100 hover:bg-gray-200">Center view</button>
-                <button onClick={regenerate} className="px-3 py-1 rounded-2xl shadow text-sm bg-gray-100 hover:bg-gray-200">New speckle</button>
-              </div>
-            </Section>
+              <Section title="Speckle">
+                <LabeledSlider
+                  label="Grain σ"
+                  min={1}
+                  max={8}
+                  step={0.5}
+                  value={sigma}
+                  onChange={setSigma}
+                  format={(v) => v.toFixed(1)}
+                />
+                <div className="mt-3 flex items-center justify-between">
+                  <Toggle label="Smooth subpixel (bilinear)" checked={smooth} onChange={setSmooth} />
+                  <button onClick={regenerate} className="rounded-2xl bg-gray-100 px-3 py-1 text-sm shadow hover:bg-gray-200">Regenerate</button>
+                </div>
+              </Section>
+
+              <Section title="Motion">
+                <datalist id="freqTicks">
+                  <option value="0" />
+                  <option value="0.5" />
+                  <option value="1" />
+                  <option value="1.5" />
+                  <option value="2" />
+                </datalist>
+                <LabeledSlider label="X freq" min={0} max={2} step={0.01} value={xFreq} onChange={setXFreq} unit="Hz" listId="freqTicks" format={(v) => v.toFixed(2)} />
+                <LabeledSlider label="Y freq" min={0} max={2} step={0.01} value={yFreq} onChange={setYFreq} unit="Hz" listId="freqTicks" format={(v) => v.toFixed(2)} />
+                <LabeledSlider label="X mag" min={0} max={0.5} step={0.01} value={xMag} onChange={setXMag} unit="%" format={(v) => `${Math.round(v * 100)}` } />
+                <LabeledSlider label="Y mag" min={0} max={0.5} step={0.01} value={yMag} onChange={setYMag} unit="%" format={(v) => `${Math.round(v * 100)}` } />
+                <div className="mt-1 text-[11px] text-gray-500">Magnitude is a fraction of viewport size. 0.25 = 25% of width/height.</div>
+              </Section>
+
+              <Section title="Actions">
+                <div className="flex flex-wrap items-center gap-2">
+                  <button onClick={resetOffsets} className="rounded-2xl bg-gray-100 px-3 py-1 text-sm shadow hover:bg-gray-200">Center view</button>
+                  <button onClick={regenerate} className="rounded-2xl bg-gray-100 px-3 py-1 text-sm shadow hover:bg-gray-200">New speckle</button>
+                </div>
+              </Section>
+            </div>
           </div>
         </div>
       </div>

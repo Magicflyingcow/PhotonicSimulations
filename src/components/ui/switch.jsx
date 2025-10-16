@@ -20,8 +20,8 @@ export function Switch({ checked = false, onCheckedChange, className, id }) {
         aria-checked={checked}
         onClick={() => toggle(!checked)}
         className={cn(
-          "relative inline-flex h-5 w-9 items-center rounded-full border border-slate-600 transition-colors",
-          checked ? "bg-sky-500" : "bg-slate-700",
+          "relative inline-flex h-5 w-9 items-center rounded-full border border-slate-300 transition-colors",
+          checked ? "bg-sky-500" : "bg-slate-200",
           className
         )}
       >
