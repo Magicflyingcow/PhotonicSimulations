@@ -43,6 +43,18 @@ function sampleExponential(rate) {
   return -Math.log(1 - v) / rate;
 }
 
+function samplePoisson(lambda) {
+  if (!(lambda > 0)) return 0;
+  const L = Math.exp(-lambda);
+  let k = 0;
+  let p = 1;
+  do {
+    k += 1;
+    p *= Math.random();
+  } while (p > L);
+  return k - 1;
+}
+
 function advanceAnalogState(state, toTime, tauRise, tauFall) {
   if (!state) return;
   if (toTime <= state.lastTime) {
