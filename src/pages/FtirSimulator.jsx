@@ -62,6 +62,7 @@ const VVCSEL_WNUM = nmToWavenumber(VVCSEL_NM);
 
 // Chart styling constants (fixes ReferenceError: width is not defined)
 const LIVE_STROKE = 2; // px stroke width for the live scan overlays
+const SPECTRUM_STROKE = 3; // px stroke width for the FFT spectrum line
 
 // Physical constants for Planck curve (relative units)
 const C2_NM_K = 1.438777e7; // second radiation constant in nm*K
@@ -784,7 +785,14 @@ export default function FTIR_Michelson_VCSEL_Sim() {
                       <YAxis domain={["auto","auto"]} tickFormatter={(v)=>fmt(v,1)} />
                       <Tooltip formatter={(v)=>fmt(v,3)} labelFormatter={(v)=>`${fmt(v,0)} nm`} />
                       <Legend />
-                      <Line type="monotone" dataKey="S" dot={false} isAnimationActive={false} name="Spectral amplitude" />
+                      <Line
+                        type="monotone"
+                        dataKey="S"
+                        dot={false}
+                        isAnimationActive={false}
+                        name="Spectral amplitude"
+                        strokeWidth={SPECTRUM_STROKE}
+                      />
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
