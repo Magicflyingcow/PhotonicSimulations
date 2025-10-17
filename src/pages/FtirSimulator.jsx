@@ -173,6 +173,7 @@ function buildSourceMix({
   halogenMag, flatMag, laserMag, laserNm, laserWidth, includeWaterPeaks,
   xenonMag, xenonRipplePct, xenonPeriodNm,
   scMag, scStart, scStop, scRipplePct, scPeriodNm, scEdgeNm = 30,
+  noiseLevel = 0,
 }) {
   const lambda = [];
   const B = [];
@@ -211,7 +212,9 @@ function buildSourceMix({
       val *= (1 - 0.45 * Math.exp(-0.5 * ((nm - 1930) / 30) ** 2));
     }
 
-    B.push(val);
+    // Additive broadband noise (e.g., background light) applied to the input spectrum
+    const noisyVal = Math.max(0, val + noiseLevel);
+    B.push(noisyVal);
   }
   return { lambda, B, step };
 }
@@ -375,7 +378,8 @@ export default function FTIR_Michelson_VCSEL_Sim() {
     halogenMag, flatMag, laserMag, laserNm, laserWidth, includeWaterPeaks,
     xenonMag, xenonRipplePct, xenonPeriodNm,
     scMag, scStart: scBand[0], scStop: scBand[1], scRipplePct, scPeriodNm, scEdgeNm,
-  }), [halogenMag, flatMag, laserMag, laserNm, laserWidth, includeWaterPeaks, xenonMag, xenonRipplePct, xenonPeriodNm, scMag, scBand, scRipplePct, scPeriodNm, scEdgeNm]);
+    noiseLevel: noise,
+  }), [halogenMag, flatMag, laserMag, laserNm, laserWidth, includeWaterPeaks, xenonMag, xenonRipplePct, xenonPeriodNm, scMag, scBand, scRipplePct, scPeriodNm, scEdgeNm, noise]);
 
   // OPD grid: symmetric about zero; OPD = 2 * mirror displacement
   const { opd_cm, dx_cm } = useMemo(() => {
@@ -456,14 +460,14 @@ export default function FTIR_Michelson_VCSEL_Sim() {
         const acquireAt = (i) => {
           // InGaAs PD (measurement)
           const baseI = cleanInterf[i];
-          const noisyI = baseI + noise * (Math.random() * 2 - 1);
+          const noisyI = baseI;
           const alpha = 1 / Math.max(1, avgCount);
           const prevI = iBufferRef.current[i];
           iBufferRef.current[i] = (1 - alpha) * prevI + alpha * noisyI;
 
           // Si PD (VCSEL metrology)
           const baseSi = 1 + Math.cos(2 * Math.PI * VVCSEL_WNUM * opd_cm[i]);
-          const noisySi = baseSi + noise * (Math.random() * 2 - 1);
+          const noisySi = baseSi;
           const prevSi = siBufferRef.current[i];
           siBufferRef.current[i] = (1 - alpha) * prevSi + alpha * noisySi;
 
@@ -523,7 +527,7 @@ export default function FTIR_Michelson_VCSEL_Sim() {
     }
     rafId = requestAnimationFrame(step);
     return () => cancelAnimationFrame(rafId);
-  }, [running, driveHz, Npoints, avgCount, noise, cleanInterf, dx_cm, opd_cm, apodize, zeroFillFactor, mirrorAmp_um]);
+  }, [running, driveHz, Npoints, avgCount, cleanInterf, dx_cm, opd_cm, apodize, zeroFillFactor, mirrorAmp_um]);
 
   const res = estimateResolutionNm(VVCSEL_NM, mirrorAmp_um);
 
