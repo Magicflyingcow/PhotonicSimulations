@@ -727,10 +727,10 @@ export default function FTIR_Michelson_VCSEL_Sim() {
           </Card>
 
           {/* --- Graphs (side-by-side beneath settings) --- */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
-            <Card>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch">
+            <Card className="flex h-full flex-col">
               <CardHeader className="pb-2"><CardTitle>Live Interferogram</CardTitle></CardHeader>
-              <CardContent>
+              <CardContent className="flex flex-1 flex-col">
                 <div className="flex items-center gap-6 pb-2">
                   <div className="flex items-center gap-2">
                     <Switch checked={showInGaAs} onCheckedChange={setShowInGaAs} id="showInGaAs" />
@@ -741,7 +741,7 @@ export default function FTIR_Michelson_VCSEL_Sim() {
                     <Label htmlFor="showSi">Si PD (blue)</Label>
                   </div>
                 </div>
-                <div className="h-64">
+                <div className="flex-1 min-h-[16rem]">
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={interferogram} margin={{ left: 8, right: 8, top: 8, bottom: 8 }}>
                       <CartesianGrid strokeDasharray="3 3" />
@@ -774,10 +774,10 @@ export default function FTIR_Michelson_VCSEL_Sim() {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="flex h-full flex-col">
               <CardHeader className="pb-2"><CardTitle>Spectrum (FFT of interferogram)</CardTitle></CardHeader>
-              <CardContent>
-                <div className="h-64">
+              <CardContent className="flex flex-1 flex-col">
+                <div className="flex-1 min-h-[16rem]">
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={spectrum} margin={{ left: 8, right: 8, top: 8, bottom: 8 }}>
                       <CartesianGrid strokeDasharray="3 3" />
