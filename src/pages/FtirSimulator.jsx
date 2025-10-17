@@ -784,7 +784,14 @@ export default function FTIR_Michelson_VCSEL_Sim() {
                       <YAxis domain={["auto","auto"]} tickFormatter={(v)=>fmt(v,1)} />
                       <Tooltip formatter={(v)=>fmt(v,3)} labelFormatter={(v)=>`${fmt(v,0)} nm`} />
                       <Legend />
-                      <Line type="monotone" dataKey="S" dot={false} isAnimationActive={false} name="Spectral amplitude" />
+                      <Line
+                        type="monotone"
+                        dataKey="S"
+                        dot={false}
+                        isAnimationActive={false}
+                        name="Spectral amplitude"
+                        strokeWidth={2.5}
+                      />
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
