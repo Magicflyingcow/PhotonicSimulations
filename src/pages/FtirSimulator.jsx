@@ -366,6 +366,7 @@ export default function FTIR_Michelson_VCSEL_Sim() {
   const [showInGaAs, setShowInGaAs] = useState(true);
   const [showSi, setShowSi] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [showSources, setShowSources] = useState(false);
 
   const navigate = useNavigate();
 
@@ -628,82 +629,94 @@ export default function FTIR_Michelson_VCSEL_Sim() {
               </div>
 
               {/* Sources (mix) */}
-              <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                <div className="space-y-4">
-                  <Label className="font-medium">Sources (mix)</Label>
-                  <div className="space-y-3">
-                    {/* Halogen */}
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between"><span>Halogen</span><span className="tabular-nums">{fmt(halogenMag,2)}</span></div>
-                      <Slider value={[halogenMag]} min={0} max={2} step={0.01} onValueChange={([v]) => setHalogenMag(v)} />
-                    </div>
-                    {/* Flat */}
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between"><span>Flat</span><span className="tabular-nums">{fmt(flatMag,2)}</span></div>
-                      <Slider value={[flatMag]} min={0} max={2} step={0.01} onValueChange={([v]) => setFlatMag(v)} />
-                    </div>
-                    {/* Xenon arc */}
-                    <div className="pt-2 space-y-1">
-                      <div className="flex items-center justify-between"><span>Xenon arc (6000 K)</span><span className="tabular-nums">{fmt(xenonMag,2)}</span></div>
-                      <Slider value={[xenonMag]} min={0} max={2} step={0.01} onValueChange={([v]) => setXenonMag(v)} />
-                      <div className="grid grid-cols-2 gap-3 pt-1">
+              <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
+                <button
+                  type="button"
+                  onClick={() => setShowSources((v) => !v)}
+                  className="w-full flex items-center justify-between text-left"
+                >
+                  <span className="font-medium">Light sources</span>
+                  <ChevronDownIcon className={`w-4 h-4 transition-transform ${showSources ? "rotate-180" : ""}`} />
+                </button>
+                {showSources && (
+                  <div className="mt-4 grid grid-cols-1 xl:grid-cols-2 gap-6">
+                    <div className="space-y-4">
+                      <Label className="font-medium">Sources (mix)</Label>
+                      <div className="space-y-3">
+                        {/* Halogen */}
                         <div className="space-y-1">
-                          <div className="flex items-center justify-between"><span>Ripple %</span><span className="tabular-nums">{fmt(xenonRipplePct*100,0)}%</span></div>
-                          <Slider value={[xenonRipplePct]} min={0} max={0.2} step={0.01} onValueChange={([v]) => setXenonRipplePct(v)} />
+                          <div className="flex items-center justify-between"><span>Halogen</span><span className="tabular-nums">{fmt(halogenMag,2)}</span></div>
+                          <Slider value={[halogenMag]} min={0} max={2} step={0.01} onValueChange={([v]) => setHalogenMag(v)} />
                         </div>
+                        {/* Flat */}
                         <div className="space-y-1">
-                          <div className="flex items-center justify-between"><span>Ripple period (nm)</span><span className="tabular-nums">{fmt(xenonPeriodNm,0)}</span></div>
-                          <Slider value={[xenonPeriodNm]} min={5} max={80} step={1} onValueChange={([v]) => setXenonPeriodNm(v)} />
+                          <div className="flex items-center justify-between"><span>Flat</span><span className="tabular-nums">{fmt(flatMag,2)}</span></div>
+                          <Slider value={[flatMag]} min={0} max={2} step={0.01} onValueChange={([v]) => setFlatMag(v)} />
                         </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  <Label className="font-medium">Laser & Supercontinuum</Label>
-                  <div className="space-y-3">
-                    {/* Laser */}
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between"><span>Laser magnitude</span><span className="tabular-nums">{fmt(laserMag,2)}</span></div>
-                      <Slider value={[laserMag]} min={0} max={2} step={0.01} onValueChange={([v]) => setLaserMag(v)} />
-                    </div>
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between"><span>Laser wavelength</span><span className="tabular-nums">{fmt(laserNm,1)} nm</span></div>
-                      <Slider value={[laserNm]} min={1100} max={2500} step={1} onValueChange={([v]) => setLaserNm(v)} />
-                    </div>
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between"><span>Laser width</span><span className="tabular-nums">{fmt(laserWidth,1)} nm</span></div>
-                      <Slider value={[laserWidth]} min={0.5} max={20} step={0.5} onValueChange={([v]) => setLaserWidth(v)} />
-                    </div>
-                    {/* Supercontinuum */}
-                    <div className="pt-2 space-y-1">
-                      <div className="flex items-center justify-between"><span>Supercontinuum</span><span className="tabular-nums">{fmt(scMag,2)}</span></div>
-                      <Slider value={[scMag]} min={0} max={2} step={0.01} onValueChange={([v]) => setScMag(v)} />
-                      <div className="grid gap-2">
-                        <div className="space-y-1">
-                          <div className="flex items-center justify-between"><span>Band (nm)</span><span className="tabular-nums">{fmt(scBand[0],0)}–{fmt(scBand[1],0)}</span></div>
-                          <Slider value={scBand} min={1100} max={2500} step={5} onValueChange={(vals) => setScBand([Math.min(vals[0], vals[1]), Math.max(vals[0], vals[1])])} />
-                        </div>
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="space-y-1">
-                            <div className="flex items-center justify-between"><span>Ripple %</span><span className="tabular-nums">{fmt(scRipplePct*100,0)}%</span></div>
-                            <Slider value={[scRipplePct]} min={0} max={0.3} step={0.01} onValueChange={([v]) => setScRipplePct(v)} />
-                          </div>
-                          <div className="space-y-1">
-                            <div className="flex items-center justify-between"><span>Ripple period (nm)</span><span className="tabular-nums">{fmt(scPeriodNm,0)}</span></div>
-                            <Slider value={[scPeriodNm]} min={2} max={60} step={1} onValueChange={([v]) => setScPeriodNm(v)} />
+                        {/* Xenon arc */}
+                        <div className="pt-2 space-y-1">
+                          <div className="flex items-center justify-between"><span>Xenon arc (6000 K)</span><span className="tabular-nums">{fmt(xenonMag,2)}</span></div>
+                          <Slider value={[xenonMag]} min={0} max={2} step={0.01} onValueChange={([v]) => setXenonMag(v)} />
+                          <div className="grid grid-cols-2 gap-3 pt-1">
+                            <div className="space-y-1">
+                              <div className="flex items-center justify-between"><span>Ripple %</span><span className="tabular-nums">{fmt(xenonRipplePct*100,0)}%</span></div>
+                              <Slider value={[xenonRipplePct]} min={0} max={0.2} step={0.01} onValueChange={([v]) => setXenonRipplePct(v)} />
+                            </div>
+                            <div className="space-y-1">
+                              <div className="flex items-center justify-between"><span>Ripple period (nm)</span><span className="tabular-nums">{fmt(xenonPeriodNm,0)}</span></div>
+                              <Slider value={[xenonPeriodNm]} min={5} max={80} step={1} onValueChange={([v]) => setXenonPeriodNm(v)} />
+                            </div>
                           </div>
                         </div>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-3 pt-1">
-                      <Switch checked={includeWaterPeaks} onCheckedChange={setIncludeWaterPeaks} id="wtr"/>
-                      <Label htmlFor="wtr">Apply water bands 1450/1930 nm</Label>
+                    <div className="space-y-4">
+                      <Label className="font-medium">Laser & Supercontinuum</Label>
+                      <div className="space-y-3">
+                        {/* Laser */}
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between"><span>Laser magnitude</span><span className="tabular-nums">{fmt(laserMag,2)}</span></div>
+                          <Slider value={[laserMag]} min={0} max={2} step={0.01} onValueChange={([v]) => setLaserMag(v)} />
+                        </div>
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between"><span>Laser wavelength</span><span className="tabular-nums">{fmt(laserNm,1)} nm</span></div>
+                          <Slider value={[laserNm]} min={1100} max={2500} step={1} onValueChange={([v]) => setLaserNm(v)} />
+                        </div>
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between"><span>Laser width</span><span className="tabular-nums">{fmt(laserWidth,1)} nm</span></div>
+                          <Slider value={[laserWidth]} min={0.5} max={20} step={0.5} onValueChange={([v]) => setLaserWidth(v)} />
+                        </div>
+                        {/* Supercontinuum */}
+                        <div className="pt-2 space-y-1">
+                          <div className="flex items-center justify-between"><span>Supercontinuum</span><span className="tabular-nums">{fmt(scMag,2)}</span></div>
+                          <Slider value={[scMag]} min={0} max={2} step={0.01} onValueChange={([v]) => setScMag(v)} />
+                          <div className="grid gap-2">
+                            <div className="space-y-1">
+                              <div className="flex items-center justify-between"><span>Band (nm)</span><span className="tabular-nums">{fmt(scBand[0],0)}–{fmt(scBand[1],0)}</span></div>
+                              <Slider value={scBand} min={1100} max={2500} step={5} onValueChange={(vals) => setScBand([Math.min(vals[0], vals[1]), Math.max(vals[0], vals[1])])} />
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                              <div className="space-y-1">
+                                <div className="flex items-center justify-between"><span>Ripple %</span><span className="tabular-nums">{fmt(scRipplePct*100,0)}%</span></div>
+                                <Slider value={[scRipplePct]} min={0} max={0.3} step={0.01} onValueChange={([v]) => setScRipplePct(v)} />
+                              </div>
+                              <div className="space-y-1">
+                                <div className="flex items-center justify-between"><span>Ripple period (nm)</span><span className="tabular-nums">{fmt(scPeriodNm,0)}</span></div>
+                                <Slider value={[scPeriodNm]} min={2} max={60} step={1} onValueChange={([v]) => setScPeriodNm(v)} />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-3 pt-1">
+                          <Switch checked={includeWaterPeaks} onCheckedChange={setIncludeWaterPeaks} id="wtr"/>
+                          <Label htmlFor="wtr">Apply water bands 1450/1930 nm</Label>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
               </div>
 
               <div className="pt-3 text-xs text-slate-600">
