@@ -160,7 +160,19 @@ class Electron {
 }
 
 const MAX_ANIMATED_PHOTONS = 500;
+const MIN_ANIMATED_PHOTONS = 80;
 const MAX_ELECTRONS = 800;
+
+function computeAnimatedPhotonLimit(flux) {
+  if (!(flux > 0)) return 0;
+  const logFlux = Math.log10(flux);
+  if (logFlux <= 3) return MAX_ANIMATED_PHOTONS;
+  if (logFlux >= 6) return MIN_ANIMATED_PHOTONS;
+  const t = (logFlux - 3) / 3;
+  const span = MAX_ANIMATED_PHOTONS - MIN_ANIMATED_PHOTONS;
+  const limit = MAX_ANIMATED_PHOTONS - span * t;
+  return Math.round(Math.max(MIN_ANIMATED_PHOTONS, Math.min(MAX_ANIMATED_PHOTONS, limit)));
+}
 
 function computePhotonEntryOffset(W) {
   return Math.min(W * 0.25, 140);
@@ -517,6 +529,13 @@ export default function PmtSimulator() {
 
       const highPhotonFlux = p.flux > 1e3;
       const electronRate = p.flux * p.qe + p.darkRate;
+      const photonAnimationLimit = Math.min(
+        MAX_ANIMATED_PHOTONS,
+        Math.max(0, computeAnimatedPhotonLimit(p.flux)),
+      );
+      if (photonsRef.current.length > photonAnimationLimit) {
+        photonsRef.current.length = photonAnimationLimit;
+      }
 
       const photonSpeed = W * 0.6;
       const electronSpeed = W * 1.2;
@@ -577,7 +596,8 @@ export default function PmtSimulator() {
         const arrivalTime = emissionTime + photonTravel;
         const willConvert = Math.random() < p.qe;
         enqueuePhotonHit(arrivalTime, y, willConvert);
-        if (photonsRef.current.length >= MAX_ANIMATED_PHOTONS) return;
+        if (!(photonAnimationLimit > 0)) return;
+        if (photonsRef.current.length >= photonAnimationLimit) return;
         const age = Math.max(0, tRef.current - emissionTime);
         if (age >= photonTravel) return;
         const startX = Math.max(
