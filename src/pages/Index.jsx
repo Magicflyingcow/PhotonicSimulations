@@ -26,10 +26,10 @@ export default function IndexPage() {
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <main className="mx-auto flex min-h-screen max-w-3xl flex-col gap-16 px-6 py-16">
         <header className="space-y-4">
-          <p className="text-sm font-medium uppercase tracking-[0.3em] text-slate-400">Photonic Lab</p>
+          <p className="text-sm font-medium uppercase tracking-[0.3em] text-slate-400">Photonic Simulations</p>
           <h1 className="text-3xl font-semibold tracking-tight text-slate-900">Simulation Library</h1>
           <p className="max-w-xl text-sm text-slate-500">
-            Internal reference tools for instrumentation reviews and experiment design walk-throughs.
+            Simulations for visual explanation of photonics products
           </p>
         </header>
 
