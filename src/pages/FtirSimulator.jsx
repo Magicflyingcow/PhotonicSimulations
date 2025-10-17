@@ -573,7 +573,7 @@ export default function FTIR_Michelson_VCSEL_Sim() {
                 <div className="space-y-1 min-w-[260px]">
                   <Label>Drive frequency</Label>
                   <div className="flex items-center gap-3">
-                    <Slider value={[driveHz]} min={0} max={3} step={0.1} onValueChange={([v]) => setDriveHz(v)} className="flex-1"/>
+                    <Slider value={[driveHz]} min={0} max={5} step={0.1} onValueChange={([v]) => setDriveHz(v)} className="flex-1"/>
                     <span className="tabular-nums w-20 text-right">{fmt(driveHz,1)} Hz</span>
                   </div>
                 </div>
