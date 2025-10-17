@@ -74,6 +74,32 @@ function stepTowards(current, target, dt, tau = 0.15) {
   return current + (target - current) * a;
 }
 
+function pulseShape(t, t0, amplitude, tauRise, tauFall) {
+  if (!(Number.isFinite(t) && Number.isFinite(t0) && Number.isFinite(amplitude))) return 0;
+  if (!(tauRise > 0 && tauFall > 0)) return 0;
+  if (t < t0) return 0;
+  const dt = t - t0;
+  const rise = Math.exp(-dt / tauRise);
+  const fall = Math.exp(-dt / tauFall);
+  const value = amplitude * (fall - rise);
+  return Number.isFinite(value) ? value : 0;
+}
+
+function computeVoltage(t, pulses, tauRise, tauFall, noise = 0) {
+  let v = 0;
+  if (Array.isArray(pulses)) {
+    for (const pulse of pulses) {
+      if (!pulse) continue;
+      const { t0, A } = pulse;
+      v += pulseShape(t, Number(t0), Number(A), tauRise, tauFall);
+    }
+  }
+  if (noise > 0) {
+    v += (Math.random() - 0.5) * 2 * noise;
+  }
+  return v;
+}
+
 // ================= PARTICLES & DRAWING =================
 class Photon {
   constructor(x, y, speed, delay = 0) {
