@@ -113,20 +113,17 @@ function fft2D(real, imag, width, height, { inverse = false } = {}) {
   }
 }
 
-function applyHannWindow(width, height, data) {
-  const windowX = new Float64Array(width);
-  const windowY = new Float64Array(height);
-  for (let x = 0; x < width; x++) {
-    windowX[x] = 0.5 * (1 - Math.cos((2 * Math.PI * x) / (width - 1)));
-  }
-  for (let y = 0; y < height; y++) {
-    windowY[y] = 0.5 * (1 - Math.cos((2 * Math.PI * y) / (height - 1)));
+function ifft2D(real, imag, width, height) {
+  const total = width * height;
+  for (let i = 0; i < total; i++) {
+    imag[i] = -imag[i];
   }
 
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      data[y * width + x] *= windowX[x] * windowY[y];
-    }
+  fft2D(real, imag, width, height);
+
+  for (let i = 0; i < total; i++) {
+    real[i] /= total;
+    imag[i] = -imag[i] / total;
   }
 }
 
@@ -179,6 +176,7 @@ function computeLcosPattern(imageCanvas, patternCanvas) {
   const range = maxValue - minValue;
   const scale = range > 0 ? 255 / range : 0;
 
+  const range = maxVal - minVal;
   for (let i = 0; i < totalPixels; i++) {
     const normalized = range > 0 ? (real[i] - minValue) * scale : 0;
     const clamped = Math.max(0, Math.min(255, Math.round(normalized)));
@@ -362,7 +360,7 @@ export default function LcosSlmDemo() {
             </div>
             <div className="relative w-full overflow-hidden rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
               <canvas
-                {...patternCanvas.bindCanvas()}
+                {...bindPatternCanvas()}
                 className="mx-auto h-[256px] w-[256px] touch-none sm:h-[384px] sm:w-[384px] lg:h-[512px] lg:w-[512px]"
               />
               <div className="pointer-events-none absolute inset-3 rounded-lg border border-dashed border-slate-200" />
