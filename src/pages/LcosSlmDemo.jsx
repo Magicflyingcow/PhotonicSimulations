@@ -300,6 +300,89 @@ function computeRequiredPattern(imageCanvas, patternCanvas, sampleSize = DEFAULT
   outputCtx.restore();
 }
 
+function computeImageFromPattern(patternCanvas, imageCanvas, sampleSize = DEFAULT_RESOLUTION) {
+  if (!patternCanvas || !imageCanvas) return;
+
+  const sourceCtx = patternCanvas.getContext("2d");
+  const sourceImage = sourceCtx.getImageData(0, 0, patternCanvas.width, patternCanvas.height);
+  const { data: sourceData, width: sourceWidth, height: sourceHeight } = sourceImage;
+
+  const xScale = sourceWidth / sampleSize;
+  const yScale = sourceHeight / sampleSize;
+
+  const totalPixels = sampleSize * sampleSize;
+  const real = new Float64Array(totalPixels);
+  const imag = new Float64Array(totalPixels);
+
+  for (let y = 0; y < sampleSize; y++) {
+    const srcYStart = Math.floor(y * yScale);
+    const srcYEnd = Math.min(sourceHeight, Math.ceil((y + 1) * yScale));
+    for (let x = 0; x < sampleSize; x++) {
+      const srcXStart = Math.floor(x * xScale);
+      const srcXEnd = Math.min(sourceWidth, Math.ceil((x + 1) * xScale));
+
+      let sum = 0;
+      let count = 0;
+      for (let sy = srcYStart; sy < srcYEnd; sy++) {
+        const rowOffset = sy * sourceWidth * 4;
+        for (let sx = srcXStart; sx < srcXEnd; sx++) {
+          const offset = rowOffset + sx * 4;
+          sum += sourceData[offset];
+          count++;
+        }
+      }
+
+      const average = count > 0 ? sum / count : 0;
+      const normalized = average / 255;
+      const phase = normalized * 2 * Math.PI - Math.PI;
+      const idx = y * sampleSize + x;
+      real[idx] = Math.cos(phase);
+      imag[idx] = Math.sin(phase);
+    }
+  }
+
+  fft2D(real, imag, sampleSize, sampleSize);
+
+  const intensities = new Float64Array(totalPixels);
+  let minIntensity = Number.POSITIVE_INFINITY;
+  let maxIntensity = Number.NEGATIVE_INFINITY;
+
+  for (let i = 0; i < totalPixels; i++) {
+    const intensity = real[i] * real[i] + imag[i] * imag[i];
+    intensities[i] = intensity;
+    if (intensity < minIntensity) minIntensity = intensity;
+    if (intensity > maxIntensity) maxIntensity = intensity;
+  }
+
+  const range = maxIntensity - minIntensity;
+  const invRange = range > 1e-6 ? 1 / range : 0;
+
+  const outputCanvasBuffer = getScratchCanvas("image-from-pattern", sampleSize);
+  const outputCtx = outputCanvasBuffer.getContext("2d");
+  const outputImage = outputCtx.createImageData(sampleSize, sampleSize);
+  const outData = outputImage.data;
+
+  for (let i = 0; i < totalPixels; i++) {
+    const normalized = invRange > 0 ? (intensities[i] - minIntensity) * invRange : 0;
+    const value = Math.round(255 - normalized * 255);
+    const offset = i * 4;
+    outData[offset] = value;
+    outData[offset + 1] = value;
+    outData[offset + 2] = value;
+    outData[offset + 3] = 255;
+  }
+
+  outputCtx.putImageData(outputImage, 0, 0);
+
+  const destinationCtx = imageCanvas.getContext("2d");
+  destinationCtx.save();
+  destinationCtx.fillStyle = DIFFRACTION_BG_COLOR;
+  destinationCtx.fillRect(0, 0, imageCanvas.width, imageCanvas.height);
+  destinationCtx.drawImage(outputCanvasBuffer, 0, 0, imageCanvas.width, imageCanvas.height);
+  destinationCtx.restore();
+  destinationCtx.beginPath();
+}
+
 
 function useDrawingCanvas({
   backgroundColor = BG_COLOR,
@@ -479,6 +562,15 @@ export default function LcosSlmDemo() {
     imageCanvas.clearCanvas();
   };
 
+  const handleTransferPattern = useCallback(() => {
+    if (!patternCanvas.canvasRef.current || !imageCanvas.canvasRef.current) return;
+    computeImageFromPattern(
+      patternCanvas.canvasRef.current,
+      imageCanvas.canvasRef.current,
+      simulationResolution,
+    );
+  }, [imageCanvas.canvasRef, patternCanvas.canvasRef, simulationResolution]);
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <main className="mx-auto flex min-h-screen max-w-5xl flex-col gap-12 px-6 py-16">
@@ -558,6 +650,13 @@ export default function LcosSlmDemo() {
               />
               <div className="pointer-events-none absolute inset-3 rounded-lg border border-dashed border-slate-200" />
             </div>
+            <button
+              type="button"
+              onClick={handleTransferPattern}
+              className="self-start rounded-full border border-slate-200 px-5 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
+            >
+              Transfer pattern to image plane
+            </button>
           </section>
         </div>
 
