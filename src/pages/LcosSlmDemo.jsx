@@ -123,14 +123,28 @@ function applyHannWindow(width, height, data) {
   }
 }
 
-function computeDiffractionPattern(patternCanvas, imageCanvas) {
+function ifft2D(real, imag, width, height) {
+  const total = width * height;
+  for (let i = 0; i < total; i++) {
+    imag[i] = -imag[i];
+  }
+
+  fft2D(real, imag, width, height);
+
+  for (let i = 0; i < total; i++) {
+    real[i] = real[i] / total;
+    imag[i] = -imag[i] / total;
+  }
+}
+
+function computeRequiredPattern(imageCanvas, patternCanvas) {
   if (!patternCanvas || !imageCanvas) return;
 
   const sampleSize = SIMULATION_SAMPLE_SIZE;
   const downsampleCanvas = getScratchCanvas("downsample", sampleSize);
   const downsampleCtx = downsampleCanvas.getContext("2d");
   downsampleCtx.clearRect(0, 0, sampleSize, sampleSize);
-  downsampleCtx.drawImage(patternCanvas, 0, 0, sampleSize, sampleSize);
+  downsampleCtx.drawImage(imageCanvas, 0, 0, sampleSize, sampleSize);
 
   const { data } = downsampleCtx.getImageData(0, 0, sampleSize, sampleSize);
 
@@ -138,22 +152,16 @@ function computeDiffractionPattern(patternCanvas, imageCanvas) {
   const real = new Float64Array(totalPixels);
   const imag = new Float64Array(totalPixels);
 
-  let mean = 0;
   for (let i = 0; i < totalPixels; i++) {
     const offset = i * 4;
     const grayscale = (data[offset] + data[offset + 1] + data[offset + 2]) / (3 * 255);
-    real[i] = grayscale;
-    mean += grayscale;
-  }
-  mean /= totalPixels;
-
-  for (let i = 0; i < totalPixels; i++) {
-    real[i] -= mean;
+    // Treat the drawn intensity as a target magnitude and derive the amplitude.
+    real[i] = Math.sqrt(Math.max(0, grayscale));
   }
 
   applyHannWindow(sampleSize, sampleSize, real);
 
-  fft2D(real, imag, sampleSize, sampleSize);
+  ifft2D(real, imag, sampleSize, sampleSize);
 
   const magnitudes = new Float64Array(totalPixels);
   let maxMag = 0;
@@ -164,16 +172,15 @@ function computeDiffractionPattern(patternCanvas, imageCanvas) {
       const srcY = (y + half) % sampleSize;
       const idx = srcY * sampleSize + srcX;
       const magnitude = Math.hypot(real[idx], imag[idx]);
-      const logMagnitude = Math.log1p(magnitude);
       const targetIdx = y * sampleSize + x;
-      magnitudes[targetIdx] = logMagnitude;
-      if (logMagnitude > maxMag) {
-        maxMag = logMagnitude;
+      magnitudes[targetIdx] = magnitude;
+      if (magnitude > maxMag) {
+        maxMag = magnitude;
       }
     }
   }
 
-  const outputCanvasBuffer = getScratchCanvas("diffraction", sampleSize);
+  const outputCanvasBuffer = getScratchCanvas("pattern", sampleSize);
   const outputBufferCtx = outputCanvasBuffer.getContext("2d");
   const outputImage = outputBufferCtx.createImageData(sampleSize, sampleSize);
   const outData = outputImage.data;
@@ -191,11 +198,11 @@ function computeDiffractionPattern(patternCanvas, imageCanvas) {
 
   outputBufferCtx.putImageData(outputImage, 0, 0);
 
-  const outputCtx = imageCanvas.getContext("2d");
+  const outputCtx = patternCanvas.getContext("2d");
   outputCtx.save();
-  outputCtx.fillStyle = DIFFRACTION_BG_COLOR;
-  outputCtx.fillRect(0, 0, imageCanvas.width, imageCanvas.height);
-  outputCtx.drawImage(outputCanvasBuffer, 0, 0, imageCanvas.width, imageCanvas.height);
+  outputCtx.fillStyle = BG_COLOR;
+  outputCtx.fillRect(0, 0, patternCanvas.width, patternCanvas.height);
+  outputCtx.drawImage(outputCanvasBuffer, 0, 0, patternCanvas.width, patternCanvas.height);
   outputCtx.restore();
 }
 
@@ -305,23 +312,20 @@ function useDrawingCanvas({
 }
 
 export default function LcosSlmDemo() {
-  const imageCanvas = useDrawingCanvas({
-    interactive: false,
-    backgroundColor: DIFFRACTION_BG_COLOR,
-  });
+  const patternCanvas = useDrawingCanvas({ interactive: false });
   const animationFrameRef = useRef(null);
 
-  const scheduleDiffractionUpdate = useCallback(
+  const schedulePatternUpdate = useCallback(
     (canvas) => {
-      if (!canvas || !imageCanvas.canvasRef.current) return;
+      if (!canvas || !patternCanvas.canvasRef.current) return;
       if (animationFrameRef.current !== null) return;
 
       animationFrameRef.current = requestAnimationFrame(() => {
-        computeDiffractionPattern(canvas, imageCanvas.canvasRef.current);
+        computeRequiredPattern(canvas, patternCanvas.canvasRef.current);
         animationFrameRef.current = null;
       });
     },
-    [imageCanvas.canvasRef],
+    [patternCanvas.canvasRef],
   );
 
   useEffect(() => {
@@ -332,7 +336,15 @@ export default function LcosSlmDemo() {
     };
   }, []);
 
-  const patternCanvas = useDrawingCanvas({ onStroke: scheduleDiffractionUpdate });
+  const imageCanvas = useDrawingCanvas({
+    backgroundColor: DIFFRACTION_BG_COLOR,
+    onStroke: schedulePatternUpdate,
+  });
+
+  useEffect(() => {
+    if (!imageCanvas.canvasRef.current || !patternCanvas.canvasRef.current) return;
+    computeRequiredPattern(imageCanvas.canvasRef.current, patternCanvas.canvasRef.current);
+  }, [imageCanvas.canvasRef, patternCanvas.canvasRef]);
 
   const handleReset = () => {
     patternCanvas.clearCanvas();
@@ -346,22 +358,22 @@ export default function LcosSlmDemo() {
           <p className="text-sm font-medium uppercase tracking-[0.3em] text-slate-400">Spatial Light Modulation</p>
           <h1 className="text-3xl font-semibold tracking-tight text-slate-900">LCOS-SLM Playground</h1>
           <p className="max-w-2xl text-sm text-slate-500">
-            Sketch a phase pattern on the LCOS panel and watch the simulated diffraction field update automatically on the image
-            plane canvas. This tool is purely illustrative and meant for quick whiteboard-style discussions.
+            Sketch the far-field image you would like to produce and explore a back-propagated approximation of the LCOS phase
+            pattern required to generate it. This tool is purely illustrative and meant for quick whiteboard-style discussions.
           </p>
         </header>
 
         <div className="grid gap-12 lg:grid-cols-2">
           <section className="flex flex-col gap-4">
             <div className="space-y-1">
-              <h2 className="text-base font-semibold text-slate-900">LCOS Pattern</h2>
+              <h2 className="text-base font-semibold text-slate-900">Desired Image Plane</h2>
               <p className="text-sm text-slate-500">
-                Draw greyscale phase pixels to represent the addressed spatial light modulator pattern.
+                Draw the target intensity distribution you want to realize in the far field.
               </p>
             </div>
             <div className="relative w-full overflow-hidden rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
               <canvas
-                {...patternCanvas.bindCanvas()}
+                {...imageCanvas.bindCanvas()}
                 className="mx-auto h-[256px] w-[256px] touch-none sm:h-[384px] sm:w-[384px] lg:h-[512px] lg:w-[512px]"
               />
               <div className="pointer-events-none absolute inset-3 rounded-lg border border-dashed border-slate-200" />
@@ -370,14 +382,14 @@ export default function LcosSlmDemo() {
 
             <section className="flex flex-col gap-4">
               <div className="space-y-1">
-                <h2 className="text-base font-semibold text-slate-900">Resulting Image Plane</h2>
+                <h2 className="text-base font-semibold text-slate-900">Required LCOS Pattern</h2>
                 <p className="text-sm text-slate-500">
-                  Observe the simulated far-field intensity distribution computed via a lightweight FFT of the LCOS pattern.
+                  Inspect an approximate near-field pattern computed via an inverse FFT of the desired image plane.
                 </p>
               </div>
               <div className="relative w-full overflow-hidden rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
                 <canvas
-                  {...imageCanvas.bindCanvas()}
+                  {...patternCanvas.bindCanvas()}
                   className="mx-auto h-[256px] w-[256px] touch-none sm:h-[384px] sm:w-[384px] lg:h-[512px] lg:w-[512px]"
                 />
                 <div className="pointer-events-none absolute inset-3 rounded-lg border border-dashed border-slate-200" />
