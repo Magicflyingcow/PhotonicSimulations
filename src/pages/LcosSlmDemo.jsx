@@ -359,7 +359,8 @@ function computeImageFromPattern(patternCanvas, imageCanvas, sampleSize = DEFAUL
   const storedMagnitude = storedField && storedField.size === sampleSize ? storedField.magnitude : null;
 
   // Recreate the separable Hann window factors used during applyHannWindow so the diffraction estimate can
-  // compensate for the taper after the FFT.
+  // compensate for the taper after the FFT. The stored magnitude map is quadrant-shifted when cached, so map each
+  // display coordinate back to the original index before referencing the window.
   const windowX = new Float64Array(sampleSize);
   const windowY = new Float64Array(sampleSize);
   if (sampleSize > 1) {
@@ -373,6 +374,9 @@ function computeImageFromPattern(patternCanvas, imageCanvas, sampleSize = DEFAUL
     windowX[0] = 1;
     windowY[0] = 1;
   }
+
+  const half = sampleSize / 2;
+  const epsilon = 1e-6;
 
   for (let y = 0; y < sampleSize; y++) {
     const srcYStart = Math.floor(y * yScale);
@@ -396,7 +400,13 @@ function computeImageFromPattern(patternCanvas, imageCanvas, sampleSize = DEFAUL
       const normalized = average / 255;
       const phase = normalized * 2 * Math.PI - Math.PI;
       const idx = y * sampleSize + x;
-      const amplitude = storedMagnitude ? storedMagnitude[idx] : 1;
+      let amplitude = 1;
+      if (storedMagnitude) {
+        const srcX = (x + half) % sampleSize;
+        const srcY = (y + half) % sampleSize;
+        const windowProduct = Math.max(windowX[srcX] * windowY[srcY], epsilon);
+        amplitude = storedMagnitude[idx] / windowProduct;
+      }
       real[idx] = amplitude * Math.cos(phase);
       imag[idx] = amplitude * Math.sin(phase);
     }
@@ -408,19 +418,11 @@ function computeImageFromPattern(patternCanvas, imageCanvas, sampleSize = DEFAUL
   let minIntensity = Number.POSITIVE_INFINITY;
   let maxIntensity = Number.NEGATIVE_INFINITY;
 
-  const epsilon = 1e-6;
-
   for (let i = 0; i < totalPixels; i++) {
-    const x = i % sampleSize;
-    const y = Math.floor(i / sampleSize);
     const rawIntensity = real[i] * real[i] + imag[i] * imag[i];
-    // Undo the Hann window applied in computeRequiredPattern so the round-trip maintains symmetry between
-    // the forward and inverse paths.
-    const windowProduct = windowX[x] * windowY[y];
-    const compensated = rawIntensity / (Math.max(windowProduct, epsilon) ** 2);
-    intensities[i] = compensated;
-    if (compensated < minIntensity) minIntensity = compensated;
-    if (compensated > maxIntensity) maxIntensity = compensated;
+    intensities[i] = rawIntensity;
+    if (rawIntensity < minIntensity) minIntensity = rawIntensity;
+    if (rawIntensity > maxIntensity) maxIntensity = rawIntensity;
   }
 
   const range = maxIntensity - minIntensity;
