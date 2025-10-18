@@ -7,7 +7,75 @@ const STROKE_WIDTH = 4;
 const SIMULATION_SAMPLE_SIZE = 128;
 const DIFFRACTION_BG_COLOR = "#f8fafc";
 
+const PATTERN_COLOR = "#0f172a";
+
 const scratchCanvases = new Map();
+
+const SAMPLE_PATTERNS = [
+  {
+    name: "Gaussian Spot",
+    draw: (ctx, canvas) => {
+      const { width, height } = canvas;
+      const radius = Math.max(width, height) * 0.5;
+      const gradient = ctx.createRadialGradient(width / 2, height / 2, 0, width / 2, height / 2, radius);
+      gradient.addColorStop(0, PATTERN_COLOR);
+      gradient.addColorStop(1, "rgba(15, 23, 42, 0)");
+      ctx.save();
+      ctx.fillStyle = gradient;
+      ctx.globalCompositeOperation = "source-over";
+      ctx.fillRect(0, 0, width, height);
+      ctx.restore();
+    },
+  },
+  {
+    name: "Double Slit",
+    draw: (ctx, canvas) => {
+      const { width, height } = canvas;
+      const slitWidth = width * 0.08;
+      const slitHeight = height * 0.6;
+      const gap = width * 0.12;
+      const centerX = width / 2;
+      const top = (height - slitHeight) / 2;
+      ctx.save();
+      ctx.fillStyle = PATTERN_COLOR;
+      ctx.fillRect(centerX - gap / 2 - slitWidth, top, slitWidth, slitHeight);
+      ctx.fillRect(centerX + gap / 2, top, slitWidth, slitHeight);
+      ctx.restore();
+    },
+  },
+  {
+    name: "Circular Aperture",
+    draw: (ctx, canvas) => {
+      const { width, height } = canvas;
+      const radius = Math.min(width, height) * 0.3;
+      ctx.save();
+      ctx.fillStyle = PATTERN_COLOR;
+      ctx.beginPath();
+      ctx.arc(width / 2, height / 2, radius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    },
+  },
+  {
+    name: "Checkerboard",
+    draw: (ctx, canvas) => {
+      const { width, height } = canvas;
+      const cells = 6;
+      const cellWidth = width / cells;
+      const cellHeight = height / cells;
+      ctx.save();
+      ctx.fillStyle = PATTERN_COLOR;
+      for (let y = 0; y < cells; y++) {
+        for (let x = 0; x < cells; x++) {
+          if ((x + y) % 2 === 0) {
+            ctx.fillRect(Math.floor(x * cellWidth), Math.floor(y * cellHeight), Math.ceil(cellWidth), Math.ceil(cellHeight));
+          }
+        }
+      }
+      ctx.restore();
+    },
+  },
+];
 
 function getScratchCanvas(key, size) {
   const id = `${key}-${size}`;
@@ -374,6 +442,25 @@ export default function LcosSlmDemo() {
     onStroke: schedulePatternUpdate,
   });
 
+  const applySamplePattern = useCallback(
+    (drawFn) => {
+      const canvas = imageCanvas.canvasRef.current;
+      if (!canvas) return;
+
+      const ctx = canvas.getContext("2d");
+      ctx.save();
+      ctx.fillStyle = DIFFRACTION_BG_COLOR;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.restore();
+
+      drawFn(ctx, canvas);
+      ctx.beginPath();
+
+      schedulePatternUpdate(canvas);
+    },
+    [imageCanvas.canvasRef, schedulePatternUpdate],
+  );
+
   useEffect(() => {
     if (!imageCanvas.canvasRef.current || !patternCanvas.canvasRef.current) return;
     computeRequiredPattern(imageCanvas.canvasRef.current, patternCanvas.canvasRef.current);
@@ -403,6 +490,21 @@ export default function LcosSlmDemo() {
               <p className="text-sm text-slate-500">
                 Draw the target intensity distribution you want to realize in the far field.
               </p>
+            </div>
+            <div className="flex flex-col gap-2">
+              <p className="text-xs font-medium uppercase tracking-[0.2em] text-slate-400">Sample patterns</p>
+              <div className="flex flex-wrap gap-2">
+                {SAMPLE_PATTERNS.map((pattern) => (
+                  <button
+                    key={pattern.name}
+                    type="button"
+                    onClick={() => applySamplePattern(pattern.draw)}
+                    className="rounded-full border border-slate-200 bg-white px-4 py-1.5 text-xs font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:text-slate-900"
+                  >
+                    {pattern.name}
+                  </button>
+                ))}
+              </div>
             </div>
             <div className="relative w-full overflow-hidden rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
               <canvas
