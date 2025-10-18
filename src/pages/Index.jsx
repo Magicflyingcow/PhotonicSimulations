@@ -17,6 +17,11 @@ const simulations = [
     description: "2D sensor walkthrough for speckle behaviour and projection tools.",
     path: "/profile-sensor",
   },
+  {
+    title: "LCOS-SLM Playground",
+    description: "Paired drawing canvases for LCOS phase masks and resulting field estimates.",
+    path: "/lcos-slm",
+  },
 ];
 
 export default function IndexPage() {
