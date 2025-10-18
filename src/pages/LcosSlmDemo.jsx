@@ -193,20 +193,15 @@ function computeRequiredPattern(imageCanvas, patternCanvas) {
 
   ifft2D(real, imag, sampleSize, sampleSize);
 
-  const magnitudes = new Float64Array(totalPixels);
-  let maxMag = 0;
+  const phaseMap = new Float64Array(totalPixels);
   const half = sampleSize / 2;
   for (let y = 0; y < sampleSize; y++) {
     for (let x = 0; x < sampleSize; x++) {
       const srcX = (x + half) % sampleSize;
       const srcY = (y + half) % sampleSize;
       const idx = srcY * sampleSize + srcX;
-      const magnitude = Math.hypot(real[idx], imag[idx]);
-      const targetIdx = y * sampleSize + x;
-      magnitudes[targetIdx] = magnitude;
-      if (magnitude > maxMag) {
-        maxMag = magnitude;
-      }
+      const phase = Math.atan2(imag[idx], real[idx]);
+      phaseMap[y * sampleSize + x] = phase;
     }
   }
 
@@ -214,11 +209,12 @@ function computeRequiredPattern(imageCanvas, patternCanvas) {
   const outputBufferCtx = outputCanvasBuffer.getContext("2d");
   const outputImage = outputBufferCtx.createImageData(sampleSize, sampleSize);
   const outData = outputImage.data;
-  const scale = maxMag > 0 ? 255 / maxMag : 0;
+  const phaseScale = 1 / (2 * Math.PI);
 
   for (let i = 0; i < totalPixels; i++) {
-    const intensity = magnitudes[i] * scale;
-    const value = Math.max(0, Math.min(255, Math.round(intensity)));
+    const normalized = (phaseMap[i] + Math.PI) * phaseScale;
+    const clamped = Math.max(0, Math.min(1, normalized));
+    const value = Math.round(clamped * 255);
     const offset = i * 4;
     outData[offset] = value;
     outData[offset + 1] = value;
