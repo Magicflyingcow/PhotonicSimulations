@@ -1,13 +1,14 @@
-import React, { useCallback, useEffect, useRef } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 
-const CANVAS_SIZE = 512;
 const BG_COLOR = "#020617";
 const STROKE_COLOR = "#f8fafc";
 const STROKE_WIDTH = 4;
-const SIMULATION_SAMPLE_SIZE = 128;
 const DIFFRACTION_BG_COLOR = "#f8fafc";
 
 const PATTERN_COLOR = "#0f172a";
+
+const DEFAULT_RESOLUTION = 256;
+const RESOLUTION_OPTIONS = [64, 128, 256, 512];
 
 const scratchCanvases = new Map();
 
@@ -205,10 +206,9 @@ function ifft2D(real, imag, width, height) {
   }
 }
 
-function computeRequiredPattern(imageCanvas, patternCanvas) {
+function computeRequiredPattern(imageCanvas, patternCanvas, sampleSize = DEFAULT_RESOLUTION) {
   if (!patternCanvas || !imageCanvas) return;
 
-  const sampleSize = SIMULATION_SAMPLE_SIZE;
   const sourceCtx = imageCanvas.getContext("2d");
   const sourceImage = sourceCtx.getImageData(0, 0, imageCanvas.width, imageCanvas.height);
   const sourceData = sourceImage.data;
@@ -307,6 +307,7 @@ function useDrawingCanvas({
   strokeWidth = STROKE_WIDTH,
   interactive = true,
   onStroke,
+  size = DEFAULT_RESOLUTION,
 } = {}) {
   const canvasRef = useRef(null);
   const drawingRef = useRef({ isDrawing: false, x: 0, y: 0 });
@@ -333,8 +334,8 @@ function useDrawingCanvas({
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    canvas.width = CANVAS_SIZE;
-    canvas.height = CANVAS_SIZE;
+    canvas.width = size;
+    canvas.height = size;
 
     const ctx = canvas.getContext("2d");
     ctx.lineCap = "round";
@@ -343,7 +344,7 @@ function useDrawingCanvas({
     ctx.strokeStyle = strokeColor;
 
     clearCanvas();
-  }, [clearCanvas, strokeColor, strokeWidth]);
+  }, [clearCanvas, size, strokeColor, strokeWidth]);
 
   const getCanvasCoordinates = (event) => {
     const canvas = canvasRef.current;
@@ -407,7 +408,9 @@ function useDrawingCanvas({
 }
 
 export default function LcosSlmDemo() {
-  const patternCanvas = useDrawingCanvas({ interactive: false });
+  const [simulationResolution, setSimulationResolution] = useState(DEFAULT_RESOLUTION);
+
+  const patternCanvas = useDrawingCanvas({ interactive: false, size: simulationResolution });
   const pendingUpdateRef = useRef(false);
 
   const schedulePatternUpdate = useCallback(
@@ -419,7 +422,7 @@ export default function LcosSlmDemo() {
       const runCompute = () => {
         pendingUpdateRef.current = false;
         if (patternCanvas.canvasRef.current) {
-          computeRequiredPattern(canvas, patternCanvas.canvasRef.current);
+          computeRequiredPattern(canvas, patternCanvas.canvasRef.current, simulationResolution);
         }
       };
 
@@ -429,7 +432,7 @@ export default function LcosSlmDemo() {
         Promise.resolve().then(runCompute);
       }
     },
-    [patternCanvas.canvasRef],
+    [patternCanvas.canvasRef, simulationResolution],
   );
 
   useEffect(() => () => {
@@ -440,6 +443,7 @@ export default function LcosSlmDemo() {
     backgroundColor: DIFFRACTION_BG_COLOR,
     strokeColor: "#0f172a",
     onStroke: schedulePatternUpdate,
+    size: simulationResolution,
   });
 
   const applySamplePattern = useCallback(
@@ -463,8 +467,12 @@ export default function LcosSlmDemo() {
 
   useEffect(() => {
     if (!imageCanvas.canvasRef.current || !patternCanvas.canvasRef.current) return;
-    computeRequiredPattern(imageCanvas.canvasRef.current, patternCanvas.canvasRef.current);
-  }, [imageCanvas.canvasRef, patternCanvas.canvasRef]);
+    computeRequiredPattern(
+      imageCanvas.canvasRef.current,
+      patternCanvas.canvasRef.current,
+      simulationResolution,
+    );
+  }, [imageCanvas.canvasRef, patternCanvas.canvasRef, simulationResolution]);
 
   const handleReset = () => {
     patternCanvas.clearCanvas();
@@ -492,6 +500,27 @@ export default function LcosSlmDemo() {
               </p>
             </div>
             <div className="flex flex-col gap-2">
+              <label className="text-xs font-medium uppercase tracking-[0.2em] text-slate-400" htmlFor="resolution">
+                Simulation resolution
+              </label>
+              <div className="relative">
+                <select
+                  id="resolution"
+                  value={simulationResolution}
+                  onChange={(event) => setSimulationResolution(Number(event.target.value))}
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm transition focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200"
+                >
+                  {RESOLUTION_OPTIONS.map((option) => (
+                    <option key={option} value={option}>
+                      {option} × {option}
+                    </option>
+                  ))}
+                </select>
+                <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs text-slate-400">
+                  px
+                </div>
+              </div>
+
               <p className="text-xs font-medium uppercase tracking-[0.2em] text-slate-400">Sample patterns</p>
               <div className="flex flex-wrap gap-2">
                 {SAMPLE_PATTERNS.map((pattern) => (
