@@ -141,22 +141,52 @@ function computeRequiredPattern(imageCanvas, patternCanvas) {
   if (!patternCanvas || !imageCanvas) return;
 
   const sampleSize = SIMULATION_SAMPLE_SIZE;
-  const downsampleCanvas = getScratchCanvas("downsample", sampleSize);
-  const downsampleCtx = downsampleCanvas.getContext("2d");
-  downsampleCtx.clearRect(0, 0, sampleSize, sampleSize);
-  downsampleCtx.drawImage(imageCanvas, 0, 0, sampleSize, sampleSize);
-
-  const { data } = downsampleCtx.getImageData(0, 0, sampleSize, sampleSize);
+  const sourceCtx = imageCanvas.getContext("2d");
+  const sourceImage = sourceCtx.getImageData(0, 0, imageCanvas.width, imageCanvas.height);
+  const sourceData = sourceImage.data;
+  const sourceWidth = sourceImage.width;
+  const sourceHeight = sourceImage.height;
+  const xScale = sourceWidth / sampleSize;
+  const yScale = sourceHeight / sampleSize;
 
   const totalPixels = sampleSize * sampleSize;
   const real = new Float64Array(totalPixels);
   const imag = new Float64Array(totalPixels);
+  const sampled = new Float64Array(totalPixels);
+
+  let minGray = Number.POSITIVE_INFINITY;
+  let maxGray = Number.NEGATIVE_INFINITY;
+  for (let y = 0; y < sampleSize; y++) {
+    const srcYStart = Math.floor(y * yScale);
+    const srcYEnd = Math.min(sourceHeight, Math.ceil((y + 1) * yScale));
+    for (let x = 0; x < sampleSize; x++) {
+      const srcXStart = Math.floor(x * xScale);
+      const srcXEnd = Math.min(sourceWidth, Math.ceil((x + 1) * xScale));
+      let sum = 0;
+      let count = 0;
+      for (let sy = srcYStart; sy < srcYEnd; sy++) {
+        const rowOffset = sy * sourceWidth * 4;
+        for (let sx = srcXStart; sx < srcXEnd; sx++) {
+          const offset = rowOffset + sx * 4;
+          sum += sourceData[offset] + sourceData[offset + 1] + sourceData[offset + 2];
+          count++;
+        }
+      }
+      const grayscale = count > 0 ? sum / (3 * count) : 0;
+      const idx = y * sampleSize + x;
+      sampled[idx] = grayscale;
+      if (grayscale < minGray) minGray = grayscale;
+      if (grayscale > maxGray) maxGray = grayscale;
+    }
+  }
+
+  const range = maxGray - minGray;
+  const invRange = range > 1e-6 ? 1 / range : 0;
 
   for (let i = 0; i < totalPixels; i++) {
-    const offset = i * 4;
-    const grayscale = (data[offset] + data[offset + 1] + data[offset + 2]) / (3 * 255);
-    // Treat the drawn intensity as a target magnitude and derive the amplitude.
-    real[i] = Math.sqrt(Math.max(0, grayscale));
+    const normalized = invRange > 0 ? (sampled[i] - minGray) * invRange : 0;
+    // Treat the normalized intensity as a target magnitude and derive the amplitude.
+    real[i] = Math.sqrt(Math.max(0, Math.min(1, normalized)));
   }
 
   applyHannWindow(sampleSize, sampleSize, real);
@@ -205,6 +235,7 @@ function computeRequiredPattern(imageCanvas, patternCanvas) {
   outputCtx.drawImage(outputCanvasBuffer, 0, 0, patternCanvas.width, patternCanvas.height);
   outputCtx.restore();
 }
+
 
 function useDrawingCanvas({
   backgroundColor = BG_COLOR,
@@ -313,27 +344,32 @@ function useDrawingCanvas({
 
 export default function LcosSlmDemo() {
   const patternCanvas = useDrawingCanvas({ interactive: false });
-  const animationFrameRef = useRef(null);
+  const pendingUpdateRef = useRef(false);
 
   const schedulePatternUpdate = useCallback(
     (canvas) => {
       if (!canvas || !patternCanvas.canvasRef.current) return;
-      if (animationFrameRef.current !== null) return;
+      if (pendingUpdateRef.current) return;
+      pendingUpdateRef.current = true;
 
-      animationFrameRef.current = requestAnimationFrame(() => {
-        computeRequiredPattern(canvas, patternCanvas.canvasRef.current);
-        animationFrameRef.current = null;
-      });
+      const runCompute = () => {
+        pendingUpdateRef.current = false;
+        if (patternCanvas.canvasRef.current) {
+          computeRequiredPattern(canvas, patternCanvas.canvasRef.current);
+        }
+      };
+
+      if (typeof queueMicrotask === "function") {
+        queueMicrotask(runCompute);
+      } else {
+        Promise.resolve().then(runCompute);
+      }
     },
     [patternCanvas.canvasRef],
   );
 
-  useEffect(() => {
-    return () => {
-      if (animationFrameRef.current !== null) {
-        cancelAnimationFrame(animationFrameRef.current);
-      }
-    };
+  useEffect(() => () => {
+    pendingUpdateRef.current = false;
   }, []);
 
   const imageCanvas = useDrawingCanvas({
@@ -380,21 +416,21 @@ export default function LcosSlmDemo() {
             </div>
           </section>
 
-            <section className="flex flex-col gap-4">
-              <div className="space-y-1">
-                <h2 className="text-base font-semibold text-slate-900">Required LCOS Pattern</h2>
-                <p className="text-sm text-slate-500">
-                  Inspect an approximate near-field pattern computed via an inverse FFT of the desired image plane.
-                </p>
-              </div>
-              <div className="relative w-full overflow-hidden rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
-                <canvas
-                  {...patternCanvas.bindCanvas()}
-                  className="mx-auto h-[256px] w-[256px] touch-none sm:h-[384px] sm:w-[384px] lg:h-[512px] lg:w-[512px]"
-                />
-                <div className="pointer-events-none absolute inset-3 rounded-lg border border-dashed border-slate-200" />
-              </div>
-            </section>
+          <section className="flex flex-col gap-4">
+            <div className="space-y-1">
+              <h2 className="text-base font-semibold text-slate-900">Required LCOS Pattern</h2>
+              <p className="text-sm text-slate-500">
+                Inspect an approximate near-field pattern computed via an inverse FFT of the desired image plane.
+              </p>
+            </div>
+            <div className="relative w-full overflow-hidden rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+              <canvas
+                {...patternCanvas.bindCanvas()}
+                className="mx-auto h-[256px] w-[256px] touch-none sm:h-[384px] sm:w-[384px] lg:h-[512px] lg:w-[512px]"
+              />
+              <div className="pointer-events-none absolute inset-3 rounded-lg border border-dashed border-slate-200" />
+            </div>
+          </section>
         </div>
 
         <div className="flex flex-col items-start gap-3 border-t border-slate-200 pt-6 sm:flex-row sm:items-center sm:justify-between">
@@ -413,4 +449,4 @@ export default function LcosSlmDemo() {
       </main>
     </div>
   );
-        }
+}
