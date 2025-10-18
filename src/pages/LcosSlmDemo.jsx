@@ -24,7 +24,7 @@ function getScratchCanvas(key, size) {
   return canvas;
 }
 
-function fftRadix2(real, imag) {
+function fftRadix2(real, imag, inverse = false) {
   const n = real.length;
   if (n <= 1) return;
   if ((n & (n - 1)) !== 0) {
@@ -48,7 +48,7 @@ function fftRadix2(real, imag) {
   }
 
   for (let len = 2; len <= n; len <<= 1) {
-    const ang = (-2 * Math.PI) / len;
+    const ang = (inverse ? 2 : -2) * Math.PI * (1 / len);
     const wlenReal = Math.cos(ang);
     const wlenImag = Math.sin(ang);
     for (let i = 0; i < n; i += len) {
@@ -71,9 +71,16 @@ function fftRadix2(real, imag) {
       }
     }
   }
+
+  if (inverse) {
+    for (let i = 0; i < n; i++) {
+      real[i] /= n;
+      imag[i] /= n;
+    }
+  }
 }
 
-function fft2D(real, imag, width, height) {
+function fft2D(real, imag, width, height, { inverse = false } = {}) {
   const rowReal = new Float64Array(width);
   const rowImag = new Float64Array(width);
   for (let y = 0; y < height; y++) {
@@ -82,7 +89,7 @@ function fft2D(real, imag, width, height) {
       rowReal[x] = real[offset + x];
       rowImag[x] = imag[offset + x];
     }
-    fftRadix2(rowReal, rowImag);
+    fftRadix2(rowReal, rowImag, inverse);
     for (let x = 0; x < width; x++) {
       real[offset + x] = rowReal[x];
       imag[offset + x] = rowImag[x];
@@ -97,7 +104,7 @@ function fft2D(real, imag, width, height) {
       colReal[y] = real[idx];
       colImag[y] = imag[idx];
     }
-    fftRadix2(colReal, colImag);
+    fftRadix2(colReal, colImag, inverse);
     for (let y = 0; y < height; y++) {
       const idx = y * width + x;
       real[idx] = colReal[y];
@@ -138,24 +145,27 @@ function computeLcosPattern(imageCanvas, patternCanvas) {
   const half = sampleSize / 2;
   for (let y = 0; y < sampleSize; y++) {
     for (let x = 0; x < sampleSize; x++) {
-      const offset = (y * sampleSize + x) * 4;
+      const idx = y * sampleSize + x;
+      const offset = idx * 4;
       const grayscale = (data[offset] + data[offset + 1] + data[offset + 2]) / (3 * 255);
       const shiftedX = (x + half) % sampleSize;
       const shiftedY = (y + half) % sampleSize;
-      const idx = shiftedY * sampleSize + shiftedX;
-      real[idx] = grayscale;
-      imag[idx] = 0;
+      const targetIdx = shiftedY * sampleSize + shiftedX;
+      real[targetIdx] = grayscale;
+      imag[targetIdx] = 0;
     }
   }
 
-  ifft2D(real, imag, sampleSize, sampleSize);
+  applyHannWindow(sampleSize, sampleSize, real);
 
-  let minVal = Infinity;
-  let maxVal = -Infinity;
+  fft2D(real, imag, sampleSize, sampleSize, { inverse: true });
+
+  let minValue = Infinity;
+  let maxValue = -Infinity;
   for (let i = 0; i < totalPixels; i++) {
     const value = real[i];
-    if (value < minVal) minVal = value;
-    if (value > maxVal) maxVal = value;
+    if (value < minValue) minValue = value;
+    if (value > maxValue) maxValue = value;
   }
 
   const outputCanvasBuffer = getScratchCanvas("pattern", sampleSize);
@@ -163,14 +173,17 @@ function computeLcosPattern(imageCanvas, patternCanvas) {
   const outputImage = outputBufferCtx.createImageData(sampleSize, sampleSize);
   const outData = outputImage.data;
 
+  const range = maxValue - minValue;
+  const scale = range > 0 ? 255 / range : 0;
+
   const range = maxVal - minVal;
   for (let i = 0; i < totalPixels; i++) {
-    const normalized = range > 1e-9 ? (real[i] - minVal) / range : 0.5;
-    const value = Math.max(0, Math.min(255, Math.round(normalized * 255)));
+    const normalized = range > 0 ? (real[i] - minValue) * scale : 0;
+    const clamped = Math.max(0, Math.min(255, Math.round(normalized)));
     const offset = i * 4;
-    outData[offset] = value;
-    outData[offset + 1] = value;
-    outData[offset + 2] = value;
+    outData[offset] = clamped;
+    outData[offset + 1] = clamped;
+    outData[offset + 2] = clamped;
     outData[offset + 3] = 255;
   }
 
@@ -288,24 +301,22 @@ function useDrawingCanvas({
 }
 
 export default function LcosSlmDemo() {
-  const {
-    canvasRef: patternCanvasRef,
-    bindCanvas: bindPatternCanvas,
-    clearCanvas: clearPatternCanvas,
-  } = useDrawingCanvas({ interactive: false });
+  const patternCanvas = useDrawingCanvas({
+    interactive: false,
+  });
   const animationFrameRef = useRef(null);
 
   const schedulePatternUpdate = useCallback(
     (canvas) => {
-      if (!canvas || !patternCanvasRef.current) return;
+      if (!canvas || !patternCanvas.canvasRef.current) return;
       if (animationFrameRef.current !== null) return;
 
       animationFrameRef.current = requestAnimationFrame(() => {
-        computeLcosPattern(canvas, patternCanvasRef.current);
+        computeLcosPattern(canvas, patternCanvas.canvasRef.current);
         animationFrameRef.current = null;
       });
     },
-    [patternCanvasRef],
+    [patternCanvas.canvasRef],
   );
 
   useEffect(() => {
@@ -316,14 +327,15 @@ export default function LcosSlmDemo() {
     };
   }, []);
 
-  const { bindCanvas: bindImageCanvas, clearCanvas: clearImageCanvas } = useDrawingCanvas({
+  const imageCanvas = useDrawingCanvas({
     onStroke: schedulePatternUpdate,
     backgroundColor: DIFFRACTION_BG_COLOR,
+    strokeColor: "#38bdf8",
   });
 
   const handleReset = () => {
-    clearImageCanvas();
-    clearPatternCanvas();
+    imageCanvas.clearCanvas();
+    patternCanvas.clearCanvas();
   };
 
   return (
@@ -333,18 +345,17 @@ export default function LcosSlmDemo() {
           <p className="text-sm font-medium uppercase tracking-[0.3em] text-slate-400">Spatial Light Modulation</p>
           <h1 className="text-3xl font-semibold tracking-tight text-slate-900">LCOS-SLM Playground</h1>
           <p className="max-w-2xl text-sm text-slate-500">
-            Sketch your desired image plane intensity distribution and inspect the synthesized LCOS pattern produced by a
-            lightweight inverse FFT approximation. This tool is purely illustrative and meant for quick whiteboard-style
-            discussions.
+            Sketch a target far-field distribution directly on the image plane canvas to estimate a matching LCOS phase mask on
+            the left. This tool is purely illustrative and meant for quick whiteboard-style discussions.
           </p>
         </header>
 
         <div className="grid gap-12 lg:grid-cols-2">
           <section className="flex flex-col gap-4">
             <div className="space-y-1">
-              <h2 className="text-base font-semibold text-slate-900">LCOS Pattern</h2>
+              <h2 className="text-base font-semibold text-slate-900">Estimated LCOS Pattern</h2>
               <p className="text-sm text-slate-500">
-                The synthesized phase distribution that approximates the desired image plane intensity.
+                The computed grayscale phase suggestion derived from the hand-drawn image plane target.
               </p>
             </div>
             <div className="relative w-full overflow-hidden rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
@@ -358,25 +369,26 @@ export default function LcosSlmDemo() {
 
           <section className="flex flex-col gap-4">
             <div className="space-y-1">
-              <h2 className="text-base font-semibold text-slate-900">Target Image Plane</h2>
+              <h2 className="text-base font-semibold text-slate-900">Desired Image Plane</h2>
               <p className="text-sm text-slate-500">
-                Sketch the desired far-field intensity. The LCOS pattern updates automatically to approximate this target.
+                Draw the target far-field intensity distribution. The LCOS pattern estimate updates automatically with each
+                stroke.
               </p>
             </div>
             <div className="relative w-full overflow-hidden rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
               <canvas
-                {...bindImageCanvas()}
+                {...imageCanvas.bindCanvas()}
                 className="mx-auto h-[256px] w-[256px] touch-none sm:h-[384px] sm:w-[384px] lg:h-[512px] lg:w-[512px]"
               />
               <div className="pointer-events-none absolute inset-3 rounded-lg border border-dashed border-slate-200" />
             </div>
-          </section>
+            </section>
         </div>
 
         <div className="flex flex-col items-start gap-3 border-t border-slate-200 pt-6 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs text-slate-500">
-            Tip: Use a stylus or mouse to sketch distributions. The LCOS pattern updates automatically with each stroke using a
-            downsampled inverse FFT approximation.
+            Tip: Use a stylus or mouse to sketch distributions. An inverse FFT approximation derives the LCOS mask suggestion in
+            real time.
           </p>
           <button
             type="button"
