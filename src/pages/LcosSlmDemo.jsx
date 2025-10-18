@@ -358,6 +358,22 @@ function computeImageFromPattern(patternCanvas, imageCanvas, sampleSize = DEFAUL
   const storedField = storedFieldCache.get(patternCanvas);
   const storedMagnitude = storedField && storedField.size === sampleSize ? storedField.magnitude : null;
 
+  // Recreate the separable Hann window factors used during applyHannWindow so the diffraction estimate can
+  // compensate for the taper after the FFT.
+  const windowX = new Float64Array(sampleSize);
+  const windowY = new Float64Array(sampleSize);
+  if (sampleSize > 1) {
+    for (let x = 0; x < sampleSize; x++) {
+      windowX[x] = 0.5 * (1 - Math.cos((2 * Math.PI * x) / (sampleSize - 1)));
+    }
+    for (let y = 0; y < sampleSize; y++) {
+      windowY[y] = 0.5 * (1 - Math.cos((2 * Math.PI * y) / (sampleSize - 1)));
+    }
+  } else {
+    windowX[0] = 1;
+    windowY[0] = 1;
+  }
+
   for (let y = 0; y < sampleSize; y++) {
     const srcYStart = Math.floor(y * yScale);
     const srcYEnd = Math.min(sourceHeight, Math.ceil((y + 1) * yScale));
@@ -392,11 +408,19 @@ function computeImageFromPattern(patternCanvas, imageCanvas, sampleSize = DEFAUL
   let minIntensity = Number.POSITIVE_INFINITY;
   let maxIntensity = Number.NEGATIVE_INFINITY;
 
+  const epsilon = 1e-6;
+
   for (let i = 0; i < totalPixels; i++) {
-    const intensity = real[i] * real[i] + imag[i] * imag[i];
-    intensities[i] = intensity;
-    if (intensity < minIntensity) minIntensity = intensity;
-    if (intensity > maxIntensity) maxIntensity = intensity;
+    const x = i % sampleSize;
+    const y = Math.floor(i / sampleSize);
+    const rawIntensity = real[i] * real[i] + imag[i] * imag[i];
+    // Undo the Hann window applied in computeRequiredPattern so the round-trip maintains symmetry between
+    // the forward and inverse paths.
+    const windowProduct = windowX[x] * windowY[y];
+    const compensated = rawIntensity / (Math.max(windowProduct, epsilon) ** 2);
+    intensities[i] = compensated;
+    if (compensated < minIntensity) minIntensity = compensated;
+    if (compensated > maxIntensity) maxIntensity = compensated;
   }
 
   const range = maxIntensity - minIntensity;
