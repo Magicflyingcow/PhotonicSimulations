@@ -11,6 +11,7 @@ const DEFAULT_RESOLUTION = 256;
 const RESOLUTION_OPTIONS = [64, 128, 256, 512];
 
 const scratchCanvases = new Map();
+const storedFieldCache = new WeakMap();
 
 const SAMPLE_PATTERNS = [
   {
@@ -206,8 +207,11 @@ function ifft2D(real, imag, width, height) {
   }
 }
 
-function computeRequiredPattern(imageCanvas, patternCanvas, sampleSize = DEFAULT_RESOLUTION) {
-  if (!patternCanvas || !imageCanvas) return;
+function computeRequiredPattern(imageCanvas, patternTargets, sampleSize = DEFAULT_RESOLUTION) {
+  const phaseCanvas = patternTargets?.phaseCanvas;
+  const magnitudeCanvas = patternTargets?.magnitudeCanvas ?? null;
+
+  if (!phaseCanvas || !imageCanvas) return;
 
   const sourceCtx = imageCanvas.getContext("2d");
   const sourceImage = sourceCtx.getImageData(0, 0, imageCanvas.width, imageCanvas.height);
@@ -262,6 +266,9 @@ function computeRequiredPattern(imageCanvas, patternCanvas, sampleSize = DEFAULT
   ifft2D(real, imag, sampleSize, sampleSize);
 
   const phaseMap = new Float64Array(totalPixels);
+  const magnitudeMap = new Float64Array(totalPixels);
+  let minMagnitude = Number.POSITIVE_INFINITY;
+  let maxMagnitude = Number.NEGATIVE_INFINITY;
   const half = sampleSize / 2;
   for (let y = 0; y < sampleSize; y++) {
     for (let x = 0; x < sampleSize; x++) {
@@ -269,9 +276,16 @@ function computeRequiredPattern(imageCanvas, patternCanvas, sampleSize = DEFAULT
       const srcY = (y + half) % sampleSize;
       const idx = srcY * sampleSize + srcX;
       const phase = Math.atan2(imag[idx], real[idx]);
-      phaseMap[y * sampleSize + x] = phase;
+      const mag = Math.hypot(real[idx], imag[idx]);
+      const destIdx = y * sampleSize + x;
+      phaseMap[destIdx] = phase;
+      magnitudeMap[destIdx] = mag;
+      if (mag < minMagnitude) minMagnitude = mag;
+      if (mag > maxMagnitude) maxMagnitude = mag;
     }
   }
+
+  storedFieldCache.set(phaseCanvas, { magnitude: magnitudeMap, size: sampleSize });
 
   const outputCanvasBuffer = getScratchCanvas("pattern", sampleSize);
   const outputBufferCtx = outputCanvasBuffer.getContext("2d");
@@ -292,12 +306,40 @@ function computeRequiredPattern(imageCanvas, patternCanvas, sampleSize = DEFAULT
 
   outputBufferCtx.putImageData(outputImage, 0, 0);
 
-  const outputCtx = patternCanvas.getContext("2d");
+  const outputCtx = phaseCanvas.getContext("2d");
   outputCtx.save();
   outputCtx.fillStyle = BG_COLOR;
-  outputCtx.fillRect(0, 0, patternCanvas.width, patternCanvas.height);
-  outputCtx.drawImage(outputCanvasBuffer, 0, 0, patternCanvas.width, patternCanvas.height);
+  outputCtx.fillRect(0, 0, phaseCanvas.width, phaseCanvas.height);
+  outputCtx.drawImage(outputCanvasBuffer, 0, 0, phaseCanvas.width, phaseCanvas.height);
   outputCtx.restore();
+
+  if (magnitudeCanvas) {
+    const magnitudeBuffer = getScratchCanvas("magnitude", sampleSize);
+    const magnitudeCtx = magnitudeBuffer.getContext("2d");
+    const magnitudeImage = magnitudeCtx.createImageData(sampleSize, sampleSize);
+    const magnitudeData = magnitudeImage.data;
+    const magnitudeRange = maxMagnitude - minMagnitude;
+    const magnitudeScale = magnitudeRange > 1e-12 ? 1 / magnitudeRange : 0;
+
+    for (let i = 0; i < totalPixels; i++) {
+      const normalized = magnitudeScale > 0 ? (magnitudeMap[i] - minMagnitude) * magnitudeScale : 0;
+      const value = Math.round(normalized * 255);
+      const offset = i * 4;
+      magnitudeData[offset] = value;
+      magnitudeData[offset + 1] = value;
+      magnitudeData[offset + 2] = value;
+      magnitudeData[offset + 3] = 255;
+    }
+
+    magnitudeCtx.putImageData(magnitudeImage, 0, 0);
+
+    const destinationCtx = magnitudeCanvas.getContext("2d");
+    destinationCtx.save();
+    destinationCtx.fillStyle = BG_COLOR;
+    destinationCtx.fillRect(0, 0, magnitudeCanvas.width, magnitudeCanvas.height);
+    destinationCtx.drawImage(magnitudeBuffer, 0, 0, magnitudeCanvas.width, magnitudeCanvas.height);
+    destinationCtx.restore();
+  }
 }
 
 function computeImageFromPattern(patternCanvas, imageCanvas, sampleSize = DEFAULT_RESOLUTION) {
@@ -313,6 +355,8 @@ function computeImageFromPattern(patternCanvas, imageCanvas, sampleSize = DEFAUL
   const totalPixels = sampleSize * sampleSize;
   const real = new Float64Array(totalPixels);
   const imag = new Float64Array(totalPixels);
+  const storedField = storedFieldCache.get(patternCanvas);
+  const storedMagnitude = storedField && storedField.size === sampleSize ? storedField.magnitude : null;
 
   for (let y = 0; y < sampleSize; y++) {
     const srcYStart = Math.floor(y * yScale);
@@ -336,8 +380,9 @@ function computeImageFromPattern(patternCanvas, imageCanvas, sampleSize = DEFAUL
       const normalized = average / 255;
       const phase = normalized * 2 * Math.PI - Math.PI;
       const idx = y * sampleSize + x;
-      real[idx] = Math.cos(phase);
-      imag[idx] = Math.sin(phase);
+      const amplitude = storedMagnitude ? storedMagnitude[idx] : 1;
+      real[idx] = amplitude * Math.cos(phase);
+      imag[idx] = amplitude * Math.sin(phase);
     }
   }
 
@@ -494,6 +539,7 @@ export default function LcosSlmDemo() {
   const [simulationResolution, setSimulationResolution] = useState(DEFAULT_RESOLUTION);
 
   const patternCanvas = useDrawingCanvas({ interactive: false, size: simulationResolution });
+  const magnitudeCanvas = useDrawingCanvas({ interactive: false, size: simulationResolution });
   const pendingUpdateRef = useRef(false);
 
   const schedulePatternUpdate = useCallback(
@@ -504,8 +550,16 @@ export default function LcosSlmDemo() {
 
       const runCompute = () => {
         pendingUpdateRef.current = false;
-        if (patternCanvas.canvasRef.current) {
-          computeRequiredPattern(canvas, patternCanvas.canvasRef.current, simulationResolution);
+        const phaseCanvas = patternCanvas.canvasRef.current;
+        if (phaseCanvas) {
+          computeRequiredPattern(
+            canvas,
+            {
+              phaseCanvas,
+              magnitudeCanvas: magnitudeCanvas.canvasRef.current ?? null,
+            },
+            simulationResolution,
+          );
         }
       };
 
@@ -515,7 +569,7 @@ export default function LcosSlmDemo() {
         Promise.resolve().then(runCompute);
       }
     },
-    [patternCanvas.canvasRef, simulationResolution],
+    [magnitudeCanvas.canvasRef, patternCanvas.canvasRef, simulationResolution],
   );
 
   useEffect(() => () => {
@@ -552,14 +606,21 @@ export default function LcosSlmDemo() {
     if (!imageCanvas.canvasRef.current || !patternCanvas.canvasRef.current) return;
     computeRequiredPattern(
       imageCanvas.canvasRef.current,
-      patternCanvas.canvasRef.current,
+      {
+        phaseCanvas: patternCanvas.canvasRef.current,
+        magnitudeCanvas: magnitudeCanvas.canvasRef.current ?? null,
+      },
       simulationResolution,
     );
-  }, [imageCanvas.canvasRef, patternCanvas.canvasRef, simulationResolution]);
+  }, [imageCanvas.canvasRef, magnitudeCanvas.canvasRef, patternCanvas.canvasRef, simulationResolution]);
 
   const handleReset = () => {
     patternCanvas.clearCanvas();
     imageCanvas.clearCanvas();
+    magnitudeCanvas.clearCanvas();
+    if (patternCanvas.canvasRef.current) {
+      storedFieldCache.delete(patternCanvas.canvasRef.current);
+    }
   };
 
   const handleTransferPattern = useCallback(() => {
@@ -640,15 +701,37 @@ export default function LcosSlmDemo() {
             <div className="space-y-1">
               <h2 className="text-base font-semibold text-slate-900">Required LCOS Pattern</h2>
               <p className="text-sm text-slate-500">
-                Inspect an approximate near-field pattern computed via an inverse FFT of the desired image plane.
+                Inspect the phase and amplitude of the near-field pattern computed via an inverse FFT of the desired image
+                plane.
               </p>
             </div>
-            <div className="relative w-full overflow-hidden rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
-              <canvas
-                {...patternCanvas.bindCanvas()}
-                className="mx-auto h-[256px] w-[256px] touch-none sm:h-[384px] sm:w-[384px] lg:h-[512px] lg:w-[512px]"
-              />
-              <div className="pointer-events-none absolute inset-3 rounded-lg border border-dashed border-slate-200" />
+            <div className="grid gap-6 md:grid-cols-2">
+              <div className="space-y-2">
+                <div className="space-y-1">
+                  <h3 className="text-sm font-semibold text-slate-900">Phase</h3>
+                  <p className="text-xs text-slate-500">Wrapped phase map (−π to π)</p>
+                </div>
+                <div className="relative w-full overflow-hidden rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+                  <canvas
+                    {...patternCanvas.bindCanvas()}
+                    className="mx-auto h-[256px] w-[256px] touch-none sm:h-[384px] sm:w-[384px] lg:h-[512px] lg:w-[512px]"
+                  />
+                  <div className="pointer-events-none absolute inset-3 rounded-lg border border-dashed border-slate-200" />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <div className="space-y-1">
+                  <h3 className="text-sm font-semibold text-slate-900">Amplitude</h3>
+                  <p className="text-xs text-slate-500">Stored magnitude of the inverse FFT field</p>
+                </div>
+                <div className="relative w-full overflow-hidden rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+                  <canvas
+                    {...magnitudeCanvas.bindCanvas()}
+                    className="mx-auto h-[256px] w-[256px] touch-none sm:h-[384px] sm:w-[384px] lg:h-[512px] lg:w-[512px]"
+                  />
+                  <div className="pointer-events-none absolute inset-3 rounded-lg border border-dashed border-slate-200" />
+                </div>
+              </div>
             </div>
             <button
               type="button"
