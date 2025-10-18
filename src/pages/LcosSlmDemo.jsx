@@ -1,11 +1,11 @@
 import React, { useCallback, useEffect, useRef } from "react";
 
 const CANVAS_SIZE = 512;
-const BG_COLOR = "#ffffff";
-const STROKE_COLOR = "#0f172a";
+const BG_COLOR = "#020617";
+const STROKE_COLOR = "#f8fafc";
 const STROKE_WIDTH = 4;
 const SIMULATION_SAMPLE_SIZE = 128;
-const DIFFRACTION_BG_COLOR = "#020617";
+const DIFFRACTION_BG_COLOR = "#f8fafc";
 
 const scratchCanvases = new Map();
 
@@ -374,6 +374,7 @@ export default function LcosSlmDemo() {
 
   const imageCanvas = useDrawingCanvas({
     backgroundColor: DIFFRACTION_BG_COLOR,
+    strokeColor: "#0f172a",
     onStroke: schedulePatternUpdate,
   });
 
