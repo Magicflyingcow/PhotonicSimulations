@@ -418,7 +418,7 @@ function computeImageFromPattern(patternCanvas, imageCanvas, sampleSize = DEFAUL
 
   for (let i = 0; i < totalPixels; i++) {
     const normalized = invRange > 0 ? (intensities[i] - minIntensity) * invRange : 0;
-    const value = Math.round(255 - normalized * 255);
+    const value = Math.round(normalized * 255);
     const offset = i * 4;
     outData[offset] = value;
     outData[offset + 1] = value;
