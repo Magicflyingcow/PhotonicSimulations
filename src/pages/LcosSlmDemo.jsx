@@ -24,7 +24,7 @@ function getScratchCanvas(key, size) {
   return canvas;
 }
 
-function fftRadix2(real, imag) {
+function fftRadix2(real, imag, inverse = false) {
   const n = real.length;
   if (n <= 1) return;
   if ((n & (n - 1)) !== 0) {
@@ -48,7 +48,7 @@ function fftRadix2(real, imag) {
   }
 
   for (let len = 2; len <= n; len <<= 1) {
-    const ang = (-2 * Math.PI) / len;
+    const ang = (inverse ? 2 : -2) * Math.PI * (1 / len);
     const wlenReal = Math.cos(ang);
     const wlenImag = Math.sin(ang);
     for (let i = 0; i < n; i += len) {
@@ -71,9 +71,16 @@ function fftRadix2(real, imag) {
       }
     }
   }
+
+  if (inverse) {
+    for (let i = 0; i < n; i++) {
+      real[i] /= n;
+      imag[i] /= n;
+    }
+  }
 }
 
-function fft2D(real, imag, width, height) {
+function fft2D(real, imag, width, height, { inverse = false } = {}) {
   const rowReal = new Float64Array(width);
   const rowImag = new Float64Array(width);
   for (let y = 0; y < height; y++) {
@@ -82,7 +89,7 @@ function fft2D(real, imag, width, height) {
       rowReal[x] = real[offset + x];
       rowImag[x] = imag[offset + x];
     }
-    fftRadix2(rowReal, rowImag);
+    fftRadix2(rowReal, rowImag, inverse);
     for (let x = 0; x < width; x++) {
       real[offset + x] = rowReal[x];
       imag[offset + x] = rowImag[x];
@@ -97,7 +104,7 @@ function fft2D(real, imag, width, height) {
       colReal[y] = real[idx];
       colImag[y] = imag[idx];
     }
-    fftRadix2(colReal, colImag);
+    fftRadix2(colReal, colImag, inverse);
     for (let y = 0; y < height; y++) {
       const idx = y * width + x;
       real[idx] = colReal[y];
@@ -123,14 +130,14 @@ function applyHannWindow(width, height, data) {
   }
 }
 
-function computeDiffractionPattern(patternCanvas, imageCanvas) {
+function computeLcosPattern(imageCanvas, patternCanvas) {
   if (!patternCanvas || !imageCanvas) return;
 
   const sampleSize = SIMULATION_SAMPLE_SIZE;
   const downsampleCanvas = getScratchCanvas("downsample", sampleSize);
   const downsampleCtx = downsampleCanvas.getContext("2d");
   downsampleCtx.clearRect(0, 0, sampleSize, sampleSize);
-  downsampleCtx.drawImage(patternCanvas, 0, 0, sampleSize, sampleSize);
+  downsampleCtx.drawImage(imageCanvas, 0, 0, sampleSize, sampleSize);
 
   const { data } = downsampleCtx.getImageData(0, 0, sampleSize, sampleSize);
 
@@ -138,64 +145,57 @@ function computeDiffractionPattern(patternCanvas, imageCanvas) {
   const real = new Float64Array(totalPixels);
   const imag = new Float64Array(totalPixels);
 
-  let mean = 0;
-  for (let i = 0; i < totalPixels; i++) {
-    const offset = i * 4;
-    const grayscale = (data[offset] + data[offset + 1] + data[offset + 2]) / (3 * 255);
-    real[i] = grayscale;
-    mean += grayscale;
-  }
-  mean /= totalPixels;
-
-  for (let i = 0; i < totalPixels; i++) {
-    real[i] -= mean;
+  const half = sampleSize / 2;
+  for (let y = 0; y < sampleSize; y++) {
+    for (let x = 0; x < sampleSize; x++) {
+      const idx = y * sampleSize + x;
+      const offset = idx * 4;
+      const grayscale = (data[offset] + data[offset + 1] + data[offset + 2]) / (3 * 255);
+      const shiftedX = (x + half) % sampleSize;
+      const shiftedY = (y + half) % sampleSize;
+      const targetIdx = shiftedY * sampleSize + shiftedX;
+      real[targetIdx] = grayscale;
+      imag[targetIdx] = 0;
+    }
   }
 
   applyHannWindow(sampleSize, sampleSize, real);
 
-  fft2D(real, imag, sampleSize, sampleSize);
+  fft2D(real, imag, sampleSize, sampleSize, { inverse: true });
 
-  const magnitudes = new Float64Array(totalPixels);
-  let maxMag = 0;
-  const half = sampleSize / 2;
-  for (let y = 0; y < sampleSize; y++) {
-    for (let x = 0; x < sampleSize; x++) {
-      const srcX = (x + half) % sampleSize;
-      const srcY = (y + half) % sampleSize;
-      const idx = srcY * sampleSize + srcX;
-      const magnitude = Math.hypot(real[idx], imag[idx]);
-      const logMagnitude = Math.log1p(magnitude);
-      const targetIdx = y * sampleSize + x;
-      magnitudes[targetIdx] = logMagnitude;
-      if (logMagnitude > maxMag) {
-        maxMag = logMagnitude;
-      }
-    }
+  let minValue = Infinity;
+  let maxValue = -Infinity;
+  for (let i = 0; i < totalPixels; i++) {
+    const value = real[i];
+    if (value < minValue) minValue = value;
+    if (value > maxValue) maxValue = value;
   }
 
-  const outputCanvasBuffer = getScratchCanvas("diffraction", sampleSize);
+  const outputCanvasBuffer = getScratchCanvas("pattern", sampleSize);
   const outputBufferCtx = outputCanvasBuffer.getContext("2d");
   const outputImage = outputBufferCtx.createImageData(sampleSize, sampleSize);
   const outData = outputImage.data;
-  const scale = maxMag > 0 ? 255 / maxMag : 0;
+
+  const range = maxValue - minValue;
+  const scale = range > 0 ? 255 / range : 0;
 
   for (let i = 0; i < totalPixels; i++) {
-    const intensity = magnitudes[i] * scale;
-    const value = Math.max(0, Math.min(255, Math.round(intensity)));
+    const normalized = range > 0 ? (real[i] - minValue) * scale : 0;
+    const clamped = Math.max(0, Math.min(255, Math.round(normalized)));
     const offset = i * 4;
-    outData[offset] = value;
-    outData[offset + 1] = value;
-    outData[offset + 2] = value;
+    outData[offset] = clamped;
+    outData[offset + 1] = clamped;
+    outData[offset + 2] = clamped;
     outData[offset + 3] = 255;
   }
 
   outputBufferCtx.putImageData(outputImage, 0, 0);
 
-  const outputCtx = imageCanvas.getContext("2d");
+  const outputCtx = patternCanvas.getContext("2d");
   outputCtx.save();
-  outputCtx.fillStyle = DIFFRACTION_BG_COLOR;
-  outputCtx.fillRect(0, 0, imageCanvas.width, imageCanvas.height);
-  outputCtx.drawImage(outputCanvasBuffer, 0, 0, imageCanvas.width, imageCanvas.height);
+  outputCtx.fillStyle = BG_COLOR;
+  outputCtx.fillRect(0, 0, patternCanvas.width, patternCanvas.height);
+  outputCtx.drawImage(outputCanvasBuffer, 0, 0, patternCanvas.width, patternCanvas.height);
   outputCtx.restore();
 }
 
@@ -303,23 +303,22 @@ function useDrawingCanvas({
 }
 
 export default function LcosSlmDemo() {
-  const imageCanvas = useDrawingCanvas({
+  const patternCanvas = useDrawingCanvas({
     interactive: false,
-    backgroundColor: DIFFRACTION_BG_COLOR,
   });
   const animationFrameRef = useRef(null);
 
-  const scheduleDiffractionUpdate = useCallback(
+  const schedulePatternUpdate = useCallback(
     (canvas) => {
-      if (!canvas || !imageCanvas.canvasRef.current) return;
+      if (!canvas || !patternCanvas.canvasRef.current) return;
       if (animationFrameRef.current !== null) return;
 
       animationFrameRef.current = requestAnimationFrame(() => {
-        computeDiffractionPattern(canvas, imageCanvas.canvasRef.current);
+        computeLcosPattern(canvas, patternCanvas.canvasRef.current);
         animationFrameRef.current = null;
       });
     },
-    [imageCanvas.canvasRef],
+    [patternCanvas.canvasRef],
   );
 
   useEffect(() => {
@@ -330,11 +329,15 @@ export default function LcosSlmDemo() {
     };
   }, []);
 
-  const patternCanvas = useDrawingCanvas({ onStroke: scheduleDiffractionUpdate });
+  const imageCanvas = useDrawingCanvas({
+    onStroke: schedulePatternUpdate,
+    backgroundColor: DIFFRACTION_BG_COLOR,
+    strokeColor: "#38bdf8",
+  });
 
   const handleReset = () => {
-    patternCanvas.clearCanvas();
     imageCanvas.clearCanvas();
+    patternCanvas.clearCanvas();
   };
 
   return (
@@ -344,17 +347,17 @@ export default function LcosSlmDemo() {
           <p className="text-sm font-medium uppercase tracking-[0.3em] text-slate-400">Spatial Light Modulation</p>
           <h1 className="text-3xl font-semibold tracking-tight text-slate-900">LCOS-SLM Playground</h1>
           <p className="max-w-2xl text-sm text-slate-500">
-            Sketch a phase pattern on the LCOS panel and watch the simulated diffraction field update automatically on the image
-            plane canvas. This tool is purely illustrative and meant for quick whiteboard-style discussions.
+            Sketch a target far-field distribution directly on the image plane canvas to estimate a matching LCOS phase mask on
+            the left. This tool is purely illustrative and meant for quick whiteboard-style discussions.
           </p>
         </header>
 
         <div className="grid gap-12 lg:grid-cols-2">
           <section className="flex flex-col gap-4">
             <div className="space-y-1">
-              <h2 className="text-base font-semibold text-slate-900">LCOS Pattern</h2>
+              <h2 className="text-base font-semibold text-slate-900">Estimated LCOS Pattern</h2>
               <p className="text-sm text-slate-500">
-                Draw greyscale phase pixels to represent the addressed spatial light modulator pattern.
+                The computed grayscale phase suggestion derived from the hand-drawn image plane target.
               </p>
             </div>
             <div className="relative w-full overflow-hidden rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
@@ -366,27 +369,28 @@ export default function LcosSlmDemo() {
             </div>
           </section>
 
-            <section className="flex flex-col gap-4">
-              <div className="space-y-1">
-                <h2 className="text-base font-semibold text-slate-900">Resulting Image Plane</h2>
-                <p className="text-sm text-slate-500">
-                  Observe the simulated far-field intensity distribution computed via a lightweight FFT of the LCOS pattern.
-                </p>
-              </div>
-              <div className="relative w-full overflow-hidden rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
-                <canvas
-                  {...imageCanvas.bindCanvas()}
-                  className="mx-auto h-[256px] w-[256px] touch-none sm:h-[384px] sm:w-[384px] lg:h-[512px] lg:w-[512px]"
-                />
-                <div className="pointer-events-none absolute inset-3 rounded-lg border border-dashed border-slate-200" />
-              </div>
+          <section className="flex flex-col gap-4">
+            <div className="space-y-1">
+              <h2 className="text-base font-semibold text-slate-900">Desired Image Plane</h2>
+              <p className="text-sm text-slate-500">
+                Draw the target far-field intensity distribution. The LCOS pattern estimate updates automatically with each
+                stroke.
+              </p>
+            </div>
+            <div className="relative w-full overflow-hidden rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+              <canvas
+                {...imageCanvas.bindCanvas()}
+                className="mx-auto h-[256px] w-[256px] touch-none sm:h-[384px] sm:w-[384px] lg:h-[512px] lg:w-[512px]"
+              />
+              <div className="pointer-events-none absolute inset-3 rounded-lg border border-dashed border-slate-200" />
+            </div>
             </section>
         </div>
 
         <div className="flex flex-col items-start gap-3 border-t border-slate-200 pt-6 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs text-slate-500">
-            Tip: Use a stylus or mouse to sketch distributions. The image plane updates automatically with each stroke using a
-            downsampled FFT approximation.
+            Tip: Use a stylus or mouse to sketch distributions. An inverse FFT approximation derives the LCOS mask suggestion in
+            real time.
           </p>
           <button
             type="button"
