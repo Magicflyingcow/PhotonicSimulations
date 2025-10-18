@@ -400,15 +400,16 @@ function computeImageFromPattern(patternCanvas, imageCanvas, sampleSize = DEFAUL
       const normalized = average / 255;
       const phase = normalized * 2 * Math.PI - Math.PI;
       const idx = y * sampleSize + x;
+      const srcX = (x + half) % sampleSize;
+      const srcY = (y + half) % sampleSize;
+      const srcIdx = srcY * sampleSize + srcX;
       let amplitude = 1;
       if (storedMagnitude) {
-        const srcX = (x + half) % sampleSize;
-        const srcY = (y + half) % sampleSize;
         const windowProduct = Math.max(windowX[srcX] * windowY[srcY], epsilon);
         amplitude = storedMagnitude[idx] / windowProduct;
       }
-      real[idx] = amplitude * Math.cos(phase);
-      imag[idx] = amplitude * Math.sin(phase);
+      real[srcIdx] = amplitude * Math.cos(phase);
+      imag[srcIdx] = amplitude * Math.sin(phase);
     }
   }
 
