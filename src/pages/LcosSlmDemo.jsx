@@ -358,25 +358,7 @@ function computeImageFromPattern(patternCanvas, imageCanvas, sampleSize = DEFAUL
   const storedField = storedFieldCache.get(patternCanvas);
   const storedMagnitude = storedField && storedField.size === sampleSize ? storedField.magnitude : null;
 
-  // Recreate the separable Hann window factors used during applyHannWindow so the diffraction estimate can
-  // compensate for the taper after the FFT. The stored magnitude map is quadrant-shifted when cached, so map each
-  // display coordinate back to the original index before referencing the window.
-  const windowX = new Float64Array(sampleSize);
-  const windowY = new Float64Array(sampleSize);
-  if (sampleSize > 1) {
-    for (let x = 0; x < sampleSize; x++) {
-      windowX[x] = 0.5 * (1 - Math.cos((2 * Math.PI * x) / (sampleSize - 1)));
-    }
-    for (let y = 0; y < sampleSize; y++) {
-      windowY[y] = 0.5 * (1 - Math.cos((2 * Math.PI * y) / (sampleSize - 1)));
-    }
-  } else {
-    windowX[0] = 1;
-    windowY[0] = 1;
-  }
-
   const half = sampleSize / 2;
-  const epsilon = 1e-6;
 
   for (let y = 0; y < sampleSize; y++) {
     const srcYStart = Math.floor(y * yScale);
@@ -403,10 +385,10 @@ function computeImageFromPattern(patternCanvas, imageCanvas, sampleSize = DEFAUL
       const srcX = (x + half) % sampleSize;
       const srcY = (y + half) % sampleSize;
       const srcIdx = srcY * sampleSize + srcX;
-      let amplitude = 1;
-      if (storedMagnitude) {
-        const windowProduct = Math.max(windowX[srcX] * windowY[srcY], epsilon);
-        amplitude = storedMagnitude[idx] / windowProduct;
+      // Use the cached magnitude directly to avoid magnifying numerical noise when the Hann taper approaches zero.
+      let amplitude = storedMagnitude ? storedMagnitude[idx] : 1;
+      if (!Number.isFinite(amplitude) || amplitude < 0) {
+        amplitude = 0;
       }
       real[srcIdx] = amplitude * Math.cos(phase);
       imag[srcIdx] = amplitude * Math.sin(phase);
