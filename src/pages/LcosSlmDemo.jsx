@@ -1,9 +1,9 @@
 import React, { useEffect, useRef, useState } from "react";
 
 // ============================================================
-// CGH Playground – 512×512 Phase-Only SLM Simulator (with GS)
+// CGH Playground – Adjustable Phase-Only SLM Simulator (with GS)
 // ------------------------------------------------------------
-// • Left: choose a preset 512×512 phase hologram
+// • Left: choose a preset phase hologram & resolution
 // • Middle: draw/erase directly on the hologram (phase editor)
 // • Right: simulated far-field reconstruction (|FFT{exp(i·φ)}|²)
 //
@@ -12,24 +12,26 @@ import React, { useEffect, useRef, useState } from "react";
 // ============================================================
 
 export default function CGHPlayground() {
-  const SIZE = 512; // hologram + output resolution
+  const [resolution, setResolution] = useState(512);
+  const SIZE = resolution; // hologram + output resolution
   const TWO_PI = Math.PI * 2;
 
   // Core data buffers (kept in refs to avoid heavy React re-renders)
   const phaseRef = useRef(new Float32Array(SIZE * SIZE)); // φ in [0, 2π)
-
+  
   // Canvas refs
   const holoCanvasRef = useRef(null);   // phase editor canvas (HSV colormap)
   const outCanvasRef  = useRef(null);   // reconstructed intensity canvas
 
   // UI state
-  const [preset, setPreset] = useState("clear");
+  const [preset, setPreset] = useState("multispot");
   const [brushSize, setBrushSize] = useState(10);
   const [penPhase, setPenPhase] = useState(Math.PI); // rad
   const [drawMode, setDrawMode] = useState("set");
   const [logView, setLogView] = useState(true);
   const [gamma, setGamma] = useState(0.5);
   const [busy, setBusy] = useState(false);
+  const resolutionOptions = [64, 128, 256, 512];
   
   
 
@@ -660,9 +662,17 @@ export default function CGHPlayground() {
   }
 
   // =============== Effects =================
-  useEffect(() => { applyPreset("multispot"); }, []);
   useEffect(() => { paintHologram(); }, [holoVersion]);
   useEffect(() => { queueRecompute(0); }, [logView, gamma]);
+  useEffect(() => {
+    if (recomputeTimer.current !== null) {
+      clearTimeout(recomputeTimer.current);
+      recomputeTimer.current = null;
+    }
+    phaseRef.current = new Float32Array(SIZE * SIZE);
+    setBusy(false);
+    applyPreset(preset);
+  }, [SIZE]);
 
   // =============== Lightweight Self-Tests (runtime) =================
   useEffect(() => {
@@ -740,7 +750,7 @@ export default function CGHPlayground() {
   return (
     <div className="w-full h-full p-4 md:p-6 xl:p-8 bg-neutral-50 text-neutral-900">
       <div className="max-w-[1200px] mx-auto">
-        <h1 className="text-2xl md:text-3xl font-semibold mb-3">CGH Playground – 512×512 Phase-Only SLM Simulator</h1>
+        <h1 className="text-2xl md:text-3xl font-semibold mb-3">CGH Playground – {SIZE}×{SIZE} Phase-Only SLM Simulator</h1>
         <p className="text-sm text-neutral-600 mb-4 leading-relaxed">
           Pick a hologram, then draw on it. The panel on the right shows the simulated far‑field reconstruction
           (intensity of the 2D FFT of <span className="font-mono">exp(i·φ)</span>). Try the presets like “Multispot” or “Vortex”,
@@ -750,6 +760,22 @@ export default function CGHPlayground() {
         <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr_1fr] gap-4">
           {/* Left controls */}
           <div className="bg-white rounded-2xl shadow-sm border p-4 space-y-4">
+            <div>
+              <div className="text-[13px] font-medium mb-2 uppercase tracking-wide text-neutral-500">Resolution</div>
+              <div className="grid grid-cols-2 gap-2 mb-1">
+                {resolutionOptions.map((opt) => (
+                  <button
+                    key={opt}
+                    onClick={() => setResolution(opt)}
+                    className={`px-3 py-2 rounded-xl text-sm border transition hover:shadow ${SIZE === opt ? "bg-black text-white" : "bg-white"}`}
+                  >{opt}×{opt}</button>
+                ))}
+              </div>
+              <div className="text-xs text-neutral-500">Smaller grids redraw faster; larger grids capture more detail.</div>
+            </div>
+
+            <div className="h-px bg-neutral-200" />
+
             <div>
               <div className="text-[13px] font-medium mb-2 uppercase tracking-wide text-neutral-500">Presets</div>
               <div className="flex flex-wrap gap-2">
@@ -832,7 +858,7 @@ export default function CGHPlayground() {
           {/* Middle: Hologram editor */}
           <div className="bg-white rounded-2xl shadow-sm border p-4 flex flex-col items-center">
             <div className="w-full flex items-center justify-between mb-2">
-              <div className="text-sm font-medium">Hologram (phase) – 512×512</div>
+              <div className="text-sm font-medium">Hologram (phase) – {SIZE}×{SIZE}</div>
               <button
                 onClick={() => { applyPreset(preset); }}
                 className="px-3 py-1.5 rounded-lg text-xs border bg-white hover:shadow"
