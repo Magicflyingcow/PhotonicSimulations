@@ -459,6 +459,52 @@ export default function CGHPlayground() {
     }
   }
 
+  function fillSpiral(turns = 5, radialCycles = 14) {
+    const φ = phaseRef.current;
+    const cx = (SIZE - 1) / 2, cy = (SIZE - 1) / 2;
+    const maxR = Math.hypot(cx, cy);
+    for (let y = 0; y < SIZE; y++) {
+      for (let x = 0; x < SIZE; x++) {
+        const dx = x - cx, dy = y - cy;
+        const angle = Math.atan2(dy, dx);
+        const rNorm = Math.hypot(dx, dy) / maxR;
+        const phase = turns * angle + TWO_PI * radialCycles * rNorm;
+        φ[idx(x, y)] = mod2pi(phase);
+      }
+    }
+  }
+
+  function fillForkedGrating(ell = 1, fx = 14, fy = 0) {
+    const φ = phaseRef.current;
+    const cx = (SIZE - 1) / 2, cy = (SIZE - 1) / 2;
+    for (let y = 0; y < SIZE; y++) {
+      const v = y / SIZE;
+      for (let x = 0; x < SIZE; x++) {
+        const u = x / SIZE;
+        const angle = Math.atan2(y - cy, x - cx);
+        const linear = TWO_PI * (fx * u + fy * v);
+        const phase = linear + ell * angle + Math.PI; // π offset keeps fork centered
+        φ[idx(x, y)] = mod2pi(phase);
+      }
+    }
+  }
+
+  function fillPetalLattice(petals = 8, radialFreq = 10) {
+    const φ = phaseRef.current;
+    const cx = (SIZE - 1) / 2, cy = (SIZE - 1) / 2;
+    const maxR = Math.hypot(cx, cy);
+    for (let y = 0; y < SIZE; y++) {
+      for (let x = 0; x < SIZE; x++) {
+        const dx = x - cx, dy = y - cy;
+        const angle = Math.atan2(dy, dx);
+        const rNorm = Math.hypot(dx, dy) / maxR;
+        const modulation = 2.5 * rNorm * Math.cos(petals * angle);
+        const phase = petals * angle + TWO_PI * radialFreq * rNorm + modulation;
+        φ[idx(x, y)] = mod2pi(phase);
+      }
+    }
+  }
+
   function fillRandom() {
     const φ = phaseRef.current;
     for (let k = 0; k < φ.length; k++) φ[k] = Math.random() * TWO_PI;
@@ -502,6 +548,9 @@ export default function CGHPlayground() {
       case "vortex-l2": fillVortex(2); break;
       case "fresnel": fillFresnelLens(8.0); break;
       case "axicon": fillAxicon(12.0); break;
+      case "spiral": fillSpiral(6, 16); break;
+      case "forked": fillForkedGrating(1, 18, 4); break;
+      case "petal": fillPetalLattice(10, 9); break;
       case "random": fillRandom(); break;
       case "multispot": fillMultispot(5, 0.08); break;
       case "multispot7": fillMultispot(7, 0.065); break;
@@ -711,6 +760,9 @@ export default function CGHPlayground() {
                 <PresetButton id="vortex-l2" label="Vortex ℓ=2" />
                 <PresetButton id="fresnel" label="Fresnel Lens" />
                 <PresetButton id="axicon" label="Axicon" />
+                <PresetButton id="spiral" label="Spiral Phase" />
+                <PresetButton id="forked" label="Forked Grating" />
+                <PresetButton id="petal" label="Petal Lattice" />
                 <PresetButton id="multispot" label="Multispot 5×5" />
                 <PresetButton id="multispot7" label="Multispot 7×7" />
                 <PresetButton id="random" label="Random Phase" />
