@@ -1,816 +1,827 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
-const BG_COLOR = "#020617";
-const STROKE_COLOR = "#f8fafc";
-const STROKE_WIDTH = 4;
-const DIFFRACTION_BG_COLOR = "#f8fafc";
+// ============================================================
+// CGH Playground – 512×512 Phase-Only SLM Simulator (with GS)
+// ------------------------------------------------------------
+// • Left: choose a preset 512×512 phase hologram
+// • Middle: draw/erase directly on the hologram (phase editor)
+// • Right: simulated far-field reconstruction (|FFT{exp(i·φ)}|²)
+//
+// Includes a Gerchberg–Saxton (GS) synthesis path for the Smiley target
+// so the reconstructed image matches the target much more faithfully.
+// ============================================================
 
-const PATTERN_COLOR = "#0f172a";
+export default function CGHPlayground() {
+  const SIZE = 512; // hologram + output resolution
+  const TWO_PI = Math.PI * 2;
 
-const DEFAULT_RESOLUTION = 256;
-const RESOLUTION_OPTIONS = [64, 128, 256, 512];
+  // Core data buffers (kept in refs to avoid heavy React re-renders)
+  const phaseRef = useRef(new Float32Array(SIZE * SIZE)); // φ in [0, 2π)
 
-const scratchCanvases = new Map();
-const storedFieldCache = new WeakMap();
+  // Canvas refs
+  const holoCanvasRef = useRef<HTMLCanvasElement | null>(null);   // phase editor canvas (HSV colormap)
+  const outCanvasRef  = useRef<HTMLCanvasElement | null>(null);   // reconstructed intensity canvas
 
-const SAMPLE_PATTERNS = [
-  {
-    name: "Gaussian Spot",
-    draw: (ctx, canvas) => {
-      const { width, height } = canvas;
-      const radius = Math.max(width, height) * 0.5;
-      const gradient = ctx.createRadialGradient(width / 2, height / 2, 0, width / 2, height / 2, radius);
-      gradient.addColorStop(0, PATTERN_COLOR);
-      gradient.addColorStop(1, "rgba(15, 23, 42, 0)");
-      ctx.save();
-      ctx.fillStyle = gradient;
-      ctx.globalCompositeOperation = "source-over";
-      ctx.fillRect(0, 0, width, height);
-      ctx.restore();
-    },
-  },
-  {
-    name: "Double Slit",
-    draw: (ctx, canvas) => {
-      const { width, height } = canvas;
-      const slitWidth = width * 0.08;
-      const slitHeight = height * 0.6;
-      const gap = width * 0.12;
-      const centerX = width / 2;
-      const top = (height - slitHeight) / 2;
-      ctx.save();
-      ctx.fillStyle = PATTERN_COLOR;
-      ctx.fillRect(centerX - gap / 2 - slitWidth, top, slitWidth, slitHeight);
-      ctx.fillRect(centerX + gap / 2, top, slitWidth, slitHeight);
-      ctx.restore();
-    },
-  },
-  {
-    name: "Circular Aperture",
-    draw: (ctx, canvas) => {
-      const { width, height } = canvas;
-      const radius = Math.min(width, height) * 0.3;
-      ctx.save();
-      ctx.fillStyle = PATTERN_COLOR;
-      ctx.beginPath();
-      ctx.arc(width / 2, height / 2, radius, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-    },
-  },
-  {
-    name: "Checkerboard",
-    draw: (ctx, canvas) => {
-      const { width, height } = canvas;
-      const cells = 6;
-      const cellWidth = width / cells;
-      const cellHeight = height / cells;
-      ctx.save();
-      ctx.fillStyle = PATTERN_COLOR;
-      for (let y = 0; y < cells; y++) {
-        for (let x = 0; x < cells; x++) {
-          if ((x + y) % 2 === 0) {
-            ctx.fillRect(Math.floor(x * cellWidth), Math.floor(y * cellHeight), Math.ceil(cellWidth), Math.ceil(cellHeight));
+  // UI state
+  const [preset, setPreset] = useState("clear");
+  const [brushSize, setBrushSize] = useState(10);
+  const [penPhase, setPenPhase] = useState(Math.PI); // rad
+  const [drawMode, setDrawMode] = useState<"set" | "add" | "erase">("set");
+  const [logView, setLogView] = useState(true);
+  const [gamma, setGamma] = useState(0.5);
+  const [busy, setBusy] = useState(false);
+  
+  
+
+  // Re-render toggles
+  const [holoVersion, setHoloVersion] = useState(0); // bump to redraw phase
+  const [outVersion, setOutVersion]   = useState(0); // bump to recompute FFT (informational)
+
+  // Debounce FFT recompute when drawing
+  const recomputeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // =============== Utilities =================
+  const clamp = (x: number, lo: number, hi: number) => (x < lo ? lo : x > hi ? hi : x);
+  const mod2pi = (x: number) => { x %= TWO_PI; if (x < 0) x += TWO_PI; return x; };
+  const idx = (x: number, y: number) => y * SIZE + x; // Convert (x,y) → index
+
+  // HSV→RGB (h in [0,1), s in [0,1], v in [0,1])
+  function hsvToRgb(h: number, s: number, v: number) {
+    let r = 0, g = 0, b = 0;
+    const i = Math.floor(h * 6);
+    const f = h * 6 - i;
+    const p = v * (1 - s);
+    const q = v * (1 - f * s);
+    const t = v * (1 - (1 - f) * s);
+    switch (i % 6) {
+      case 0: r = v; g = t; b = p; break;
+      case 1: r = q; g = v; b = p; break;
+      case 2: r = p; g = v; b = t; break;
+      case 3: r = p; g = q; b = v; break;
+      case 4: r = t; g = p; b = v; break;
+      case 5: r = v; g = p; b = q; break;
+    }
+    return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
+  }
+
+  // Draw phase field to the hologram canvas as an HSV colormap
+  const paintHologram = () => {
+    const canvas = holoCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    if (!ctx) return;
+    const img = ctx.createImageData(SIZE, SIZE);
+    const data = img.data; // RGBA
+    const φ = phaseRef.current;
+    let p = 0;
+    for (let y = 0; y < SIZE; y++) {
+      for (let x = 0; x < SIZE; x++) {
+        const phase = φ[idx(x, y)];
+        const h = (phase / TWO_PI) % 1; // phase → hue
+        const [R, G, B] = hsvToRgb(h, 1, 1);
+        data[p++] = R; data[p++] = G; data[p++] = B; data[p++] = 255;
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+  };
+
+  // =============== FFT Implementation =================
+  function fft1d(re: Float32Array, im: Float32Array, N: number) {
+    // Bit reversal
+    let j = 0;
+    for (let i = 0; i < N; i++) {
+      if (i < j) {
+        const tr = re[i]; re[i] = re[j]; re[j] = tr;
+        const ti = im[i]; im[i] = im[j]; im[j] = ti;
+      }
+      let m = N >> 1;
+      while (m >= 1 && j >= m) { j -= m; m >>= 1; }
+      j += m;
+    }
+    // Cooley–Tukey
+    for (let s = 1; s <= Math.log2(N); s++) {
+      const m = 1 << s;
+      const m2 = m >> 1;
+      const theta = -2 * Math.PI / m;
+      const wpr = Math.cos(theta);
+      const wpi = Math.sin(theta);
+      for (let k = 0; k < N; k += m) {
+        let wr = 1, wi = 0;
+        for (let j = 0; j < m2; j++) {
+          const tpr = wr * re[k + j + m2] - wi * im[k + j + m2];
+          const tpi = wr * im[k + j + m2] + wi * re[k + j + m2];
+          const ur = re[k + j];
+          const ui = im[k + j];
+          re[k + j] = ur + tpr;
+          im[k + j] = ui + tpi;
+          re[k + j + m2] = ur - tpr;
+          im[k + j + m2] = ui - tpi;
+          const tmp = wr; // w *= wp
+          wr = tmp * wpr - wi * wpi;
+          wi = tmp * wpi + wi * wpr;
+        }
+      }
+    }
+  }
+
+  function fft2d(re: Float32Array, im: Float32Array, n: number, tmpRe: Float32Array, tmpIm: Float32Array) {
+    // rows
+    for (let y = 0; y < n; y++) {
+      const off = y * n;
+      fft1d(re.subarray(off, off + n), im.subarray(off, off + n), n);
+    }
+    // cols (use temps)
+    for (let x = 0; x < n; x++) {
+      for (let y = 0; y < n; y++) {
+        const off = y * n + x;
+        tmpRe[y] = re[off];
+        tmpIm[y] = im[off];
+      }
+      fft1d(tmpRe, tmpIm, n);
+      for (let y = 0; y < n; y++) {
+        const off = y * n + x;
+        re[off] = tmpRe[y];
+        im[off] = tmpIm[y];
+      }
+    }
+  }
+
+  function ifft2d(re: Float32Array, im: Float32Array, n: number, tmpRe: Float32Array, tmpIm: Float32Array) {
+    const total = n * n;
+    for (let i = 0; i < total; i++) im[i] = -im[i]; // conjugate
+    fft2d(re, im, n, tmpRe, tmpIm);
+    const inv = 1 / total;
+    for (let i = 0; i < total; i++) { re[i] *= inv; im[i] = -im[i] * inv; }
+  }
+
+  // ===== Target helpers & synthesis =====
+  function flipUD2D(input: Float32Array, N: number) {
+    const out = new Float32Array(N * N);
+    for (let y = 0; y < N; y++) {
+      const yy = N - 1 - y;
+      const src = y * N;
+      const dst = yy * N;
+      for (let x = 0; x < N; x++) out[dst + x] = input[src + x];
+    }
+    return out;
+  }
+
+  function ifftshift2D(input: Float32Array, N: number) {
+    const out = new Float32Array(N * N);
+    for (let y = 0; y < N; y++) {
+      const ys = (y + (N >> 1)) & (N - 1);
+      for (let x = 0; x < N; x++) {
+        const xs = (x + (N >> 1)) & (N - 1);
+        out[ys * N + xs] = input[y * N + x];
+      }
+    }
+    return out;
+  }
+
+  function normalizeTargetToAmp(target: Float32Array) {
+    const total = target.length;
+    let maxI = 0; for (let i = 0; i < total; i++) if (target[i] > maxI) maxI = target[i];
+    const amp = new Float32Array(total);
+    const s = maxI > 0 ? 1 / Math.sqrt(maxI + 1e-12) : 1;
+    for (let i = 0; i < total; i++) amp[i] = Math.sqrt(target[i]) * s;
+    // The target is drawn with DC at the center; FFT arrays expect DC at (0,0).
+    // Map centered target → unshifted order and fix vertical axis.
+    return ifftshift2D(flipUD2D(amp, SIZE), SIZE);
+  }
+
+  // One-shot random-phase IFFT (fast, but not perfect)
+  function hologramFromTargetIntensity(target: Float32Array) {
+    const N = SIZE; const total = N * N;
+    const ampT = normalizeTargetToAmp(target);
+    const Re = new Float32Array(total);
+    const Im = new Float32Array(total);
+    for (let i = 0; i < total; i++) {
+      const a = ampT[i];
+      const ph = Math.random() * TWO_PI;
+      Re[i] = a * Math.cos(ph);
+      Im[i] = a * Math.sin(ph);
+    }
+    const tmpRe = new Float32Array(N), tmpIm = new Float32Array(N);
+    ifft2d(Re, Im, N, tmpRe, tmpIm);
+    const φ = phaseRef.current;
+    for (let i = 0; i < total; i++) φ[i] = mod2pi(Math.atan2(Im[i], Re[i]));
+  }
+
+  // Gerchberg–Saxton (phase-only) from target intensity
+  function gsFromTarget(target: Float32Array, iters = 12, beta = 0.9) {
+    const N = SIZE; const total = N * N;
+    const ampT = normalizeTargetToAmp(target);
+    const FR = new Float32Array(total); // Fourier plane (re)
+    const FI = new Float32Array(total); // Fourier plane (im)
+    for (let i = 0; i < total; i++) {
+      const a = ampT[i];
+      const ph = Math.random() * TWO_PI;
+      FR[i] = a * Math.cos(ph);
+      FI[i] = a * Math.sin(ph);
+    }
+    const tmpR = new Float32Array(N), tmpI = new Float32Array(N);
+    const SR = new Float32Array(total), SI = new Float32Array(total); // SLM plane buffers
+
+    for (let t = 0; t < iters; t++) {
+      // To SLM plane
+      SR.set(FR); SI.set(FI);
+      ifft2d(SR, SI, N, tmpR, tmpI);
+      // Enforce unit amplitude (phase-only SLM)
+      for (let i = 0; i < total; i++) {
+        const ph = Math.atan2(SI[i], SR[i]);
+        SR[i] = Math.cos(ph);
+        SI[i] = Math.sin(ph);
+      }
+      // Back to Fourier plane
+      FR.set(SR); FI.set(SI);
+      fft2d(FR, FI, N, tmpR, tmpI);
+      // Enforce target amplitude with relaxation
+      for (let i = 0; i < total; i++) {
+        const ph = Math.atan2(FI[i], FR[i]);
+        const curA = Math.hypot(FR[i], FI[i]);
+        const desA = ampT[i];
+        const newA = beta * desA + (1 - beta) * curA;
+        FR[i] = newA * Math.cos(ph);
+        FI[i] = newA * Math.sin(ph);
+      }
+    }
+    // Final SLM phase
+    SR.set(FR); SI.set(FI);
+    ifft2d(SR, SI, N, tmpR, tmpI);
+    const φ = phaseRef.current;
+    for (let i = 0; i < total; i++) φ[i] = mod2pi(Math.atan2(SI[i], SR[i]));
+  }
+
+  // Generate a simple smiley-face target intensity (eyes + arc mouth)
+  function makeSmileyTarget(N: number) {
+    const total = N * N;
+    const T = new Float32Array(total);
+    const cx = (N - 1) / 2, cy = (N - 1) / 2;
+
+    const addDisk = (xc: number, yc: number, r: number, val = 1) => {
+      const x0 = Math.max(0, Math.floor(xc - r));
+      const x1 = Math.min(N - 1, Math.ceil(xc + r));
+      const y0 = Math.max(0, Math.floor(yc - r));
+      const y1 = Math.min(N - 1, Math.ceil(yc + r));
+      const r2 = r * r;
+      for (let y = y0; y <= y1; y++) {
+        const dy = y - yc;
+        for (let x = x0; x <= x1; x++) {
+          const dx = x - xc;
+          if (dx * dx + dy * dy <= r2) {
+            const k = y * N + x;
+            T[k] = Math.max(T[k], val);
           }
         }
       }
-      ctx.restore();
-    },
-  },
-];
-
-function getScratchCanvas(key, size) {
-  const id = `${key}-${size}`;
-  if (!scratchCanvases.has(id)) {
-    const canvas = document.createElement("canvas");
-    canvas.width = size;
-    canvas.height = size;
-    scratchCanvases.set(id, canvas);
-  }
-
-  const canvas = scratchCanvases.get(id);
-  if (canvas.width !== size) canvas.width = size;
-  if (canvas.height !== size) canvas.height = size;
-  return canvas;
-}
-
-function fftRadix2(real, imag) {
-  const n = real.length;
-  if (n <= 1) return;
-  if ((n & (n - 1)) !== 0) {
-    throw new Error("FFT input length must be a power of two");
-  }
-
-  for (let i = 1, j = 0; i < n; i++) {
-    let bit = n >> 1;
-    for (; j & bit; bit >>= 1) {
-      j ^= bit;
-    }
-    j ^= bit;
-    if (i < j) {
-      const tempReal = real[i];
-      const tempImag = imag[i];
-      real[i] = real[j];
-      imag[i] = imag[j];
-      real[j] = tempReal;
-      imag[j] = tempImag;
-    }
-  }
-
-  for (let len = 2; len <= n; len <<= 1) {
-    const ang = (-2 * Math.PI) / len;
-    const wlenReal = Math.cos(ang);
-    const wlenImag = Math.sin(ang);
-    for (let i = 0; i < n; i += len) {
-      let wr = 1;
-      let wi = 0;
-      for (let j = 0; j < len / 2; j++) {
-        const uReal = real[i + j];
-        const uImag = imag[i + j];
-        const vReal = real[i + j + len / 2] * wr - imag[i + j + len / 2] * wi;
-        const vImag = real[i + j + len / 2] * wi + imag[i + j + len / 2] * wr;
-
-        real[i + j] = uReal + vReal;
-        imag[i + j] = uImag + vImag;
-        real[i + j + len / 2] = uReal - vReal;
-        imag[i + j + len / 2] = uImag - vImag;
-
-        const nextWr = wr * wlenReal - wi * wlenImag;
-        wi = wr * wlenImag + wi * wlenReal;
-        wr = nextWr;
-      }
-    }
-  }
-}
-
-function fft2D(real, imag, width, height) {
-  const rowReal = new Float64Array(width);
-  const rowImag = new Float64Array(width);
-  for (let y = 0; y < height; y++) {
-    const offset = y * width;
-    for (let x = 0; x < width; x++) {
-      rowReal[x] = real[offset + x];
-      rowImag[x] = imag[offset + x];
-    }
-    fftRadix2(rowReal, rowImag);
-    for (let x = 0; x < width; x++) {
-      real[offset + x] = rowReal[x];
-      imag[offset + x] = rowImag[x];
-    }
-  }
-
-  const colReal = new Float64Array(height);
-  const colImag = new Float64Array(height);
-  for (let x = 0; x < width; x++) {
-    for (let y = 0; y < height; y++) {
-      const idx = y * width + x;
-      colReal[y] = real[idx];
-      colImag[y] = imag[idx];
-    }
-    fftRadix2(colReal, colImag);
-    for (let y = 0; y < height; y++) {
-      const idx = y * width + x;
-      real[idx] = colReal[y];
-      imag[idx] = colImag[y];
-    }
-  }
-}
-
-function getHannWindow(width, height) {
-  const windowX = new Float64Array(width);
-  const windowY = new Float64Array(height);
-
-  for (let x = 0; x < width; x++) {
-    windowX[x] = 0.5 * (1 - Math.cos((2 * Math.PI * x) / (width - 1)));
-  }
-  for (let y = 0; y < height; y++) {
-    windowY[y] = 0.5 * (1 - Math.cos((2 * Math.PI * y) / (height - 1)));
-  }
-
-  return { windowX, windowY };
-}
-
-function applyHannWindow(width, height, data, windowX, windowY) {
-  let targetWindowX = windowX;
-  let targetWindowY = windowY;
-
-  if (!targetWindowX || !targetWindowY) {
-    const generated = getHannWindow(width, height);
-    targetWindowX = targetWindowX ?? generated.windowX;
-    targetWindowY = targetWindowY ?? generated.windowY;
-  }
-
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      data[y * width + x] *= targetWindowX[x] * targetWindowY[y];
-    }
-  }
-}
-
-function ifft2D(real, imag, width, height) {
-  const total = width * height;
-  for (let i = 0; i < total; i++) {
-    imag[i] = -imag[i];
-  }
-
-  fft2D(real, imag, width, height);
-
-  for (let i = 0; i < total; i++) {
-    real[i] = real[i] / total;
-    imag[i] = -imag[i] / total;
-  }
-}
-
-function computeRequiredPattern(imageCanvas, patternTargets, sampleSize = DEFAULT_RESOLUTION) {
-  const phaseCanvas = patternTargets?.phaseCanvas;
-  const magnitudeCanvas = patternTargets?.magnitudeCanvas ?? null;
-
-  if (!phaseCanvas || !imageCanvas) return;
-
-  const sourceCtx = imageCanvas.getContext("2d");
-  const sourceImage = sourceCtx.getImageData(0, 0, imageCanvas.width, imageCanvas.height);
-  const sourceData = sourceImage.data;
-  const sourceWidth = sourceImage.width;
-  const sourceHeight = sourceImage.height;
-  const xScale = sourceWidth / sampleSize;
-  const yScale = sourceHeight / sampleSize;
-
-  const totalPixels = sampleSize * sampleSize;
-  const real = new Float64Array(totalPixels);
-  const imag = new Float64Array(totalPixels);
-  const sampled = new Float64Array(totalPixels);
-
-  let minGray = Number.POSITIVE_INFINITY;
-  let maxGray = Number.NEGATIVE_INFINITY;
-  for (let y = 0; y < sampleSize; y++) {
-    const srcYStart = Math.floor(y * yScale);
-    const srcYEnd = Math.min(sourceHeight, Math.ceil((y + 1) * yScale));
-    for (let x = 0; x < sampleSize; x++) {
-      const srcXStart = Math.floor(x * xScale);
-      const srcXEnd = Math.min(sourceWidth, Math.ceil((x + 1) * xScale));
-      let sum = 0;
-      let count = 0;
-      for (let sy = srcYStart; sy < srcYEnd; sy++) {
-        const rowOffset = sy * sourceWidth * 4;
-        for (let sx = srcXStart; sx < srcXEnd; sx++) {
-          const offset = rowOffset + sx * 4;
-          sum += sourceData[offset] + sourceData[offset + 1] + sourceData[offset + 2];
-          count++;
-        }
-      }
-      const grayscale = count > 0 ? sum / (3 * count) : 0;
-      const idx = y * sampleSize + x;
-      sampled[idx] = grayscale;
-      if (grayscale < minGray) minGray = grayscale;
-      if (grayscale > maxGray) maxGray = grayscale;
-    }
-  }
-
-  const range = maxGray - minGray;
-  const invRange = range > 1e-6 ? 1 / range : 0;
-
-  for (let i = 0; i < totalPixels; i++) {
-    const normalized = invRange > 0 ? (sampled[i] - minGray) * invRange : 0;
-    // Treat the normalized intensity as a target magnitude and derive the amplitude.
-    real[i] = Math.sqrt(Math.max(0, Math.min(1, normalized)));
-  }
-
-  const hannWindow = getHannWindow(sampleSize, sampleSize);
-  applyHannWindow(sampleSize, sampleSize, real, hannWindow.windowX, hannWindow.windowY);
-
-  ifft2D(real, imag, sampleSize, sampleSize);
-
-  const phaseMap = new Float64Array(totalPixels);
-  const magnitudeMap = new Float64Array(totalPixels);
-  let minMagnitude = Number.POSITIVE_INFINITY;
-  let maxMagnitude = Number.NEGATIVE_INFINITY;
-  const half = sampleSize / 2;
-  for (let y = 0; y < sampleSize; y++) {
-    for (let x = 0; x < sampleSize; x++) {
-      const srcX = (x + half) % sampleSize;
-      const srcY = (y + half) % sampleSize;
-      const idx = srcY * sampleSize + srcX;
-      const phase = Math.atan2(imag[idx], real[idx]);
-      const mag = Math.hypot(real[idx], imag[idx]);
-      const destIdx = y * sampleSize + x;
-      phaseMap[destIdx] = phase;
-      magnitudeMap[destIdx] = mag;
-      if (mag < minMagnitude) minMagnitude = mag;
-      if (mag > maxMagnitude) maxMagnitude = mag;
-    }
-  }
-
-  storedFieldCache.set(phaseCanvas, {
-    magnitude: magnitudeMap,
-    size: sampleSize,
-    windowX: hannWindow.windowX,
-    windowY: hannWindow.windowY,
-  });
-
-  const outputCanvasBuffer = getScratchCanvas("pattern", sampleSize);
-  const outputBufferCtx = outputCanvasBuffer.getContext("2d");
-  const outputImage = outputBufferCtx.createImageData(sampleSize, sampleSize);
-  const outData = outputImage.data;
-  const phaseScale = 1 / (2 * Math.PI);
-
-  for (let i = 0; i < totalPixels; i++) {
-    const normalized = (phaseMap[i] + Math.PI) * phaseScale;
-    const clamped = Math.max(0, Math.min(1, normalized));
-    const value = Math.round(clamped * 255);
-    const offset = i * 4;
-    outData[offset] = value;
-    outData[offset + 1] = value;
-    outData[offset + 2] = value;
-    outData[offset + 3] = 255;
-  }
-
-  outputBufferCtx.putImageData(outputImage, 0, 0);
-
-  const outputCtx = phaseCanvas.getContext("2d");
-  outputCtx.save();
-  outputCtx.fillStyle = BG_COLOR;
-  outputCtx.fillRect(0, 0, phaseCanvas.width, phaseCanvas.height);
-  outputCtx.drawImage(outputCanvasBuffer, 0, 0, phaseCanvas.width, phaseCanvas.height);
-  outputCtx.restore();
-
-  if (magnitudeCanvas) {
-    const magnitudeBuffer = getScratchCanvas("magnitude", sampleSize);
-    const magnitudeCtx = magnitudeBuffer.getContext("2d");
-    const magnitudeImage = magnitudeCtx.createImageData(sampleSize, sampleSize);
-    const magnitudeData = magnitudeImage.data;
-    const magnitudeRange = maxMagnitude - minMagnitude;
-    const magnitudeScale = magnitudeRange > 1e-12 ? 1 / magnitudeRange : 0;
-
-    for (let i = 0; i < totalPixels; i++) {
-      const normalized = magnitudeScale > 0 ? (magnitudeMap[i] - minMagnitude) * magnitudeScale : 0;
-      const value = Math.round(normalized * 255);
-      const offset = i * 4;
-      magnitudeData[offset] = value;
-      magnitudeData[offset + 1] = value;
-      magnitudeData[offset + 2] = value;
-      magnitudeData[offset + 3] = 255;
-    }
-
-    magnitudeCtx.putImageData(magnitudeImage, 0, 0);
-
-    const destinationCtx = magnitudeCanvas.getContext("2d");
-    destinationCtx.save();
-    destinationCtx.fillStyle = BG_COLOR;
-    destinationCtx.fillRect(0, 0, magnitudeCanvas.width, magnitudeCanvas.height);
-    destinationCtx.drawImage(magnitudeBuffer, 0, 0, magnitudeCanvas.width, magnitudeCanvas.height);
-    destinationCtx.restore();
-  }
-}
-
-function computeImageFromPattern(patternCanvas, imageCanvas, sampleSize = DEFAULT_RESOLUTION) {
-  if (!patternCanvas || !imageCanvas) return;
-
-  const sourceCtx = patternCanvas.getContext("2d");
-  const sourceImage = sourceCtx.getImageData(0, 0, patternCanvas.width, patternCanvas.height);
-  const { data: sourceData, width: sourceWidth, height: sourceHeight } = sourceImage;
-
-  const xScale = sourceWidth / sampleSize;
-  const yScale = sourceHeight / sampleSize;
-
-  const totalPixels = sampleSize * sampleSize;
-  const real = new Float64Array(totalPixels);
-  const imag = new Float64Array(totalPixels);
-  const storedField = storedFieldCache.get(patternCanvas);
-  const storedFieldValid = storedField && storedField.size === sampleSize;
-  const storedMagnitude = storedFieldValid ? storedField.magnitude : null;
-  let windowX = storedFieldValid ? storedField.windowX : null;
-  let windowY = storedFieldValid ? storedField.windowY : null;
-
-  if (!windowX || !windowY) {
-    const generated = getHannWindow(sampleSize, sampleSize);
-    windowX = windowX ?? generated.windowX;
-    windowY = windowY ?? generated.windowY;
-    if (storedFieldValid) {
-      storedField.windowX = windowX;
-      storedField.windowY = windowY;
-    }
-  }
-
-  const half = sampleSize / 2;
-
-  for (let y = 0; y < sampleSize; y++) {
-    const srcYStart = Math.floor(y * yScale);
-    const srcYEnd = Math.min(sourceHeight, Math.ceil((y + 1) * yScale));
-    for (let x = 0; x < sampleSize; x++) {
-      const srcXStart = Math.floor(x * xScale);
-      const srcXEnd = Math.min(sourceWidth, Math.ceil((x + 1) * xScale));
-
-      let sum = 0;
-      let count = 0;
-      for (let sy = srcYStart; sy < srcYEnd; sy++) {
-        const rowOffset = sy * sourceWidth * 4;
-        for (let sx = srcXStart; sx < srcXEnd; sx++) {
-          const offset = rowOffset + sx * 4;
-          sum += sourceData[offset];
-          count++;
-        }
-      }
-
-      const average = count > 0 ? sum / count : 0;
-      const normalized = average / 255;
-      const phase = normalized * 2 * Math.PI - Math.PI;
-      const idx = y * sampleSize + x;
-      const srcX = (x + half) % sampleSize;
-      const srcY = (y + half) % sampleSize;
-      const srcIdx = srcY * sampleSize + srcX;
-      // Use the cached magnitude directly to avoid magnifying numerical noise when the Hann taper approaches zero.
-      let amplitude = storedMagnitude ? storedMagnitude[idx] : 1;
-      if (!Number.isFinite(amplitude) || amplitude < 0) {
-        amplitude = 0;
-      }
-      real[srcIdx] = amplitude * Math.cos(phase);
-      imag[srcIdx] = amplitude * Math.sin(phase);
-    }
-  }
-
-  fft2D(real, imag, sampleSize, sampleSize);
-
-  const intensities = new Float64Array(totalPixels);
-  let minIntensity = Number.POSITIVE_INFINITY;
-  let maxIntensity = Number.NEGATIVE_INFINITY;
-  const weightClampThreshold = 1e-6;
-
-  for (let y = 0; y < sampleSize; y++) {
-    const weightY = windowY[y];
-    for (let x = 0; x < sampleSize; x++) {
-      const weightX = windowX[x];
-      const weight = weightX * weightY;
-      const idx = y * sampleSize + x;
-      const rawIntensity = real[idx] * real[idx] + imag[idx] * imag[idx];
-      let compensatedIntensity = 0;
-      if (Number.isFinite(weight) && weight > weightClampThreshold) {
-        const invWeightSq = 1 / (weight * weight);
-        compensatedIntensity = rawIntensity * invWeightSq;
-      }
-      intensities[idx] = compensatedIntensity;
-      if (compensatedIntensity < minIntensity) minIntensity = compensatedIntensity;
-      if (compensatedIntensity > maxIntensity) maxIntensity = compensatedIntensity;
-    }
-  }
-
-  const range = maxIntensity - minIntensity;
-  const invRange = range > 1e-6 ? 1 / range : 0;
-
-  const outputCanvasBuffer = getScratchCanvas("image-from-pattern", sampleSize);
-  const outputCtx = outputCanvasBuffer.getContext("2d");
-  const outputImage = outputCtx.createImageData(sampleSize, sampleSize);
-  const outData = outputImage.data;
-
-  for (let i = 0; i < totalPixels; i++) {
-    const normalized = invRange > 0 ? (intensities[i] - minIntensity) * invRange : 0;
-    const value = Math.round(normalized * 255);
-    const offset = i * 4;
-    outData[offset] = value;
-    outData[offset + 1] = value;
-    outData[offset + 2] = value;
-    outData[offset + 3] = 255;
-  }
-
-  outputCtx.putImageData(outputImage, 0, 0);
-
-  const destinationCtx = imageCanvas.getContext("2d");
-  destinationCtx.save();
-  destinationCtx.fillStyle = DIFFRACTION_BG_COLOR;
-  destinationCtx.fillRect(0, 0, imageCanvas.width, imageCanvas.height);
-  destinationCtx.drawImage(outputCanvasBuffer, 0, 0, imageCanvas.width, imageCanvas.height);
-  destinationCtx.restore();
-  destinationCtx.beginPath();
-}
-
-
-function useDrawingCanvas({
-  backgroundColor = BG_COLOR,
-  strokeColor = STROKE_COLOR,
-  strokeWidth = STROKE_WIDTH,
-  interactive = true,
-  onStroke,
-  size = DEFAULT_RESOLUTION,
-} = {}) {
-  const canvasRef = useRef(null);
-  const drawingRef = useRef({ isDrawing: false, x: 0, y: 0 });
-  const onStrokeRef = useRef(onStroke);
-
-  useEffect(() => {
-    onStrokeRef.current = onStroke;
-  }, [onStroke]);
-
-  const clearCanvas = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    ctx.save();
-    ctx.fillStyle = backgroundColor;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.restore();
-    ctx.beginPath();
-    if (onStrokeRef.current) {
-      onStrokeRef.current(canvas);
-    }
-  }, [backgroundColor]);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    canvas.width = size;
-    canvas.height = size;
-
-    const ctx = canvas.getContext("2d");
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    ctx.lineWidth = strokeWidth;
-    ctx.strokeStyle = strokeColor;
-
-    clearCanvas();
-  }, [clearCanvas, size, strokeColor, strokeWidth]);
-
-  const getCanvasCoordinates = (event) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return { x: 0, y: 0 };
-    const rect = canvas.getBoundingClientRect();
-    const scaleX = rect.width > 0 ? canvas.width / rect.width : 1;
-    const scaleY = rect.height > 0 ? canvas.height / rect.height : 1;
-    return {
-      x: (event.clientX - rect.left) * scaleX,
-      y: (event.clientY - rect.top) * scaleY,
     };
-  };
 
-  const handlePointerDown = (event) => {
-    event.preventDefault();
-    const { x, y } = getCanvasCoordinates(event);
-    const ctx = canvasRef.current.getContext("2d");
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-    drawingRef.current = { isDrawing: true, x, y };
-  };
-
-  const handlePointerMove = (event) => {
-    const state = drawingRef.current;
-    if (!state.isDrawing) return;
-    event.preventDefault();
-    const { x, y } = getCanvasCoordinates(event);
-    const ctx = canvasRef.current.getContext("2d");
-    ctx.lineTo(x, y);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-    drawingRef.current = { isDrawing: true, x, y };
-    if (onStrokeRef.current) {
-      onStrokeRef.current(canvasRef.current);
-    }
-  };
-
-  const handlePointerUp = () => {
-    drawingRef.current = { isDrawing: false, x: 0, y: 0 };
-    if (onStrokeRef.current) {
-      onStrokeRef.current(canvasRef.current);
-    }
-  };
-
-  const bindCanvas = () => {
-    if (!interactive) {
-      return { ref: canvasRef };
-    }
-
-    return {
-      ref: canvasRef,
-      onPointerDown: handlePointerDown,
-      onPointerMove: handlePointerMove,
-      onPointerUp: handlePointerUp,
-      onPointerLeave: handlePointerUp,
-    };
-  };
-
-  return { canvasRef, bindCanvas, clearCanvas };
-}
-
-export default function LcosSlmDemo() {
-  const [simulationResolution, setSimulationResolution] = useState(DEFAULT_RESOLUTION);
-
-  const patternCanvas = useDrawingCanvas({ interactive: false, size: simulationResolution });
-  const magnitudeCanvas = useDrawingCanvas({ interactive: false, size: simulationResolution });
-  const pendingUpdateRef = useRef(false);
-
-  const schedulePatternUpdate = useCallback(
-    (canvas) => {
-      if (!canvas || !patternCanvas.canvasRef.current) return;
-      if (pendingUpdateRef.current) return;
-      pendingUpdateRef.current = true;
-
-      const runCompute = () => {
-        pendingUpdateRef.current = false;
-        const phaseCanvas = patternCanvas.canvasRef.current;
-        if (phaseCanvas) {
-          computeRequiredPattern(
-            canvas,
-            {
-              phaseCanvas,
-              magnitudeCanvas: magnitudeCanvas.canvasRef.current ?? null,
-            },
-            simulationResolution,
-          );
-        }
-      };
-
-      if (typeof queueMicrotask === "function") {
-        queueMicrotask(runCompute);
-      } else {
-        Promise.resolve().then(runCompute);
+    // Draw a thin circular ring by placing small disks along a circle
+    const addRing = (xc: number, yc: number, r: number, w: number, val = 1) => {
+      const samples = Math.max(256, Math.floor(2 * Math.PI * r));
+      const rr = r;
+      const rad = Math.max(1, w);
+      for (let s = 0; s < samples; s++) {
+        const th = (s / samples) * 2 * Math.PI;
+        const x = xc + rr * Math.cos(th);
+        const y = yc + rr * Math.sin(th);
+        addDisk(x, y, rad, val);
       }
-    },
-    [magnitudeCanvas.canvasRef, patternCanvas.canvasRef, simulationResolution],
-  );
+    };
 
-  useEffect(() => () => {
-    pendingUpdateRef.current = false;
+    // Eyes (slightly larger for robustness)
+    const eyeR = Math.round(N * 0.036);
+    const eyeDx = N * 0.12;
+    const eyeDy = N * -0.12; // moved eyes higher above center
+    addDisk(cx - eyeDx, cy - eyeDy, eyeR, 1);
+    addDisk(cx + eyeDx, cy - eyeDy, eyeR, 1);
+
+    // Smile arc made of small disks
+    const mouthR = N * 0.18;
+    const mouthW = Math.round(N * 0.022); // thicker arc to reduce high‑freq noise
+    const theta0 = (210 * Math.PI) / 180;
+    const theta1 = (330 * Math.PI) / 180;
+    const samples = 280;
+    const cyM = cy + N * 0.06;
+    for (let s = 0; s <= samples; s++) {
+      const t = s / samples;
+      const th = theta0 + (theta1 - theta0) * t;
+      const x = cx + mouthR * Math.cos(th);
+      const y = cyM + mouthR * Math.sin(th);
+      addDisk(x, y, mouthW, 1);
+    }
+
+        // Head ring (face outline)
+    const headR = N * 0.28;      // radius of the head
+    const headW = Math.max(1, Math.round(N * 0.012)); // ring thickness via disk radius
+    addRing(cx, cy, headR, headW, 1);
+
+    return T;
+  }
+
+  // Compute |FFT{exp(i·φ)}|² and paint the output canvas
+  const renderOutput = () => {
+    const canvas = outCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    if (!ctx) return;
+
+    const N = SIZE;
+    const total = N * N;
+
+    // Build complex field E = exp(i·φ)
+    const φ = phaseRef.current;
+    const re = new Float32Array(total);
+    const im = new Float32Array(total);
+    for (let k = 0; k < total; k++) {
+      re[k] = Math.cos(φ[k]);
+      im[k] = Math.sin(φ[k]);
+    }
+
+    // 2D FFT
+    const tmpRe = new Float32Array(N);
+    const tmpIm = new Float32Array(N);
+    fft2d(re, im, N, tmpRe, tmpIm);
+
+    // Intensity + fftshift
+    const img = ctx.createImageData(N, N);
+    const data = img.data;
+
+    let maxI = 0;
+    const I = new Float32Array(total);
+    for (let y = 0; y < N; y++) {
+      for (let x = 0; x < N; x++) {
+        // shift
+        const xs = (x + N / 2) & (N - 1);
+        const ys = (y + N / 2) & (N - 1);
+        const k = ys * N + xs;
+        const mag2 = re[k] * re[k] + im[k] * im[k];
+        I[y * N + x] = mag2;
+        if (mag2 > maxI) maxI = mag2;
+      }
+    }
+
+    // Normalize + tone map
+    const eps = 1e-9;
+    let p = 0;
+    if (logView) {
+      const maxLog = Math.log(maxI + eps);
+      for (let i = 0; i < total; i++) {
+        const v = Math.log(I[i] + eps) / (maxLog || 1);
+        const g = Math.pow(clamp(v, 0, 1), gamma);
+        const G = Math.round(g * 255);
+        data[p++] = G; data[p++] = G; data[p++] = G; data[p++] = 255;
+      }
+    } else {
+      for (let i = 0; i < total; i++) {
+        const v = I[i] / (maxI || 1);
+        const g = Math.pow(clamp(v, 0, 1), gamma);
+        const G = Math.round(g * 255);
+        data[p++] = G; data[p++] = G; data[p++] = G; data[p++] = 255;
+      }
+    }
+
+    ctx.putImageData(img, 0, 0);
+  };
+
+  // =============== Presets =================
+  function fillSmileyGS() {
+    const target = makeSmileyTarget(SIZE);
+    setBusy(true);
+    // Compute on next frame to keep UI responsive
+    requestAnimationFrame(() => {
+      gsFromTarget(target, 28, 0.9);
+      setHoloVersion(v => v + 1);
+      queueRecompute(0);
+      setBusy(false);
+    });
+  }
+
+  function fillClear() {
+    const φ = phaseRef.current; φ.fill(0);
+  }
+
+  function fillBlazed(fx = 8, fy = 0) {
+    const φ = phaseRef.current;
+    for (let y = 0; y < SIZE; y++) {
+      for (let x = 0; x < SIZE; x++) {
+        const u = x / SIZE, v = y / SIZE;
+        const phase = TWO_PI * (fx * u + fy * v);
+        φ[idx(x, y)] = mod2pi(phase);
+      }
+    }
+  }
+
+  function fillChecker() {
+    const φ = phaseRef.current;
+    for (let y = 0; y < SIZE; y++) {
+      for (let x = 0; x < SIZE; x++) {
+        const u = x / SIZE, v = y / SIZE;
+        const phase = TWO_PI * (10 * u + 10 * v);
+        φ[idx(x, y)] = mod2pi(phase);
+      }
+    }
+  }
+
+  function fillVortex(ell = 1) {
+    const φ = phaseRef.current;
+    const cx = (SIZE - 1) / 2, cy = (SIZE - 1) / 2;
+    for (let y = 0; y < SIZE; y++) {
+      for (let x = 0; x < SIZE; x++) {
+        const ang = Math.atan2(y - cy, x - cx);
+        φ[idx(x, y)] = mod2pi(ell * ang + Math.PI);
+      }
+    }
+  }
+
+  function fillFresnelLens(strength = 8.0) {
+    const φ = phaseRef.current;
+    const cx = (SIZE - 1) / 2, cy = (SIZE - 1) / 2;
+    const scale = TWO_PI / (SIZE * SIZE) * strength * 8;
+    for (let y = 0; y < SIZE; y++) {
+      for (let x = 0; x < SIZE; x++) {
+        const dx = x - cx, dy = y - cy;
+        const phase = scale * (dx * dx + dy * dy);
+        φ[idx(x, y)] = mod2pi(phase);
+      }
+    }
+  }
+
+  function fillAxicon(strength = 12.0) {
+    const φ = phaseRef.current;
+    const cx = (SIZE - 1) / 2, cy = (SIZE - 1) / 2;
+    const scale = TWO_PI / Math.hypot(cx, cy) * (strength / 12);
+    for (let y = 0; y < SIZE; y++) {
+      for (let x = 0; x < SIZE; x++) {
+        const r = Math.hypot(x - cx, y - cy);
+        φ[idx(x, y)] = mod2pi(scale * r);
+      }
+    }
+  }
+
+  function fillRandom() {
+    const φ = phaseRef.current;
+    for (let k = 0; k < φ.length; k++) φ[k] = Math.random() * TWO_PI;
+  }
+
+  function fillMultispot(grid = 7, spacing = 0.075) {
+    const φ = phaseRef.current;
+    const total = SIZE * SIZE;
+    const re = new Float32Array(total).fill(0);
+    const im = new Float32Array(total).fill(0);
+
+    const half = (grid - 1) / 2;
+    for (let gy = -half; gy <= half; gy++) {
+      for (let gx = -half; gx <= half; gx++) {
+        const fx = gx * spacing;
+        const fy = gy * spacing;
+        let k = 0;
+        for (let y = 0; y < SIZE; y++) {
+          const v = y / SIZE;
+          for (let x = 0; x < SIZE; x++, k++) {
+            const u = x / SIZE;
+            const phase = TWO_PI * (fx * u + fy * v);
+            re[k] += Math.cos(phase);
+            im[k] += Math.sin(phase);
+          }
+        }
+      }
+    }
+    for (let k = 0; k < total; k++) {
+      φ[k] = mod2pi(Math.atan2(im[k], re[k]));
+    }
+  }
+
+  function applyPreset(kind: string) {
+    switch (kind) {
+      case "clear": fillClear(); break;
+      case "blazed-x": fillBlazed(16, 0); break;
+      case "blazed-y": fillBlazed(0, 16); break;
+      case "checker": fillChecker(); break;
+      case "vortex-l1": fillVortex(1); break;
+      case "vortex-l2": fillVortex(2); break;
+      case "fresnel": fillFresnelLens(8.0); break;
+      case "axicon": fillAxicon(12.0); break;
+      case "random": fillRandom(); break;
+      case "multispot": fillMultispot(5, 0.08); break;
+      case "multispot7": fillMultispot(7, 0.065); break;
+      case "smiley": fillSmileyGS(); break; // GS synthesis
+      default: fillClear();
+    }
+    setHoloVersion(v => v + 1);
+    queueRecompute();
+  }
+
+  // =============== Drawing on the hologram =================
+  const drawing = useRef(false);
+  const lastPt = useRef({ x: 0, y: 0 });
+
+  function toCanvasXY(e: React.PointerEvent<HTMLCanvasElement>) {
+    const rect = holoCanvasRef.current!.getBoundingClientRect();
+    const x = clamp(Math.floor(((e.clientX - rect.left) / rect.width) * SIZE), 0, SIZE - 1);
+    const y = clamp(Math.floor(((e.clientY - rect.top) / rect.height) * SIZE), 0, SIZE - 1);
+    return { x, y };
+  }
+
+  function paintDot(xc: number, yc: number) {
+    const φ = phaseRef.current;
+    const r = brushSize;
+    const r2 = r * r;
+    const x0 = clamp(xc - r, 0, SIZE - 1);
+    const x1 = clamp(xc + r, 0, SIZE - 1);
+    const y0 = clamp(yc - r, 0, SIZE - 1);
+    const y1 = clamp(yc + r, 0, SIZE - 1);
+    for (let y = y0; y <= y1; y++) {
+      const dy = y - yc;
+      for (let x = x0; x <= x1; x++) {
+        const dx = x - xc;
+        if (dx * dx + dy * dy <= r2) {
+          const k = idx(x, y);
+          if (drawMode === "erase") {
+            φ[k] = 0;
+          } else if (drawMode === "add") {
+            φ[k] = mod2pi(φ[k] + penPhase);
+          } else { // set
+            φ[k] = penPhase;
+          }
+        }
+      }
+    }
+  }
+
+  function paintLine(x0: number, y0: number, x1: number, y1: number) {
+    const dx = Math.abs(x1 - x0), dy = Math.abs(y1 - y0);
+    const sx = x0 < x1 ? 1 : -1;
+    const sy = y0 < y1 ? 1 : -1;
+    let err = dx - dy;
+    let x = x0, y = y0;
+    while (true) {
+      paintDot(x, y);
+      if (x === x1 && y === y1) break;
+      const e2 = 2 * err;
+      if (e2 > -dy) { err -= dy; x += sx; }
+      if (e2 <  dx) { err += dx; y += sy; }
+    }
+  }
+
+  const onPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    drawing.current = true;
+    const p = toCanvasXY(e);
+    lastPt.current = p;
+    paintDot(p.x, p.y);
+    setHoloVersion(v => v + 1);
+    queueRecompute();
+  };
+
+  const onPointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!drawing.current) return;
+    const p = toCanvasXY(e);
+    const lp = lastPt.current;
+    paintLine(lp.x, lp.y, p.x, p.y);
+    lastPt.current = p;
+    setHoloVersion(v => v + 1);
+    queueRecompute(60); // throttle a bit while drawing
+  };
+
+  const onPointerUp = () => {
+    drawing.current = false;
+    queueRecompute();
+  };
+
+  // Debounced recompute of FFT
+  function queueRecompute(delay = 120) {
+    if (recomputeTimer.current) clearTimeout(recomputeTimer.current);
+    recomputeTimer.current = setTimeout(() => {
+      setBusy(true);
+      requestAnimationFrame(() => {
+        renderOutput();
+        setBusy(false);
+        setOutVersion(v => v + 1);
+      });
+    }, delay);
+  }
+
+  // =============== Effects =================
+  useEffect(() => { applyPreset("multispot"); }, []);
+  useEffect(() => { paintHologram(); }, [holoVersion]);
+  useEffect(() => { queueRecompute(0); }, [logView, gamma]);
+
+  // =============== Lightweight Self-Tests (runtime) =================
+  useEffect(() => {
+    try {
+      if (typeof window !== "undefined" && !(window as any).__CGH_TESTED__) {
+        (window as any).__CGH_TESTED__ = true;
+        // Test 1: FFT/IFFT identity on a delta
+        const N = 8, total = N * N;
+        const re = new Float32Array(total).fill(0);
+        const im = new Float32Array(total).fill(0);
+        re[0] = 1; // delta
+        const tR = new Float32Array(N), tI = new Float32Array(N);
+        fft2d(re, im, N, tR, tI);
+        ifft2d(re, im, N, tR, tI);
+        let maxErr = 0;
+        for (let i = 0; i < total; i++) maxErr = Math.max(maxErr, Math.abs(re[i] - (i === 0 ? 1 : 0)) + Math.abs(im[i]));
+        console.log("[CGH tests] FFT/IFFT max error:", maxErr);
+        if (maxErr > 1e-4) console.warn("[CGH tests] Warning: large FFT error", maxErr);
+
+        // Test 2: ifftshift sanity — centered impulse should map to (0,0)
+        const T = new Float32Array(total);
+        const c = Math.floor(N / 2);
+        T[c * N + c] = 1;
+        const U = (function ifftshiftLocal(input: Float32Array, NN: number){
+          const out = new Float32Array(NN * NN);
+          for (let y = 0; y < NN; y++) {
+            const ys = (y + (NN >> 1)) & (NN - 1);
+            for (let x = 0; x < NN; x++) {
+              const xs = (x + (NN >> 1)) & (NN - 1);
+              out[ys * NN + xs] = input[y * NN + x];
+            }
+          }
+          return out;
+        })(T, N);
+        if (U[0] !== 1) console.warn("[CGH tests] ifftshift failed (expected 1 at [0,0])");
+
+        // Test 3: flipUD2D sanity — top row becomes bottom row
+        const A = new Float32Array(total);
+        for (let x = 0; x < N; x++) A[x] = 1; // mark top row
+        const B = (function flipLocal(input: Float32Array, NN: number){
+          const out = new Float32Array(NN * NN);
+          for (let y = 0; y < NN; y++) {
+            const yy = NN - 1 - y;
+            for (let x = 0; x < NN; x++) out[yy * NN + x] = input[y * NN + x];
+          }
+          return out;
+        })(A, N);
+        let bottomSum = 0; for (let x = 0; x < N; x++) bottomSum += B[(N - 1) * N + x];
+        if (bottomSum !== N) console.warn("[CGH tests] flipUD2D failed (bottom row sum ", bottomSum, ")");
+
+        // Test 4: Smiley geometry — top bright row (eyes) should be sufficiently above center
+        const N2 = 128; const T2 = makeSmileyTarget(N2); const cy2 = (N2 - 1) / 2;
+        let maxTop = -1, yTop = -1, maxBot = -1, yBot = -1;
+        for (let y = 0; y < N2; y++) {
+          let row = 0; const off = y * N2;
+          for (let x = 0; x < N2; x++) row += T2[off + x];
+          if (y < cy2 && row > maxTop) { maxTop = row; yTop = y; }
+          if (y > cy2 && row > maxBot) { maxBot = row; yBot = y; }
+        }
+        const eyesOffset = (cy2 - yTop) / N2; // fraction of image height
+        console.log('[CGH tests] Smiley rows → eye offset fraction:', eyesOffset.toFixed(3), ' mouth offset:', ((yBot - cy2)/N2).toFixed(3));
+        if (eyesOffset < 0.12) console.warn('[CGH tests] Smiley: eyes may not be high enough');
+      }
+    } catch (e) { console.warn("[CGH tests] Skipped due to error:", e); }
   }, []);
 
-  const imageCanvas = useDrawingCanvas({
-    backgroundColor: DIFFRACTION_BG_COLOR,
-    strokeColor: "#0f172a",
-    onStroke: schedulePatternUpdate,
-    size: simulationResolution,
-  });
-
-  const applySamplePattern = useCallback(
-    (drawFn) => {
-      const canvas = imageCanvas.canvasRef.current;
-      if (!canvas) return;
-
-      const ctx = canvas.getContext("2d");
-      ctx.save();
-      ctx.fillStyle = DIFFRACTION_BG_COLOR;
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.restore();
-
-      drawFn(ctx, canvas);
-      ctx.beginPath();
-
-      schedulePatternUpdate(canvas);
-    },
-    [imageCanvas.canvasRef, schedulePatternUpdate],
+  // =============== UI =================
+  const PresetButton = ({ id, label }: { id: string; label: string }) => (
+    <button
+      onClick={() => { setPreset(id); applyPreset(id); }}
+      className={`px-3 py-2 rounded-xl text-sm border transition hover:shadow ${preset === id ? "bg-black text-white" : "bg-white"}`}
+    >{label}</button>
   );
 
-  useEffect(() => {
-    if (!imageCanvas.canvasRef.current || !patternCanvas.canvasRef.current) return;
-    computeRequiredPattern(
-      imageCanvas.canvasRef.current,
-      {
-        phaseCanvas: patternCanvas.canvasRef.current,
-        magnitudeCanvas: magnitudeCanvas.canvasRef.current ?? null,
-      },
-      simulationResolution,
-    );
-  }, [imageCanvas.canvasRef, magnitudeCanvas.canvasRef, patternCanvas.canvasRef, simulationResolution]);
-
-  const handleReset = () => {
-    patternCanvas.clearCanvas();
-    imageCanvas.clearCanvas();
-    magnitudeCanvas.clearCanvas();
-    if (patternCanvas.canvasRef.current) {
-      storedFieldCache.delete(patternCanvas.canvasRef.current);
-    }
-  };
-
-  const handleTransferPattern = useCallback(() => {
-    if (!patternCanvas.canvasRef.current || !imageCanvas.canvasRef.current) return;
-    computeImageFromPattern(
-      patternCanvas.canvasRef.current,
-      imageCanvas.canvasRef.current,
-      simulationResolution,
-    );
-  }, [imageCanvas.canvasRef, patternCanvas.canvasRef, simulationResolution]);
-
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
-      <main className="mx-auto flex min-h-screen max-w-5xl flex-col gap-12 px-6 py-16">
-        <header className="space-y-4">
-          <p className="text-sm font-medium uppercase tracking-[0.3em] text-slate-400">Spatial Light Modulation</p>
-          <h1 className="text-3xl font-semibold tracking-tight text-slate-900">LCOS-SLM Playground</h1>
-          <p className="max-w-2xl text-sm text-slate-500">
-            Sketch the far-field image you would like to produce and explore a back-propagated approximation of the LCOS phase
-            pattern required to generate it. This tool is purely illustrative and meant for quick whiteboard-style discussions.
-          </p>
-        </header>
+    <div className="w-full h-full p-4 md:p-6 xl:p-8 bg-neutral-50 text-neutral-900">
+      <div className="max-w-[1200px] mx-auto">
+        <h1 className="text-2xl md:text-3xl font-semibold mb-3">CGH Playground – 512×512 Phase-Only SLM Simulator</h1>
+        <p className="text-sm text-neutral-600 mb-4 leading-relaxed">
+          Pick a hologram, then draw on it. The panel on the right shows the simulated far‑field reconstruction
+          (intensity of the 2D FFT of <span className="font-mono">exp(i·φ)</span>). Try the presets like “Multispot” or “Vortex”,
+          and paint with different phases to see how the output moves and reshapes.
+        </p>
 
-        <div className="grid gap-12 lg:grid-cols-2">
-          <section className="flex flex-col gap-4">
-            <div className="space-y-1">
-              <h2 className="text-base font-semibold text-slate-900">Desired Image Plane</h2>
-              <p className="text-sm text-slate-500">
-                Draw the target intensity distribution you want to realize in the far field.
-              </p>
-            </div>
-            <div className="flex flex-col gap-2">
-              <label className="text-xs font-medium uppercase tracking-[0.2em] text-slate-400" htmlFor="resolution">
-                Simulation resolution
-              </label>
-              <div className="relative">
-                <select
-                  id="resolution"
-                  value={simulationResolution}
-                  onChange={(event) => setSimulationResolution(Number(event.target.value))}
-                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm transition focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200"
-                >
-                  {RESOLUTION_OPTIONS.map((option) => (
-                    <option key={option} value={option}>
-                      {option} × {option}
-                    </option>
-                  ))}
-                </select>
-                <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs text-slate-400">
-                  px
-                </div>
-              </div>
-
-              <p className="text-xs font-medium uppercase tracking-[0.2em] text-slate-400">Sample patterns</p>
+        <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr_1fr] gap-4">
+          {/* Left controls */}
+          <div className="bg-white rounded-2xl shadow-sm border p-4 space-y-4">
+            <div>
+              <div className="text-[13px] font-medium mb-2 uppercase tracking-wide text-neutral-500">Presets</div>
               <div className="flex flex-wrap gap-2">
-                {SAMPLE_PATTERNS.map((pattern) => (
-                  <button
-                    key={pattern.name}
-                    type="button"
-                    onClick={() => applySamplePattern(pattern.draw)}
-                    className="rounded-full border border-slate-200 bg-white px-4 py-1.5 text-xs font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:text-slate-900"
-                  >
-                    {pattern.name}
-                  </button>
+                <PresetButton id="clear" label="Clear" />
+                <PresetButton id="blazed-x" label="Blazed X" />
+                <PresetButton id="blazed-y" label="Blazed Y" />
+                <PresetButton id="checker" label="Checker" />
+                <PresetButton id="vortex-l1" label="Vortex ℓ=1" />
+                <PresetButton id="vortex-l2" label="Vortex ℓ=2" />
+                <PresetButton id="fresnel" label="Fresnel Lens" />
+                <PresetButton id="axicon" label="Axicon" />
+                <PresetButton id="multispot" label="Multispot 5×5" />
+                <PresetButton id="multispot7" label="Multispot 7×7" />
+                <PresetButton id="random" label="Random Phase" />
+                <PresetButton id="smiley" label="Smiley" />
+              </div>
+            </div>
+
+            <div className="h-px bg-neutral-200" />
+
+            
+
+            {/* Draw tools */}
+            <div>
+              <div className="text-[13px] font-medium mb-2 uppercase tracking-wide text-neutral-500">Draw tools</div>
+              <div className="flex gap-2">
+                {["set", "add", "erase"].map(m => (
+                  <button key={m}
+                    onClick={() => setDrawMode(m as any)}
+                    className={`px-3 py-2 rounded-xl text-sm border ${drawMode === m ? "bg-black text-white" : "bg-white"}`}
+                  >{m === "set" ? "Pen (set)" : m === "add" ? "Pen (add)" : "Eraser"}</button>
                 ))}
               </div>
-            </div>
-            <div className="relative w-full overflow-hidden rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
-              <canvas
-                {...imageCanvas.bindCanvas()}
-                className="mx-auto h-[256px] w-[256px] touch-none sm:h-[384px] sm:w-[384px] lg:h-[512px] lg:w-[512px]"
-              />
-              <div className="pointer-events-none absolute inset-3 rounded-lg border border-dashed border-slate-200" />
-            </div>
-          </section>
+              <label className="block text-sm mt-3">Brush size: <span className="font-mono">{brushSize}px</span></label>
+              <input type="range" min={1} max={64} value={brushSize}
+                     onChange={e => setBrushSize(parseInt((e.target as HTMLInputElement).value))}
+                     className="w-full" />
 
-          <section className="flex flex-col gap-4">
-            <div className="space-y-1">
-              <h2 className="text-base font-semibold text-slate-900">Required LCOS Pattern</h2>
-              <p className="text-sm text-slate-500">
-                Inspect the phase and amplitude of the near-field pattern computed via an inverse FFT of the desired image
-                plane.
+              <label className="block text-sm mt-3">Pen phase (radians): <span className="font-mono">{penPhase.toFixed(2)}</span></label>
+              <input type="range" min={0} max={TWO_PI} step={0.01} value={penPhase}
+                     onChange={e => setPenPhase(parseFloat((e.target as HTMLInputElement).value))}
+                     className="w-full" />
+              <div className="text-xs text-neutral-500 mt-1">Phase hue legend: 0 → red → … → 2π ≡ red</div>
+            </div>
+
+            <div className="h-px bg-neutral-200" />
+
+            {/* Output view */}
+            <div>
+              <div className="text-[13px] font-medium mb-2 uppercase tracking-wide text-neutral-500">Output view</div>
+              <div className="flex items-center gap-2 mb-2">
+                <input id="logView" type="checkbox" checked={logView} onChange={e => setLogView((e.target as HTMLInputElement).checked)} />
+                <label htmlFor="logView" className="text-sm">Log-scale intensity</label>
+              </div>
+              <label className="block text-sm">Gamma: <span className="font-mono">{gamma.toFixed(2)}</span></label>
+              <input type="range" min={0.2} max={2.0} step={0.05} value={gamma}
+                     onChange={e => setGamma(parseFloat((e.target as HTMLInputElement).value))}
+                     className="w-full" />
+              <button
+                onClick={() => { queueRecompute(0); }}
+                className="mt-3 px-3 py-2 rounded-xl text-sm border bg-white hover:shadow"
+              >Recompute now</button>
+              {busy && <div className="text-xs text-neutral-500 mt-2">Recomputing…</div>}
+            </div>
+
+            <div className="h-px bg-neutral-200" />
+
+            <div className="text-xs text-neutral-500 leading-relaxed">
+              <p className="mb-2">
+                Tip: add a gentle linear phase (use Blazed presets) to push energy off the DC (0th order) spot.
+                Multispot presets use a simple phase-only superposition of plane waves; try painting
+                extra phase where you want a spot to shift.
               </p>
             </div>
-            <div className="grid gap-6 md:grid-cols-2">
-              <div className="space-y-2">
-                <div className="space-y-1">
-                  <h3 className="text-sm font-semibold text-slate-900">Phase</h3>
-                  <p className="text-xs text-slate-500">Wrapped phase map (−π to π)</p>
-                </div>
-                <div className="relative w-full overflow-hidden rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
-                  <canvas
-                    {...patternCanvas.bindCanvas()}
-                    className="mx-auto h-[256px] w-[256px] touch-none sm:h-[384px] sm:w-[384px] lg:h-[512px] lg:w-[512px]"
-                  />
-                  <div className="pointer-events-none absolute inset-3 rounded-lg border border-dashed border-slate-200" />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <div className="space-y-1">
-                  <h3 className="text-sm font-semibold text-slate-900">Amplitude</h3>
-                  <p className="text-xs text-slate-500">Stored magnitude of the inverse FFT field</p>
-                </div>
-                <div className="relative w-full overflow-hidden rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
-                  <canvas
-                    {...magnitudeCanvas.bindCanvas()}
-                    className="mx-auto h-[256px] w-[256px] touch-none sm:h-[384px] sm:w-[384px] lg:h-[512px] lg:w-[512px]"
-                  />
-                  <div className="pointer-events-none absolute inset-3 rounded-lg border border-dashed border-slate-200" />
-                </div>
-              </div>
+          </div>
+
+          {/* Middle: Hologram editor */}
+          <div className="bg-white rounded-2xl shadow-sm border p-4 flex flex-col items-center">
+            <div className="w-full flex items-center justify-between mb-2">
+              <div className="text-sm font-medium">Hologram (phase) – 512×512</div>
+              <button
+                onClick={() => { applyPreset(preset); }}
+                className="px-3 py-1.5 rounded-lg text-xs border bg-white hover:shadow"
+              >Reset preset</button>
             </div>
-            <button
-              type="button"
-              onClick={handleTransferPattern}
-              className="self-start rounded-full border border-slate-200 px-5 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
-            >
-              Transfer pattern to image plane
-            </button>
-          </section>
+            <div className="relative w-full aspect-square">
+              <canvas
+                ref={holoCanvasRef}
+                width={SIZE}
+                height={SIZE}
+                className="w-full h-full rounded-xl border cursor-crosshair touch-none select-none"
+                onPointerDown={onPointerDown}
+                onPointerMove={onPointerMove}
+                onPointerUp={onPointerUp}
+                onPointerLeave={onPointerUp}
+              />
+            </div>
+          </div>
+
+          {/* Right: Reconstruction */}
+          <div className="bg-white rounded-2xl shadow-sm border p-4 flex flex-col items-center">
+            <div className="w-full flex items-center justify-between mb-2">
+              <div className="text-sm font-medium">Reconstruction (far field)</div>
+              <button
+                onClick={() => { queueRecompute(0); }}
+                className="px-3 py-1.5 rounded-lg text-xs border bg-white hover:shadow"
+              >Recompute</button>
+            </div>
+            <div className="relative w-full aspect-square">
+              <canvas
+                ref={outCanvasRef}
+                width={SIZE}
+                height={SIZE}
+                className="w-full h-full rounded-xl border bg-black"
+              />
+            </div>
+          </div>
         </div>
 
-        <div className="flex flex-col items-start gap-3 border-t border-slate-200 pt-6 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-xs text-slate-500">
-            Tip: Use a stylus or mouse to sketch distributions. The image plane updates automatically with each stroke using a
-            downsampled FFT approximation.
+        {/* Info footnote (inside container) */}
+        <div className="mt-4 text-[12px] text-neutral-500 leading-relaxed">
+          <p>
+            Simulation assumptions: monochromatic unit-amplitude plane wave, phase-only modulation,
+            and far-field observation plane. Real SLM systems include pixel aperture, fill-factor, zeroth‑order,
+            and optical aberrations; this app focuses on the core Fourier relationship between phase and the
+            diffraction pattern.
           </p>
-          <button
-            type="button"
-            onClick={handleReset}
-            className="rounded-full border border-slate-200 px-5 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
-          >
-            Reset canvases
-          </button>
         </div>
-      </main>
+      </div>
     </div>
   );
 }
