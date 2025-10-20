@@ -19,14 +19,14 @@ export default function CGHPlayground() {
   const phaseRef = useRef(new Float32Array(SIZE * SIZE)); // φ in [0, 2π)
 
   // Canvas refs
-  const holoCanvasRef = useRef<HTMLCanvasElement | null>(null);   // phase editor canvas (HSV colormap)
-  const outCanvasRef  = useRef<HTMLCanvasElement | null>(null);   // reconstructed intensity canvas
+  const holoCanvasRef = useRef(null);   // phase editor canvas (HSV colormap)
+  const outCanvasRef  = useRef(null);   // reconstructed intensity canvas
 
   // UI state
   const [preset, setPreset] = useState("clear");
   const [brushSize, setBrushSize] = useState(10);
   const [penPhase, setPenPhase] = useState(Math.PI); // rad
-  const [drawMode, setDrawMode] = useState<"set" | "add" | "erase">("set");
+  const [drawMode, setDrawMode] = useState("set");
   const [logView, setLogView] = useState(true);
   const [gamma, setGamma] = useState(0.5);
   const [busy, setBusy] = useState(false);
@@ -38,15 +38,15 @@ export default function CGHPlayground() {
   const [outVersion, setOutVersion]   = useState(0); // bump to recompute FFT (informational)
 
   // Debounce FFT recompute when drawing
-  const recomputeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const recomputeTimer = useRef(null);
 
   // =============== Utilities =================
-  const clamp = (x: number, lo: number, hi: number) => (x < lo ? lo : x > hi ? hi : x);
-  const mod2pi = (x: number) => { x %= TWO_PI; if (x < 0) x += TWO_PI; return x; };
-  const idx = (x: number, y: number) => y * SIZE + x; // Convert (x,y) → index
+  const clamp = (x, lo, hi) => (x < lo ? lo : x > hi ? hi : x);
+  const mod2pi = (x) => { x %= TWO_PI; if (x < 0) x += TWO_PI; return x; };
+  const idx = (x, y) => y * SIZE + x; // Convert (x,y) → index
 
   // HSV→RGB (h in [0,1), s in [0,1], v in [0,1])
-  function hsvToRgb(h: number, s: number, v: number) {
+  function hsvToRgb(h, s, v) {
     let r = 0, g = 0, b = 0;
     const i = Math.floor(h * 6);
     const f = h * 6 - i;
@@ -86,7 +86,7 @@ export default function CGHPlayground() {
   };
 
   // =============== FFT Implementation =================
-  function fft1d(re: Float32Array, im: Float32Array, N: number) {
+  function fft1d(re, im, N) {
     // Bit reversal
     let j = 0;
     for (let i = 0; i < N; i++) {
@@ -124,7 +124,7 @@ export default function CGHPlayground() {
     }
   }
 
-  function fft2d(re: Float32Array, im: Float32Array, n: number, tmpRe: Float32Array, tmpIm: Float32Array) {
+  function fft2d(re, im, n, tmpRe, tmpIm) {
     // rows
     for (let y = 0; y < n; y++) {
       const off = y * n;
@@ -146,7 +146,7 @@ export default function CGHPlayground() {
     }
   }
 
-  function ifft2d(re: Float32Array, im: Float32Array, n: number, tmpRe: Float32Array, tmpIm: Float32Array) {
+  function ifft2d(re, im, n, tmpRe, tmpIm) {
     const total = n * n;
     for (let i = 0; i < total; i++) im[i] = -im[i]; // conjugate
     fft2d(re, im, n, tmpRe, tmpIm);
@@ -155,7 +155,7 @@ export default function CGHPlayground() {
   }
 
   // ===== Target helpers & synthesis =====
-  function flipUD2D(input: Float32Array, N: number) {
+  function flipUD2D(input, N) {
     const out = new Float32Array(N * N);
     for (let y = 0; y < N; y++) {
       const yy = N - 1 - y;
@@ -166,7 +166,7 @@ export default function CGHPlayground() {
     return out;
   }
 
-  function ifftshift2D(input: Float32Array, N: number) {
+  function ifftshift2D(input, N) {
     const out = new Float32Array(N * N);
     for (let y = 0; y < N; y++) {
       const ys = (y + (N >> 1)) & (N - 1);
@@ -178,7 +178,7 @@ export default function CGHPlayground() {
     return out;
   }
 
-  function normalizeTargetToAmp(target: Float32Array) {
+  function normalizeTargetToAmp(target) {
     const total = target.length;
     let maxI = 0; for (let i = 0; i < total; i++) if (target[i] > maxI) maxI = target[i];
     const amp = new Float32Array(total);
@@ -190,7 +190,7 @@ export default function CGHPlayground() {
   }
 
   // One-shot random-phase IFFT (fast, but not perfect)
-  function hologramFromTargetIntensity(target: Float32Array) {
+  function hologramFromTargetIntensity(target) {
     const N = SIZE; const total = N * N;
     const ampT = normalizeTargetToAmp(target);
     const Re = new Float32Array(total);
@@ -208,7 +208,7 @@ export default function CGHPlayground() {
   }
 
   // Gerchberg–Saxton (phase-only) from target intensity
-  function gsFromTarget(target: Float32Array, iters = 12, beta = 0.9) {
+  function gsFromTarget(target, iters = 12, beta = 0.9) {
     const N = SIZE; const total = N * N;
     const ampT = normalizeTargetToAmp(target);
     const FR = new Float32Array(total); // Fourier plane (re)
@@ -253,12 +253,12 @@ export default function CGHPlayground() {
   }
 
   // Generate a simple smiley-face target intensity (eyes + arc mouth)
-  function makeSmileyTarget(N: number) {
+  function makeSmileyTarget(N) {
     const total = N * N;
     const T = new Float32Array(total);
     const cx = (N - 1) / 2, cy = (N - 1) / 2;
 
-    const addDisk = (xc: number, yc: number, r: number, val = 1) => {
+    const addDisk = (xc, yc, r, val = 1) => {
       const x0 = Math.max(0, Math.floor(xc - r));
       const x1 = Math.min(N - 1, Math.ceil(xc + r));
       const y0 = Math.max(0, Math.floor(yc - r));
@@ -277,7 +277,7 @@ export default function CGHPlayground() {
     };
 
     // Draw a thin circular ring by placing small disks along a circle
-    const addRing = (xc: number, yc: number, r: number, w: number, val = 1) => {
+    const addRing = (xc, yc, r, w, val = 1) => {
       const samples = Math.max(256, Math.floor(2 * Math.PI * r));
       const rr = r;
       const rad = Math.max(1, w);
@@ -492,7 +492,7 @@ export default function CGHPlayground() {
     }
   }
 
-  function applyPreset(kind: string) {
+  function applyPreset(kind) {
     switch (kind) {
       case "clear": fillClear(); break;
       case "blazed-x": fillBlazed(16, 0); break;
@@ -516,14 +516,16 @@ export default function CGHPlayground() {
   const drawing = useRef(false);
   const lastPt = useRef({ x: 0, y: 0 });
 
-  function toCanvasXY(e: React.PointerEvent<HTMLCanvasElement>) {
-    const rect = holoCanvasRef.current!.getBoundingClientRect();
+  function toCanvasXY(e) {
+    const canvas = holoCanvasRef.current;
+    if (!canvas) return null;
+    const rect = canvas.getBoundingClientRect();
     const x = clamp(Math.floor(((e.clientX - rect.left) / rect.width) * SIZE), 0, SIZE - 1);
     const y = clamp(Math.floor(((e.clientY - rect.top) / rect.height) * SIZE), 0, SIZE - 1);
     return { x, y };
   }
 
-  function paintDot(xc: number, yc: number) {
+  function paintDot(xc, yc) {
     const φ = phaseRef.current;
     const r = brushSize;
     const r2 = r * r;
@@ -549,7 +551,7 @@ export default function CGHPlayground() {
     }
   }
 
-  function paintLine(x0: number, y0: number, x1: number, y1: number) {
+  function paintLine(x0, y0, x1, y1) {
     const dx = Math.abs(x1 - x0), dy = Math.abs(y1 - y0);
     const sx = x0 < x1 ? 1 : -1;
     const sy = y0 < y1 ? 1 : -1;
@@ -564,19 +566,21 @@ export default function CGHPlayground() {
     }
   }
 
-  const onPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
+  const onPointerDown = (e) => {
     e.preventDefault();
     drawing.current = true;
     const p = toCanvasXY(e);
+    if (!p) return;
     lastPt.current = p;
     paintDot(p.x, p.y);
     setHoloVersion(v => v + 1);
     queueRecompute();
   };
 
-  const onPointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
+  const onPointerMove = (e) => {
     if (!drawing.current) return;
     const p = toCanvasXY(e);
+    if (!p) return;
     const lp = lastPt.current;
     paintLine(lp.x, lp.y, p.x, p.y);
     lastPt.current = p;
@@ -591,7 +595,9 @@ export default function CGHPlayground() {
 
   // Debounced recompute of FFT
   function queueRecompute(delay = 120) {
-    if (recomputeTimer.current) clearTimeout(recomputeTimer.current);
+    if (recomputeTimer.current !== null) {
+      clearTimeout(recomputeTimer.current);
+    }
     recomputeTimer.current = setTimeout(() => {
       setBusy(true);
       requestAnimationFrame(() => {
@@ -599,6 +605,7 @@ export default function CGHPlayground() {
         setBusy(false);
         setOutVersion(v => v + 1);
       });
+      recomputeTimer.current = null;
     }, delay);
   }
 
@@ -610,8 +617,8 @@ export default function CGHPlayground() {
   // =============== Lightweight Self-Tests (runtime) =================
   useEffect(() => {
     try {
-      if (typeof window !== "undefined" && !(window as any).__CGH_TESTED__) {
-        (window as any).__CGH_TESTED__ = true;
+      if (typeof window !== "undefined" && !window.__CGH_TESTED__) {
+        window.__CGH_TESTED__ = true;
         // Test 1: FFT/IFFT identity on a delta
         const N = 8, total = N * N;
         const re = new Float32Array(total).fill(0);
@@ -629,7 +636,7 @@ export default function CGHPlayground() {
         const T = new Float32Array(total);
         const c = Math.floor(N / 2);
         T[c * N + c] = 1;
-        const U = (function ifftshiftLocal(input: Float32Array, NN: number){
+        const U = (function ifftshiftLocal(input, NN){
           const out = new Float32Array(NN * NN);
           for (let y = 0; y < NN; y++) {
             const ys = (y + (NN >> 1)) & (NN - 1);
@@ -645,7 +652,7 @@ export default function CGHPlayground() {
         // Test 3: flipUD2D sanity — top row becomes bottom row
         const A = new Float32Array(total);
         for (let x = 0; x < N; x++) A[x] = 1; // mark top row
-        const B = (function flipLocal(input: Float32Array, NN: number){
+        const B = (function flipLocal(input, NN){
           const out = new Float32Array(NN * NN);
           for (let y = 0; y < NN; y++) {
             const yy = NN - 1 - y;
@@ -673,7 +680,7 @@ export default function CGHPlayground() {
   }, []);
 
   // =============== UI =================
-  const PresetButton = ({ id, label }: { id: string; label: string }) => (
+  const PresetButton = ({ id, label }) => (
     <button
       onClick={() => { setPreset(id); applyPreset(id); }}
       className={`px-3 py-2 rounded-xl text-sm border transition hover:shadow ${preset === id ? "bg-black text-white" : "bg-white"}`}
@@ -721,19 +728,19 @@ export default function CGHPlayground() {
               <div className="flex gap-2">
                 {["set", "add", "erase"].map(m => (
                   <button key={m}
-                    onClick={() => setDrawMode(m as any)}
+                    onClick={() => setDrawMode(m)}
                     className={`px-3 py-2 rounded-xl text-sm border ${drawMode === m ? "bg-black text-white" : "bg-white"}`}
                   >{m === "set" ? "Pen (set)" : m === "add" ? "Pen (add)" : "Eraser"}</button>
                 ))}
               </div>
               <label className="block text-sm mt-3">Brush size: <span className="font-mono">{brushSize}px</span></label>
               <input type="range" min={1} max={64} value={brushSize}
-                     onChange={e => setBrushSize(parseInt((e.target as HTMLInputElement).value))}
+                     onChange={e => setBrushSize(parseInt(e.target.value, 10))}
                      className="w-full" />
 
               <label className="block text-sm mt-3">Pen phase (radians): <span className="font-mono">{penPhase.toFixed(2)}</span></label>
               <input type="range" min={0} max={TWO_PI} step={0.01} value={penPhase}
-                     onChange={e => setPenPhase(parseFloat((e.target as HTMLInputElement).value))}
+                     onChange={e => setPenPhase(parseFloat(e.target.value))}
                      className="w-full" />
               <div className="text-xs text-neutral-500 mt-1">Phase hue legend: 0 → red → … → 2π ≡ red</div>
             </div>
@@ -744,12 +751,12 @@ export default function CGHPlayground() {
             <div>
               <div className="text-[13px] font-medium mb-2 uppercase tracking-wide text-neutral-500">Output view</div>
               <div className="flex items-center gap-2 mb-2">
-                <input id="logView" type="checkbox" checked={logView} onChange={e => setLogView((e.target as HTMLInputElement).checked)} />
+                <input id="logView" type="checkbox" checked={logView} onChange={e => setLogView(e.target.checked)} />
                 <label htmlFor="logView" className="text-sm">Log-scale intensity</label>
               </div>
               <label className="block text-sm">Gamma: <span className="font-mono">{gamma.toFixed(2)}</span></label>
               <input type="range" min={0.2} max={2.0} step={0.05} value={gamma}
-                     onChange={e => setGamma(parseFloat((e.target as HTMLInputElement).value))}
+                     onChange={e => setGamma(parseFloat(e.target.value))}
                      className="w-full" />
               <button
                 onClick={() => { queueRecompute(0); }}
