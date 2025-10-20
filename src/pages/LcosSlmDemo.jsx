@@ -176,9 +176,10 @@ function fft2D(real, imag, width, height) {
   }
 }
 
-function applyHannWindow(width, height, data) {
+function getHannWindow(width, height) {
   const windowX = new Float64Array(width);
   const windowY = new Float64Array(height);
+
   for (let x = 0; x < width; x++) {
     windowX[x] = 0.5 * (1 - Math.cos((2 * Math.PI * x) / (width - 1)));
   }
@@ -186,9 +187,22 @@ function applyHannWindow(width, height, data) {
     windowY[y] = 0.5 * (1 - Math.cos((2 * Math.PI * y) / (height - 1)));
   }
 
+  return { windowX, windowY };
+}
+
+function applyHannWindow(width, height, data, windowX, windowY) {
+  let targetWindowX = windowX;
+  let targetWindowY = windowY;
+
+  if (!targetWindowX || !targetWindowY) {
+    const generated = getHannWindow(width, height);
+    targetWindowX = targetWindowX ?? generated.windowX;
+    targetWindowY = targetWindowY ?? generated.windowY;
+  }
+
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
-      data[y * width + x] *= windowX[x] * windowY[y];
+      data[y * width + x] *= targetWindowX[x] * targetWindowY[y];
     }
   }
 }
@@ -261,7 +275,8 @@ function computeRequiredPattern(imageCanvas, patternTargets, sampleSize = DEFAUL
     real[i] = Math.sqrt(Math.max(0, Math.min(1, normalized)));
   }
 
-  applyHannWindow(sampleSize, sampleSize, real);
+  const hannWindow = getHannWindow(sampleSize, sampleSize);
+  applyHannWindow(sampleSize, sampleSize, real, hannWindow.windowX, hannWindow.windowY);
 
   ifft2D(real, imag, sampleSize, sampleSize);
 
@@ -285,7 +300,12 @@ function computeRequiredPattern(imageCanvas, patternTargets, sampleSize = DEFAUL
     }
   }
 
-  storedFieldCache.set(phaseCanvas, { magnitude: magnitudeMap, size: sampleSize });
+  storedFieldCache.set(phaseCanvas, {
+    magnitude: magnitudeMap,
+    size: sampleSize,
+    windowX: hannWindow.windowX,
+    windowY: hannWindow.windowY,
+  });
 
   const outputCanvasBuffer = getScratchCanvas("pattern", sampleSize);
   const outputBufferCtx = outputCanvasBuffer.getContext("2d");
@@ -356,7 +376,20 @@ function computeImageFromPattern(patternCanvas, imageCanvas, sampleSize = DEFAUL
   const real = new Float64Array(totalPixels);
   const imag = new Float64Array(totalPixels);
   const storedField = storedFieldCache.get(patternCanvas);
-  const storedMagnitude = storedField && storedField.size === sampleSize ? storedField.magnitude : null;
+  const storedFieldValid = storedField && storedField.size === sampleSize;
+  const storedMagnitude = storedFieldValid ? storedField.magnitude : null;
+  let windowX = storedFieldValid ? storedField.windowX : null;
+  let windowY = storedFieldValid ? storedField.windowY : null;
+
+  if (!windowX || !windowY) {
+    const generated = getHannWindow(sampleSize, sampleSize);
+    windowX = windowX ?? generated.windowX;
+    windowY = windowY ?? generated.windowY;
+    if (storedFieldValid) {
+      storedField.windowX = windowX;
+      storedField.windowY = windowY;
+    }
+  }
 
   const half = sampleSize / 2;
 
@@ -400,12 +433,24 @@ function computeImageFromPattern(patternCanvas, imageCanvas, sampleSize = DEFAUL
   const intensities = new Float64Array(totalPixels);
   let minIntensity = Number.POSITIVE_INFINITY;
   let maxIntensity = Number.NEGATIVE_INFINITY;
+  const weightClampThreshold = 1e-6;
 
-  for (let i = 0; i < totalPixels; i++) {
-    const rawIntensity = real[i] * real[i] + imag[i] * imag[i];
-    intensities[i] = rawIntensity;
-    if (rawIntensity < minIntensity) minIntensity = rawIntensity;
-    if (rawIntensity > maxIntensity) maxIntensity = rawIntensity;
+  for (let y = 0; y < sampleSize; y++) {
+    const weightY = windowY[y];
+    for (let x = 0; x < sampleSize; x++) {
+      const weightX = windowX[x];
+      const weight = weightX * weightY;
+      const idx = y * sampleSize + x;
+      const rawIntensity = real[idx] * real[idx] + imag[idx] * imag[idx];
+      let compensatedIntensity = 0;
+      if (Number.isFinite(weight) && weight > weightClampThreshold) {
+        const invWeightSq = 1 / (weight * weight);
+        compensatedIntensity = rawIntensity * invWeightSq;
+      }
+      intensities[idx] = compensatedIntensity;
+      if (compensatedIntensity < minIntensity) minIntensity = compensatedIntensity;
+      if (compensatedIntensity > maxIntensity) maxIntensity = compensatedIntensity;
+    }
   }
 
   const range = maxIntensity - minIntensity;
