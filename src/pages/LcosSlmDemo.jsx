@@ -510,7 +510,7 @@ export default function CGHPlayground() {
     for (let k = 0; k < φ.length; k++) φ[k] = Math.random() * TWO_PI;
   }
 
-  function fillMultispot(grid = 7, spacing = 0.075) {
+  function fillMultispot(grid = 7, spacingBins = 24) {
     const φ = phaseRef.current;
     const total = SIZE * SIZE;
     const re = new Float32Array(total).fill(0);
@@ -519,8 +519,9 @@ export default function CGHPlayground() {
     const half = (grid - 1) / 2;
     for (let gy = -half; gy <= half; gy++) {
       for (let gx = -half; gx <= half; gx++) {
-        const fx = gx * spacing;
-        const fy = gy * spacing;
+        // Treat spacing as integer FFT bins (cycles across the aperture)
+        const fx = gx * spacingBins;
+        const fy = gy * spacingBins;
         let k = 0;
         for (let y = 0; y < SIZE; y++) {
           const v = y / SIZE;
@@ -552,8 +553,8 @@ export default function CGHPlayground() {
       case "forked": fillForkedGrating(1, 18, 4); break;
       case "petal": fillPetalLattice(10, 9); break;
       case "random": fillRandom(); break;
-      case "multispot": fillMultispot(5, 0.08); break;
-      case "multispot7": fillMultispot(7, 0.065); break;
+      case "multispot": fillMultispot(5, 32); break;
+      case "multispot7": fillMultispot(7, 24); break;
       case "smiley": fillSmileyGS(); break; // GS synthesis
       default: fillClear();
     }
