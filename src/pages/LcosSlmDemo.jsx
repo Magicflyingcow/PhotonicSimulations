@@ -566,6 +566,62 @@ export default function CGHPlayground() {
     }
   }
 
+  function fillConcentricRings(rings = 24, chirp = 6) {
+    const φ = phaseRef.current;
+    const cx = (SIZE - 1) / 2, cy = (SIZE - 1) / 2;
+    const maxR = Math.hypot(cx, cy) || 1;
+    for (let y = 0; y < SIZE; y++) {
+      for (let x = 0; x < SIZE; x++) {
+        const dx = x - cx, dy = y - cy;
+        const rNorm = Math.hypot(dx, dy) / maxR;
+        const radial = TWO_PI * rings * rNorm;
+        const chirpTerm = TWO_PI * chirp * rNorm * rNorm;
+        const phase = radial + chirpTerm;
+        φ[idx(x, y)] = mod2pi(phase);
+      }
+    }
+  }
+
+  function fillGoldenSpiral(turns = 9, radialGain = 3.5) {
+    const φ = phaseRef.current;
+    const cx = (SIZE - 1) / 2, cy = (SIZE - 1) / 2;
+    const maxR = Math.hypot(cx, cy) || 1;
+    const golden = (1 + Math.sqrt(5)) / 2;
+    for (let y = 0; y < SIZE; y++) {
+      for (let x = 0; x < SIZE; x++) {
+        const dx = x - cx, dy = y - cy;
+        const angle = Math.atan2(dy, dx);
+        const rNorm = Math.hypot(dx, dy) / maxR;
+        const logR = Math.log1p(rNorm * 4);
+        const spiral = turns * angle + radialGain * golden * logR;
+        const petalMod = 0.9 * rNorm * Math.sin(golden * angle * 2);
+        φ[idx(x, y)] = mod2pi(spiral + petalMod);
+      }
+    }
+  }
+
+  function fillQuasicrystal(order = 8, freq = 16) {
+    const φ = phaseRef.current;
+    const cx = (SIZE - 1) / 2, cy = (SIZE - 1) / 2;
+    const angles = Array.from({ length: order }, (_, n) => (TWO_PI * n) / order);
+    for (let y = 0; y < SIZE; y++) {
+      const v = (y - cy) / SIZE;
+      for (let x = 0; x < SIZE; x++) {
+        const u = (x - cx) / SIZE;
+        let re = 0, im = 0;
+        const radial = Math.hypot(u, v);
+        for (const θ of angles) {
+          const wx = Math.cos(θ);
+          const wy = Math.sin(θ);
+          const phase = TWO_PI * freq * (wx * u + wy * v) + radial * 12;
+          re += Math.cos(phase);
+          im += Math.sin(phase);
+        }
+        φ[idx(x, y)] = mod2pi(Math.atan2(im, re));
+      }
+    }
+  }
+
   function fillRandom() {
     const φ = phaseRef.current;
     for (let k = 0; k < φ.length; k++) φ[k] = Math.random() * TWO_PI;
@@ -613,6 +669,9 @@ export default function CGHPlayground() {
       case "axicon": fillAxicon(12.0); break;
       case "honeycomb": fillHoneycombLattice(20); break;
       case "spiral": fillSpiral(6, 16); break;
+      case "rings": fillConcentricRings(26, 8); break;
+      case "golden-spiral": fillGoldenSpiral(11, 4.2); break;
+      case "quasicrystal": fillQuasicrystal(10, 18); break;
       case "weave": fillLissajousWeave(3, 5, 4); break;
       case "forked": fillForkedGrating(1, 18, 4); break;
       case "petal": fillPetalLattice(10, 9); break;
@@ -851,7 +910,10 @@ export default function CGHPlayground() {
                 <PresetButton id="airy-cubic" label="Cubic Airy" />
                 <PresetButton id="axicon" label="Axicon" />
                 <PresetButton id="spiral" label="Spiral Phase" />
+                <PresetButton id="rings" label="Concentric Rings" />
                 <PresetButton id="honeycomb" label="Honeycomb" />
+                <PresetButton id="golden-spiral" label="Golden Spiral" />
+                <PresetButton id="quasicrystal" label="Quasicrystal" />
                 <PresetButton id="weave" label="Lissajous Weave" />
                 <PresetButton id="forked" label="Forked Grating" />
                 <PresetButton id="petal" label="Petal Lattice" />
