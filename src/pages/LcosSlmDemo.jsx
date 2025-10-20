@@ -449,6 +449,23 @@ export default function CGHPlayground() {
     }
   }
 
+  function fillCubicAiry(curvature = 22.0) {
+    const φ = phaseRef.current;
+    const cx = (SIZE - 1) / 2, cy = (SIZE - 1) / 2;
+    const normX = cx || 1;
+    const normY = cy || 1;
+    const strength = curvature / 6;
+    for (let y = 0; y < SIZE; y++) {
+      const yn = (y - cy) / normY;
+      for (let x = 0; x < SIZE; x++) {
+        const xn = (x - cx) / normX;
+        const mixed = xn * yn * 0.35;
+        const phase = strength * (xn * xn * xn + yn * yn * yn + mixed);
+        φ[idx(x, y)] = mod2pi(phase);
+      }
+    }
+  }
+
   function fillAxicon(strength = 12.0) {
     const φ = phaseRef.current;
     const cx = (SIZE - 1) / 2, cy = (SIZE - 1) / 2;
@@ -457,6 +474,31 @@ export default function CGHPlayground() {
       for (let x = 0; x < SIZE; x++) {
         const r = Math.hypot(x - cx, y - cy);
         φ[idx(x, y)] = mod2pi(scale * r);
+      }
+    }
+  }
+
+  function fillHoneycombLattice(spacing = 18) {
+    const φ = phaseRef.current;
+    const cx = (SIZE - 1) / 2, cy = (SIZE - 1) / 2;
+    const norm = Math.max(cx, cy) || 1;
+    const scale = spacing / norm;
+    const kv = [
+      [1, 0],
+      [-0.5, Math.sqrt(3) / 2],
+      [-0.5, -Math.sqrt(3) / 2],
+    ];
+    for (let y = 0; y < SIZE; y++) {
+      const dy = y - cy;
+      for (let x = 0; x < SIZE; x++) {
+        const dx = x - cx;
+        let re = 0, im = 0;
+        for (const [kx, ky] of kv) {
+          const angle = TWO_PI * scale * (kx * dx + ky * dy);
+          re += Math.cos(angle);
+          im += Math.sin(angle);
+        }
+        φ[idx(x, y)] = mod2pi(Math.atan2(im, re));
       }
     }
   }
@@ -471,6 +513,23 @@ export default function CGHPlayground() {
         const angle = Math.atan2(dy, dx);
         const rNorm = Math.hypot(dx, dy) / maxR;
         const phase = turns * angle + TWO_PI * radialCycles * rNorm;
+        φ[idx(x, y)] = mod2pi(phase);
+      }
+    }
+  }
+
+  function fillLissajousWeave(freqX = 3, freqY = 5, cross = 4) {
+    const φ = phaseRef.current;
+    const cx = (SIZE - 1) / 2, cy = (SIZE - 1) / 2;
+    const normX = cx || 1;
+    const normY = cy || 1;
+    for (let y = 0; y < SIZE; y++) {
+      const yn = (y - cy) / normY;
+      for (let x = 0; x < SIZE; x++) {
+        const xn = (x - cx) / normX;
+        const weave = Math.sin(TWO_PI * freqX * xn) + Math.sin(TWO_PI * freqY * yn);
+        const crossTerm = Math.sin(TWO_PI * cross * (xn + yn));
+        const phase = weave + 0.8 * crossTerm;
         φ[idx(x, y)] = mod2pi(phase);
       }
     }
@@ -550,8 +609,11 @@ export default function CGHPlayground() {
       case "vortex-l1": fillVortex(1); break;
       case "vortex-l2": fillVortex(2); break;
       case "fresnel": fillFresnelLens(8.0); break;
+      case "airy-cubic": fillCubicAiry(28.0); break;
       case "axicon": fillAxicon(12.0); break;
+      case "honeycomb": fillHoneycombLattice(20); break;
       case "spiral": fillSpiral(6, 16); break;
+      case "weave": fillLissajousWeave(3, 5, 4); break;
       case "forked": fillForkedGrating(1, 18, 4); break;
       case "petal": fillPetalLattice(10, 9); break;
       case "random": fillRandom(); break;
@@ -786,8 +848,11 @@ export default function CGHPlayground() {
                 <PresetButton id="vortex-l1" label="Vortex ℓ=1" />
                 <PresetButton id="vortex-l2" label="Vortex ℓ=2" />
                 <PresetButton id="fresnel" label="Fresnel Lens" />
+                <PresetButton id="airy-cubic" label="Cubic Airy" />
                 <PresetButton id="axicon" label="Axicon" />
                 <PresetButton id="spiral" label="Spiral Phase" />
+                <PresetButton id="honeycomb" label="Honeycomb" />
+                <PresetButton id="weave" label="Lissajous Weave" />
                 <PresetButton id="forked" label="Forked Grating" />
                 <PresetButton id="petal" label="Petal Lattice" />
                 <PresetButton id="multispot" label="Multispot 5×5" />
