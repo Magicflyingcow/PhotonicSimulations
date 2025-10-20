@@ -8,28 +8,33 @@ import ProfileSensor from "./pages/ProfileSensor.jsx";
 import LcosSlmDemo from "./pages/LcosSlmDemo.jsx";
 import "./index.css";
 
-const router = createBrowserRouter([
+const router = createBrowserRouter(
+  [
+    {
+      path: "/",
+      element: <IndexPage />,
+    },
+    {
+      path: "/ftir",
+      element: <FtirSimulator />,
+    },
+    {
+      path: "/pmt",
+      element: <PmtSimulator />,
+    },
+    {
+      path: "/profile-sensor",
+      element: <ProfileSensor />,
+    },
+    {
+      path: "/lcos-slm",
+      element: <LcosSlmDemo />,
+    },
+  ],
   {
-    path: "/",
-    element: <IndexPage />,
-  },
-  {
-    path: "/ftir",
-    element: <FtirSimulator />,
-  },
-  {
-    path: "/pmt",
-    element: <PmtSimulator />,
-  },
-  {
-    path: "/profile-sensor",
-    element: <ProfileSensor />,
-  },
-  {
-    path: "/lcos-slm",
-    element: <LcosSlmDemo />,
-  },
-]);
+    basename: import.meta.env.BASE_URL,
+  }
+);
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
