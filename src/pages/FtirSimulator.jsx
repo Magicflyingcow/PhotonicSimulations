@@ -85,23 +85,6 @@ function computeMirrorFaceX(mirrorModuleCenterX, offsetPx) {
   return mirrorModuleCenterX - 6 + offsetPx; // 12px mirror width → left face is moduleCenter - 6
 }
 
-// Smooth top-hat band (raised cosine edges)
-function smoothTopHat(nm, start, stop, edge = 30) {
-  if (stop <= start) return 0;
-  const a = start, b = stop, e = Math.max(1, edge);
-  if (nm <= a - e || nm >= b + e) return 0;
-  if (nm >= a + e && nm <= b - e) return 1;
-  if (nm > a - e && nm < a + e) {
-    const t = (nm - (a - e)) / (2 * e); // 0..1 over the left edge
-    return 0.5 * (1 - Math.cos(Math.PI * t));
-  }
-  if (nm > b - e && nm < b + e) {
-    const t = 1 - (nm - (b - e)) / (2 * e); // 1..0 over the right edge
-    return 0.5 * (1 - Math.cos(Math.PI * t));
-  }
-  return 0;
-}
-
 // Relative blackbody radiance (normalize to value at 1100 nm to keep numbers tame in NIR tail)
 function blackbodyRel(nm, tempK = 6000) {
   const BB = (lam_nm) => {
@@ -169,11 +152,10 @@ function zeroFill(arr, factor = 1) {
   return out;
 }
 
-// Build a mixed source: Halogen + Flat + Laser + Xenon arc + Supercontinuum
+// Build a mixed source: Halogen + Laser + Xenon arc
 function buildSourceMix({
-  halogenMag, flatMag, laserMag, laserNm, laserWidth, includeWaterPeaks,
+  halogenMag, laserMag, laserNm, laserWidth, includeWaterPeaks,
   xenonMag, xenonRipplePct, xenonPeriodNm,
-  scMag, scStart, scStop, scRipplePct, scPeriodNm, scEdgeNm = 30,
 }) {
   const lambda = [];
   const B = [];
@@ -187,8 +169,6 @@ function buildSourceMix({
       const c = 1900, sigma = 280;
       val += halogenMag * Math.exp(-0.5 * ((nm - c) / sigma) ** 2);
     }
-    // Flat
-    if (flatMag > 0) val += flatMag;
     // Narrow laser (Gaussian)
     if (laserMag > 0) val += laserMag * Math.exp(-0.5 * ((nm - laserNm) / lw) ** 2);
 
@@ -197,13 +177,6 @@ function buildSourceMix({
       const bb = blackbodyRel(nm, 6000); // normalized to 1100 nm
       const ripple = 1 + (xenonRipplePct || 0) * Math.sin((2 * Math.PI * (nm - 1100)) / Math.max(5, xenonPeriodNm || 20));
       val += xenonMag * bb * ripple;
-    }
-
-    // Supercontinuum fiber laser: flat-ish band with smooth edges + ripple
-    if (scMag > 0) {
-      const band = smoothTopHat(nm, scStart, scStop, scEdgeNm);
-      const ripple = 1 + (scRipplePct || 0) * Math.sin((2 * Math.PI * (nm - scStart)) / Math.max(2, scPeriodNm || 10));
-      val += scMag * band * ripple;
     }
 
     // Optional absorption bands (water) applied multiplicatively
@@ -323,9 +296,6 @@ function runSelfTests() {
     console.assert(computeMirrorFaceX(100, 10) === 104, "mirror face X = 100 - 6 + 10 = 104");
     // NEW: blackbody tail decreases across NIR band for 6000 K
     console.assert(blackbodyRel(1200, 6000) > blackbodyRel(2000, 6000), "BB tail at 6000K should decrease with λ");
-    // NEW: smoothTopHat basic behavior
-    console.assert(smoothTopHat(1300, 1200, 2000, 30) > 0.95, "TopHat inside band should be ~1");
-    console.assert(smoothTopHat(2200, 1200, 2000, 30) < 0.05, "TopHat outside band should be ~0");
     console.groupEnd();
   } catch (e) {
     console.error("Self-tests failed:", e);
@@ -345,7 +315,6 @@ export default function FTIR_Michelson_VCSEL_Sim() {
   const [apodize, setApodize] = useState(true);
   const [includeWaterPeaks, setIncludeWaterPeaks] = useState(true);
   const [halogenMag, setHalogenMag] = useState(1);
-  const [flatMag, setFlatMag] = useState(0);
   const [laserMag, setLaserMag] = useState(0.6);
   const [laserNm, setLaserNm] = useState(1532.8);
   const [laserWidth, setLaserWidth] = useState(2);
@@ -355,13 +324,6 @@ export default function FTIR_Michelson_VCSEL_Sim() {
   const [xenonMag, setXenonMag] = useState(0);
   const [xenonRipplePct, setXenonRipplePct] = useState(0.05); // 0..0.2 typical
   const [xenonPeriodNm, setXenonPeriodNm] = useState(20);
-
-  // NEW: Supercontinuum source
-  const [scMag, setScMag] = useState(0);
-  const [scBand, setScBand] = useState([1200, 2000]); // [start, stop]
-  const [scRipplePct, setScRipplePct] = useState(0.1);
-  const [scPeriodNm, setScPeriodNm] = useState(10);
-  const [scEdgeNm, setScEdgeNm] = useState(30);
 
   // Channel visibility toggles
   const [showInGaAs, setShowInGaAs] = useState(true);
@@ -373,10 +335,9 @@ export default function FTIR_Michelson_VCSEL_Sim() {
 
   // Build mixed source spectrum B(λ)
   const source = useMemo(() => buildSourceMix({
-    halogenMag, flatMag, laserMag, laserNm, laserWidth, includeWaterPeaks,
+    halogenMag, laserMag, laserNm, laserWidth, includeWaterPeaks,
     xenonMag, xenonRipplePct, xenonPeriodNm,
-    scMag, scStart: scBand[0], scStop: scBand[1], scRipplePct, scPeriodNm, scEdgeNm,
-  }), [halogenMag, flatMag, laserMag, laserNm, laserWidth, includeWaterPeaks, xenonMag, xenonRipplePct, xenonPeriodNm, scMag, scBand, scRipplePct, scPeriodNm, scEdgeNm]);
+  }), [halogenMag, laserMag, laserNm, laserWidth, includeWaterPeaks, xenonMag, xenonRipplePct, xenonPeriodNm]);
 
   // OPD grid: symmetric about zero; OPD = 2 * mirror displacement
   const { opd_cm, dx_cm } = useMemo(() => {
@@ -607,7 +568,7 @@ export default function FTIR_Michelson_VCSEL_Sim() {
                   <ChevronDownIcon className={`w-4 h-4 transition-transform ${showAdvanced?"rotate-180":""}`} />
                 </button>
                 {showAdvanced && (
-                  <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="flex items-center gap-3">
                       <Switch checked={apodize} onCheckedChange={setApodize} id="apod" />
                       <Label htmlFor="apod">Hann apodization</Label>
@@ -617,13 +578,6 @@ export default function FTIR_Michelson_VCSEL_Sim() {
                       <Button size="sm" variant={zeroFillFactor===1?"default":"outline"} onClick={() => setZeroFillFactor(1)}>×1</Button>
                       <Button size="sm" variant={zeroFillFactor===2?"default":"outline"} onClick={() => setZeroFillFactor(2)}>×2</Button>
                       <Button size="sm" variant={zeroFillFactor===4?"default":"outline"} onClick={() => setZeroFillFactor(4)}>×4</Button>
-                    </div>
-                    <div className="space-y-1">
-                      <Label>SC edge softness (nm)</Label>
-                      <div className="flex items-center gap-3">
-                        <Slider value={[scEdgeNm]} min={0} max={80} step={2} onValueChange={([v]) => setScEdgeNm(v)} className="flex-1"/>
-                        <span className="tabular-nums w-16 text-right">{fmt(scEdgeNm,0)}</span>
-                      </div>
                     </div>
                   </div>
                 )}
@@ -649,11 +603,6 @@ export default function FTIR_Michelson_VCSEL_Sim() {
                           <div className="flex items-center justify-between"><span>Halogen</span><span className="tabular-nums">{fmt(halogenMag,2)}</span></div>
                           <Slider value={[halogenMag]} min={0} max={2} step={0.01} onValueChange={([v]) => setHalogenMag(v)} />
                         </div>
-                        {/* Flat */}
-                        <div className="space-y-1">
-                          <div className="flex items-center justify-between"><span>Flat</span><span className="tabular-nums">{fmt(flatMag,2)}</span></div>
-                          <Slider value={[flatMag]} min={0} max={2} step={0.01} onValueChange={([v]) => setFlatMag(v)} />
-                        </div>
                         {/* Xenon arc */}
                         <div className="pt-2 space-y-1">
                           <div className="flex items-center justify-between"><span>Xenon arc (6000 K)</span><span className="tabular-nums">{fmt(xenonMag,2)}</span></div>
@@ -673,7 +622,7 @@ export default function FTIR_Michelson_VCSEL_Sim() {
                     </div>
 
                     <div className="space-y-4">
-                      <Label className="font-medium">Laser & Supercontinuum</Label>
+                      <Label className="font-medium">Laser</Label>
                       <div className="space-y-3">
                         {/* Laser */}
                         <div className="space-y-1">
@@ -687,27 +636,6 @@ export default function FTIR_Michelson_VCSEL_Sim() {
                         <div className="space-y-1">
                           <div className="flex items-center justify-between"><span>Laser width</span><span className="tabular-nums">{fmt(laserWidth,1)} nm</span></div>
                           <Slider value={[laserWidth]} min={0.5} max={20} step={0.5} onValueChange={([v]) => setLaserWidth(v)} />
-                        </div>
-                        {/* Supercontinuum */}
-                        <div className="pt-2 space-y-1">
-                          <div className="flex items-center justify-between"><span>Supercontinuum</span><span className="tabular-nums">{fmt(scMag,2)}</span></div>
-                          <Slider value={[scMag]} min={0} max={2} step={0.01} onValueChange={([v]) => setScMag(v)} />
-                          <div className="grid gap-2">
-                            <div className="space-y-1">
-                              <div className="flex items-center justify-between"><span>Band (nm)</span><span className="tabular-nums">{fmt(scBand[0],0)}–{fmt(scBand[1],0)}</span></div>
-                              <Slider value={scBand} min={1100} max={2500} step={5} onValueChange={(vals) => setScBand([Math.min(vals[0], vals[1]), Math.max(vals[0], vals[1])])} />
-                            </div>
-                            <div className="grid grid-cols-2 gap-3">
-                              <div className="space-y-1">
-                                <div className="flex items-center justify-between"><span>Ripple %</span><span className="tabular-nums">{fmt(scRipplePct*100,0)}%</span></div>
-                                <Slider value={[scRipplePct]} min={0} max={0.3} step={0.01} onValueChange={([v]) => setScRipplePct(v)} />
-                              </div>
-                              <div className="space-y-1">
-                                <div className="flex items-center justify-between"><span>Ripple period (nm)</span><span className="tabular-nums">{fmt(scPeriodNm,0)}</span></div>
-                                <Slider value={[scPeriodNm]} min={2} max={60} step={1} onValueChange={([v]) => setScPeriodNm(v)} />
-                              </div>
-                            </div>
-                          </div>
                         </div>
 
                         <div className="flex items-center gap-3 pt-1">
