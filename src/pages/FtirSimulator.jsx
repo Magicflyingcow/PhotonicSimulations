@@ -153,8 +153,36 @@ function zeroFill(arr, factor = 1) {
 }
 
 // Build a mixed source: Halogen + Laser + Xenon arc
+const ABSORPTION_PROFILES = {
+  none: [],
+  water: [
+    { center: 1450, sigma: 25, depth: 0.35 },
+    { center: 1930, sigma: 30, depth: 0.45 },
+  ],
+  co2: [
+    { center: 2010, sigma: 18, depth: 0.3 },
+    { center: 2340, sigma: 25, depth: 0.4 },
+  ],
+  methane: [
+    { center: 1660, sigma: 20, depth: 0.32 },
+    { center: 2190, sigma: 28, depth: 0.28 },
+  ],
+  polyethylene: [
+    { center: 1720, sigma: 22, depth: 0.4 },
+    { center: 2300, sigma: 26, depth: 0.25 },
+  ],
+};
+
+const ABSORPTION_MEDIA = [
+  { id: "none", label: "None", description: "Open path" },
+  { id: "water", label: "Water vapor", description: "Bands near 1450 / 1930 nm" },
+  { id: "co2", label: "Carbon dioxide", description: "Strong overtone pair near 2 µm" },
+  { id: "methane", label: "Methane", description: "Combination bands near 1.66 / 2.2 µm" },
+  { id: "polyethylene", label: "Polyethylene film", description: "Plastic absorption near 1.72 µm" },
+];
+
 function buildSourceMix({
-  halogenMag, laserMag, laserNm, laserWidth, includeWaterPeaks,
+  halogenMag, laserMag, laserNm, laserWidth, absorptionMedium,
   xenonMag, xenonRipplePct, xenonPeriodNm,
 }) {
   const lambda = [];
@@ -179,10 +207,12 @@ function buildSourceMix({
       val += xenonMag * bb * ripple;
     }
 
-    // Optional absorption bands (water) applied multiplicatively
-    if (includeWaterPeaks) {
-      val *= (1 - 0.35 * Math.exp(-0.5 * ((nm - 1450) / 25) ** 2));
-      val *= (1 - 0.45 * Math.exp(-0.5 * ((nm - 1930) / 30) ** 2));
+    // Optional absorption bands applied multiplicatively
+    const features = ABSORPTION_PROFILES[absorptionMedium] || [];
+    if (features.length) {
+      for (const { center, sigma, depth } of features) {
+        val *= 1 - depth * Math.exp(-0.5 * ((nm - center) / sigma) ** 2);
+      }
     }
 
     B.push(val);
@@ -313,7 +343,7 @@ export default function FTIR_Michelson_VCSEL_Sim() {
   const [Npoints, setNpoints] = useState(1024);
   const [zeroFillFactor, setZeroFillFactor] = useState(2);
   const [apodize, setApodize] = useState(true);
-  const [includeWaterPeaks, setIncludeWaterPeaks] = useState(true);
+  const [absorptionMedium, setAbsorptionMedium] = useState("water");
   const [halogenMag, setHalogenMag] = useState(1);
   const [laserMag, setLaserMag] = useState(0.6);
   const [laserNm, setLaserNm] = useState(1532.8);
@@ -330,14 +360,15 @@ export default function FTIR_Michelson_VCSEL_Sim() {
   const [showSi, setShowSi] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showSources, setShowSources] = useState(false);
+  const [showAbsorption, setShowAbsorption] = useState(false);
 
   const navigate = useNavigate();
 
   // Build mixed source spectrum B(λ)
   const source = useMemo(() => buildSourceMix({
-    halogenMag, laserMag, laserNm, laserWidth, includeWaterPeaks,
+    halogenMag, laserMag, laserNm, laserWidth, absorptionMedium,
     xenonMag, xenonRipplePct, xenonPeriodNm,
-  }), [halogenMag, laserMag, laserNm, laserWidth, includeWaterPeaks, xenonMag, xenonRipplePct, xenonPeriodNm]);
+  }), [halogenMag, laserMag, laserNm, laserWidth, absorptionMedium, xenonMag, xenonRipplePct, xenonPeriodNm]);
 
   // OPD grid: symmetric about zero; OPD = 2 * mirror displacement
   const { opd_cm, dx_cm } = useMemo(() => {
@@ -637,12 +668,45 @@ export default function FTIR_Michelson_VCSEL_Sim() {
                           <div className="flex items-center justify-between"><span>Laser width</span><span className="tabular-nums">{fmt(laserWidth,1)} nm</span></div>
                           <Slider value={[laserWidth]} min={0.5} max={20} step={0.5} onValueChange={([v]) => setLaserWidth(v)} />
                         </div>
-
-                        <div className="flex items-center gap-3 pt-1">
-                          <Switch checked={includeWaterPeaks} onCheckedChange={setIncludeWaterPeaks} id="wtr"/>
-                          <Label htmlFor="wtr">Apply water bands 1450/1930 nm</Label>
-                        </div>
                       </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Absorption media */}
+              <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
+                <button
+                  type="button"
+                  onClick={() => setShowAbsorption((v) => !v)}
+                  className="w-full flex items-center justify-between text-left"
+                >
+                  <span className="font-medium">Absorbtion media</span>
+                  <ChevronDownIcon className={`w-4 h-4 transition-transform ${showAbsorption ? "rotate-180" : ""}`} />
+                </button>
+                {showAbsorption && (
+                  <div className="mt-4 space-y-3">
+                    <p className="text-sm text-slate-600">
+                      Select a medium to multiply the source spectrum by representative absorption bands.
+                    </p>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {ABSORPTION_MEDIA.map((medium) => (
+                        <button
+                          key={medium.id}
+                          type="button"
+                          onClick={() => setAbsorptionMedium(medium.id)}
+                          className={`rounded-md border p-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500 ${
+                            absorptionMedium === medium.id
+                              ? "border-slate-900 bg-slate-900 text-white"
+                              : "border-slate-200 hover:border-slate-400"
+                          }`}
+                        >
+                          <div className="font-medium">{medium.label}</div>
+                          <div className={`text-xs mt-1 ${absorptionMedium === medium.id ? "text-slate-100" : "text-slate-600"}`}>
+                            {medium.description}
+                          </div>
+                        </button>
+                      ))}
                     </div>
                   </div>
                 )}
