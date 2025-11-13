@@ -37,6 +37,7 @@ const waveConfigs = [
 ];
 
 const sumColor = "#0f172a";
+const wavelengthOpacity = 0.6;
 
 const formatNumber = (value) => value.toFixed(2);
 
@@ -168,16 +169,17 @@ export default function FourierConcepts() {
                   <Tooltip formatter={(value) => formatNumber(value)} labelFormatter={(value) => `OPD multiple: ${value}`} />
                   <Legend />
                   {waveConfigs.map((wave) => (
-                    <Line
-                      key={wave.key}
-                      type="monotone"
-                      dataKey={wave.key}
-                      stroke={wave.color}
-                      dot={false}
-                      strokeWidth={2}
-                      hide={!activeWaves[wave.key]}
-                      name={`${wave.label} (time)`}
-                    />
+                      <Line
+                        key={wave.key}
+                        type="monotone"
+                        dataKey={wave.key}
+                        stroke={wave.color}
+                        strokeOpacity={wavelengthOpacity}
+                        dot={false}
+                        strokeWidth={2}
+                        hide={!activeWaves[wave.key]}
+                        name={`${wave.label} (time)`}
+                      />
                   ))}
                   <Line type="monotone" dataKey="sum" stroke={sumColor} dot={false} strokeWidth={3} name="Active sum" />
                 </LineChart>
@@ -216,6 +218,7 @@ export default function FourierConcepts() {
                         type="monotone"
                         dataKey={wave.key}
                         stroke={wave.color}
+                        strokeOpacity={wavelengthOpacity}
                         strokeWidth={2}
                         dot={false}
                         strokeDasharray="5 3"
@@ -230,6 +233,7 @@ export default function FourierConcepts() {
                           key={`ref-${wave.key}`}
                           x={wave.frequency}
                           stroke={wave.color}
+                          strokeOpacity={wavelengthOpacity}
                           strokeDasharray="4 2"
                           label={wave.label.split(" ")[0]}
                         />
