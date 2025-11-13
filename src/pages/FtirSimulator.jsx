@@ -400,6 +400,8 @@ export default function FTIR_Michelson_VCSEL_Sim() {
   const [cursorX, setCursorX] = useState(null);
   const [memsOffsetPx, setMemsOffsetPx] = useState(0);
   const [pdLevel, setPdLevel] = useState(1);
+  const [siPdLevel, setSiPdLevel] = useState(1);
+  const [diagramPath, setDiagramPath] = useState("ir");
 
   // Run self-tests once
   useEffect(() => {
@@ -498,6 +500,7 @@ export default function FTIR_Michelson_VCSEL_Sim() {
 
         // Photodetector brightness level
         setPdLevel(mapPdToAlpha(iBufferRef.current[scanIdx]));
+        setSiPdLevel(mapPdToAlpha(siBufferRef.current[scanIdx]));
 
         // Compute spectrum at each turn-around (completed half-scan)
         if (reversed) {
@@ -795,11 +798,27 @@ export default function FTIR_Michelson_VCSEL_Sim() {
           {/* --- Diagram (below both graphs) --- */}
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle>Optical Layout (Michelson)</CardTitle>
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <CardTitle>Optical Layout (Michelson)</CardTitle>
+                <div className="flex items-center gap-2 text-sm text-slate-600">
+                  <Label htmlFor="diagram-path" className="text-sm text-slate-600">VCSEL metrology path</Label>
+                  <Switch
+                    id="diagram-path"
+                    checked={diagramPath === "vcsel"}
+                    onCheckedChange={(checked) => setDiagramPath(checked ? "vcsel" : "ir")}
+                  />
+                </div>
+              </div>
             </CardHeader>
             <CardContent>
               <div className="w-full h-[32rem]">
-                <OpticalDiagram offsetPx={memsOffsetPx} mirrorAmp_um={mirrorAmp_um} pdLevel={pdLevel} />
+                <OpticalDiagram
+                  offsetPx={memsOffsetPx}
+                  mirrorAmp_um={mirrorAmp_um}
+                  pdLevel={pdLevel}
+                  siPdLevel={siPdLevel}
+                  pathMode={diagramPath}
+                />
               </div>
             </CardContent>
           </Card>
@@ -810,7 +829,7 @@ export default function FTIR_Michelson_VCSEL_Sim() {
               <ul className="list-disc ml-5 space-y-1">
                 <li>OPD (optical path difference) is <b>twice</b> the physical mirror displacement; centerburst occurs at zero OPD.</li>
                 <li>Increasing mirror amplitude improves spectral resolution (∆v ≈ 1/(4·L₁)). Zero-fill adds interpolation points but does not improve true resolution.</li>
-                <li>VCSEL metrology is illustrated as a red path sharing the interferometer via a dichroic; its fringes provide uniform OPD sampling.</li>
+                <li>Use the toggle above the diagram to switch between the broadband IR path and the VCSEL metrology path (drawn in blue) that shares the interferometer via a dichroic.</li>
               </ul>
             </CardContent>
           </Card>
@@ -823,7 +842,7 @@ export default function FTIR_Michelson_VCSEL_Sim() {
 // -----------------------------
 // Optical Diagram Component (SVG)
 // -----------------------------
-function OpticalDiagram({ offsetPx, mirrorAmp_um, pdLevel = 1 }) {
+function OpticalDiagram({ offsetPx, mirrorAmp_um, pdLevel = 1, siPdLevel = 1, pathMode = "ir" }) {
   // Simplified IR-only Michelson to resemble the reference sketch
   const W = 760, H = 420;
   const cx = 360, cy = 180; // beamsplitter center
@@ -838,6 +857,13 @@ function OpticalDiagram({ offsetPx, mirrorAmp_um, pdLevel = 1 }) {
   const mirrorFixed = { x: cx, y: cy - armLen }; // top
   const mirrorMovBase = { x: cx + armLen, y: cy }; // right (MEMS)
   const mirrorFaceX = computeMirrorFaceX(mirrorMovBase.x, offsetPx); // left surface of moving mirror
+  const isVcsel = pathMode === "vcsel";
+  const rayColor = isVcsel ? "#2563eb" : "#ef4444";
+  const combinedAlpha = isVcsel ? siPdLevel : pdLevel;
+  const sourceLabel = isVcsel ? "VCSEL metrology" : "light source";
+  const detectorLabel = isVcsel ? "Si photodiode" : "Photodetector";
+  const sourceBodyClass = isVcsel ? "fill-sky-700" : "fill-slate-900";
+  const detectorBodyClass = isVcsel ? "fill-sky-900" : "fill-indigo-900";
 
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-full">
@@ -855,18 +881,18 @@ function OpticalDiagram({ offsetPx, mirrorAmp_um, pdLevel = 1 }) {
       <g transform={`translate(${W/2} ${H/2}) scale(${scale}) translate(${-W/2} ${-H/2})`}>
       {/* Light source icon + label */}
       <g>
-        <rect x={src.x - 36} y={src.y - 12} width={28} height={24} className="fill-slate-900" rx={2} />
+        <rect x={src.x - 36} y={src.y - 12} width={28} height={24} className={sourceBodyClass} rx={2} />
         <rect x={src.x - 8} y={src.y - 4} width={8} height={8} className="fill-slate-500" />
-        <text x={src.x - 50} y={src.y + 28} className="text-[10px] fill-current">light source</text>
+        <text x={src.x - 60} y={src.y + 28} className="text-[10px] fill-current">{sourceLabel}</text>
       </g>
 
       {/* Measurement beam (IR, red) */}
       {/* Source → BS */}
-      <Ray x1={src.x} y1={src.y} x2={cx} y2={cy} />
+      <Ray x1={src.x} y1={src.y} x2={cx} y2={cy} color={rayColor} />
 
       {/* Up arm to Mirror 1 (fixed) and back to BS */}
-      <Ray x1={cx} y1={cy} x2={mirrorFixed.x} y2={mirrorFixed.y + 14} />
-      <Ray x1={mirrorFixed.x} y1={mirrorFixed.y + 14} x2={cx} y2={cy} />
+      <Ray x1={cx} y1={cy} x2={mirrorFixed.x} y2={mirrorFixed.y + 14} color={rayColor} />
+      <Ray x1={mirrorFixed.x} y1={mirrorFixed.y + 14} x2={cx} y2={cy} color={rayColor} />
       <Mirror x={mirrorFixed.x} y={mirrorFixed.y} orient="h" />
       <text x={mirrorFixed.x - 38} y={mirrorFixed.y - 10} className="text-[10px] fill-current">Mirror 1</text>
       <text x={mirrorFixed.x - 16} y={mirrorFixed.y - 22} className="text-[10px] fill-current">(fixed)</text>
@@ -888,18 +914,18 @@ function OpticalDiagram({ offsetPx, mirrorAmp_um, pdLevel = 1 }) {
       </g>
 
       {/* Recombined beam to photodetector (down) — brightness follows detected value */}
-      <Ray x1={cx} y1={cy} x2={det.x} y2={det.y - 16} alpha={pdLevel} />
+      <Ray x1={cx} y1={cy} x2={det.x} y2={det.y - 16} alpha={combinedAlpha} color={rayColor} />
 
       {/* Photodetector */}
       <g>
-        <rect x={det.x - 14} y={det.y - 10} width={28} height={20} className="fill-indigo-900" rx={3} />
+        <rect x={det.x - 14} y={det.y - 10} width={28} height={20} className={detectorBodyClass} rx={3} />
         <rect x={det.x - 3} y={det.y - 12} width={6} height={4} className="fill-slate-500" />
-        <text x={det.x - 34} y={det.y + 34} className="text-[10px] fill-current">Photodetector</text>
+        <text x={det.x - 34} y={det.y + 34} className="text-[10px] fill-current">{detectorLabel}</text>
       </g>
 
       {/* Right arm to MEMS mirror (dynamic, drawn above all except BS) */}
-      <Ray x1={cx} y1={cy} x2={mirrorFaceX} y2={mirrorMovBase.y} />
-      <Ray x1={mirrorFaceX} y1={mirrorMovBase.y} x2={cx} y2={cy} />
+      <Ray x1={cx} y1={cy} x2={mirrorFaceX} y2={mirrorMovBase.y} color={rayColor} />
+      <Ray x1={mirrorFaceX} y1={mirrorMovBase.y} x2={cx} y2={cy} color={rayColor} />
       {/* Beamsplitter (drawn last so it sits on top of beams) */}
       <g transform={`translate(${cx} ${cy}) rotate(45)`}>
         <rect x={-bsSize/2} y={-bsThickness/2} width={bsSize} height={bsThickness} className="fill-sky-300" />
