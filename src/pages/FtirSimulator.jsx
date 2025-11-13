@@ -182,7 +182,8 @@ const ABSORPTION_MEDIA = [
 ];
 
 function buildSourceMix({
-  halogenMag, laserMag, laserNm, laserWidth, absorptionMedium,
+  halogenMag, halogenTempK,
+  laserMag, laserNm, laserWidth, absorptionMedium,
   xenonMag, xenonRipplePct, xenonPeriodNm,
 }) {
   const lambda = [];
@@ -192,10 +193,9 @@ function buildSourceMix({
   for (let nm = 1100; nm <= 2500; nm += step) {
     lambda.push(nm);
     let val = 0;
-    // Halogen (broad Gaussian proxy)
+    // Halogen (adjustable blackbody tail)
     if (halogenMag > 0) {
-      const c = 1900, sigma = 280;
-      val += halogenMag * Math.exp(-0.5 * ((nm - c) / sigma) ** 2);
+      val += halogenMag * blackbodyRel(nm, halogenTempK || 3000);
     }
     // Narrow laser (Gaussian)
     if (laserMag > 0) val += laserMag * Math.exp(-0.5 * ((nm - laserNm) / lw) ** 2);
@@ -345,6 +345,7 @@ export default function FTIR_Michelson_VCSEL_Sim() {
   const [apodize, setApodize] = useState(true);
   const [absorptionMedium, setAbsorptionMedium] = useState("water");
   const [halogenMag, setHalogenMag] = useState(1);
+  const [halogenTempK, setHalogenTempK] = useState(3000);
   const [laserMag, setLaserMag] = useState(0.6);
   const [laserNm, setLaserNm] = useState(1532.8);
   const [laserWidth, setLaserWidth] = useState(2);
@@ -366,9 +367,10 @@ export default function FTIR_Michelson_VCSEL_Sim() {
 
   // Build mixed source spectrum B(λ)
   const source = useMemo(() => buildSourceMix({
-    halogenMag, laserMag, laserNm, laserWidth, absorptionMedium,
+    halogenMag, halogenTempK,
+    laserMag, laserNm, laserWidth, absorptionMedium,
     xenonMag, xenonRipplePct, xenonPeriodNm,
-  }), [halogenMag, laserMag, laserNm, laserWidth, absorptionMedium, xenonMag, xenonRipplePct, xenonPeriodNm]);
+  }), [halogenMag, halogenTempK, laserMag, laserNm, laserWidth, absorptionMedium, xenonMag, xenonRipplePct, xenonPeriodNm]);
 
   // OPD grid: symmetric about zero; OPD = 2 * mirror displacement
   const { opd_cm, dx_cm } = useMemo(() => {
@@ -633,6 +635,8 @@ export default function FTIR_Michelson_VCSEL_Sim() {
                         <div className="space-y-1">
                           <div className="flex items-center justify-between"><span>Halogen</span><span className="tabular-nums">{fmt(halogenMag,2)}</span></div>
                           <Slider value={[halogenMag]} min={0} max={2} step={0.01} onValueChange={([v]) => setHalogenMag(v)} />
+                          <div className="flex items-center justify-between pt-2"><span>Temperature</span><span className="tabular-nums">{fmt(halogenTempK,0)} K</span></div>
+                          <Slider value={[halogenTempK]} min={2400} max={3600} step={25} onValueChange={([v]) => setHalogenTempK(v)} />
                         </div>
                         {/* Xenon arc */}
                         <div className="pt-2 space-y-1">
