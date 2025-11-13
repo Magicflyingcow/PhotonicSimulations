@@ -345,7 +345,7 @@ export default function FTIR_Michelson_VCSEL_Sim() {
   const [apodize, setApodize] = useState(true);
   const [absorptionMedium, setAbsorptionMedium] = useState("water");
   const [halogenMag, setHalogenMag] = useState(1);
-  const [laserMag, setLaserMag] = useState(0.6);
+  const [laserMag, setLaserMag] = useState(0);
   const [laserNm, setLaserNm] = useState(1532.8);
   const [laserWidth, setLaserWidth] = useState(2);
   const [avgCount, setAvgCount] = useState(4);
