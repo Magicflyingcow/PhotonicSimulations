@@ -579,6 +579,25 @@ export default function FTIR_Michelson_VCSEL_Sim() {
             </Button>
           </div>
 
+          <Card className="border-slate-200 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white">
+            <CardContent className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <div className="space-y-1">
+                <p className="text-xs uppercase tracking-[0.3em] text-slate-200">Theory refresher</p>
+                <p className="text-base font-semibold">Need intuition for superposition and Fourier transforms?</p>
+                <p className="text-sm text-slate-200">
+                  Explore how interferograms are built from sinusoidal components and how the FFT exposes spectral peaks.
+                </p>
+              </div>
+              <Button
+                variant="secondary"
+                className="text-slate-900"
+                onClick={() => navigate("/ftir/fourier-insight")}
+              >
+                Open learning page
+              </Button>
+            </CardContent>
+          </Card>
+
           {/* --- Top controls bar --- */}
           <Card>
             <CardHeader className="pb-2">
