@@ -85,38 +85,15 @@ function computeMirrorFaceX(mirrorModuleCenterX, offsetPx) {
   return mirrorModuleCenterX - 6 + offsetPx; // 12px mirror width → left face is moduleCenter - 6
 }
 
-// Default wavelength window for the simulated sources / plots (configurable in one spot)
-const DEFAULT_SPECTRAL_WINDOW = Object.freeze({ min: 900, max: 2800 });
-const SPECTRAL_WINDOW_TAPER_NM = 60; // cosine roll-off applied near edges to avoid abrupt cliffs
-
-function spectralWindowWeight(nm, window = DEFAULT_SPECTRAL_WINDOW, taperNm = SPECTRAL_WINDOW_TAPER_NM) {
-  const { min, max } = window;
-  if (nm <= min || nm >= max) return 0;
-  const span = max - min;
-  const taper = Math.max(0, Math.min(taperNm, span / 2));
-  if (taper === 0) return 1;
-  const fadeIn = nm - min;
-  const fadeOut = max - nm;
-  if (fadeIn < taper) {
-    const t = fadeIn / taper;
-    return 0.5 - 0.5 * Math.cos(Math.PI * t);
-  }
-  if (fadeOut < taper) {
-    const t = fadeOut / taper;
-    return 0.5 - 0.5 * Math.cos(Math.PI * t);
-  }
-  return 1;
-}
-
-// Relative blackbody radiance (normalize to value near the short-wave edge to keep numbers tame)
-function blackbodyRel(nm, tempK = 6000, refNm = DEFAULT_SPECTRAL_WINDOW.min) {
+// Relative blackbody radiance (normalize to value at 1100 nm to keep numbers tame in NIR tail)
+function blackbodyRel(nm, tempK = 6000) {
   const BB = (lam_nm) => {
     const lam = Math.max(1e-9, lam_nm);
     const x = C2_NM_K / (lam * tempK);
     const denom = Math.expm1(x); // e^x - 1
     return (1 / Math.pow(lam, 5)) * (1 / denom);
   };
-  const ref = BB(refNm);
+  const ref = BB(1100);
   return BB(nm) / (ref || 1);
 }
 
@@ -205,32 +182,27 @@ const ABSORPTION_MEDIA = [
 ];
 
 function buildSourceMix({
-  halogenMag, halogenTempK,
-  laserMag, laserNm, laserWidth, absorptionMedium,
+  halogenMag, laserMag, laserNm, laserWidth, absorptionMedium,
   xenonMag, xenonRipplePct, xenonPeriodNm,
-  wavelengthMin = DEFAULT_SPECTRAL_WINDOW.min,
-  wavelengthMax = DEFAULT_SPECTRAL_WINDOW.max,
-  sampleStep = 2,
 }) {
   const lambda = [];
   const B = [];
-  const step = Math.max(0.5, sampleStep); // nm
-  const start = Math.min(wavelengthMin, wavelengthMax);
-  const stop = Math.max(wavelengthMin, wavelengthMax);
+  const step = 2; // nm
   const lw = Math.max(0.5, laserWidth || 2);
-  for (let nm = start; nm <= stop; nm += step) {
+  for (let nm = 1100; nm <= 2500; nm += step) {
     lambda.push(nm);
     let val = 0;
-    // Halogen (adjustable blackbody tail)
+    // Halogen (broad Gaussian proxy)
     if (halogenMag > 0) {
-      val += halogenMag * blackbodyRel(nm, halogenTempK || 3000);
+      const c = 1900, sigma = 280;
+      val += halogenMag * Math.exp(-0.5 * ((nm - c) / sigma) ** 2);
     }
     // Narrow laser (Gaussian)
     if (laserMag > 0) val += laserMag * Math.exp(-0.5 * ((nm - laserNm) / lw) ** 2);
 
     // Xenon arc: hot continuum (approx. 6000 K blackbody tail) + small spectral ripple
     if (xenonMag > 0) {
-      const bb = blackbodyRel(nm, 6000); // normalized relative to lower edge of spectral window
+      const bb = blackbodyRel(nm, 6000); // normalized to 1100 nm
       const ripple = 1 + (xenonRipplePct || 0) * Math.sin((2 * Math.PI * (nm - 1100)) / Math.max(5, xenonPeriodNm || 20));
       val += xenonMag * bb * ripple;
     }
@@ -243,7 +215,7 @@ function buildSourceMix({
       }
     }
 
-    B.push(val * spectralWindowWeight(nm));
+    B.push(val);
   }
   return { lambda, B, step };
 }
@@ -373,7 +345,6 @@ export default function FTIR_Michelson_VCSEL_Sim() {
   const [apodize, setApodize] = useState(true);
   const [absorptionMedium, setAbsorptionMedium] = useState("water");
   const [halogenMag, setHalogenMag] = useState(1);
-  const [halogenTempK, setHalogenTempK] = useState(3000);
   const [laserMag, setLaserMag] = useState(0.6);
   const [laserNm, setLaserNm] = useState(1532.8);
   const [laserWidth, setLaserWidth] = useState(2);
@@ -395,12 +366,9 @@ export default function FTIR_Michelson_VCSEL_Sim() {
 
   // Build mixed source spectrum B(λ)
   const source = useMemo(() => buildSourceMix({
-    halogenMag, halogenTempK,
-    laserMag, laserNm, laserWidth, absorptionMedium,
+    halogenMag, laserMag, laserNm, laserWidth, absorptionMedium,
     xenonMag, xenonRipplePct, xenonPeriodNm,
-    wavelengthMin: DEFAULT_SPECTRAL_WINDOW.min,
-    wavelengthMax: DEFAULT_SPECTRAL_WINDOW.max,
-  }), [halogenMag, halogenTempK, laserMag, laserNm, laserWidth, absorptionMedium, xenonMag, xenonRipplePct, xenonPeriodNm]);
+  }), [halogenMag, laserMag, laserNm, laserWidth, absorptionMedium, xenonMag, xenonRipplePct, xenonPeriodNm]);
 
   // OPD grid: symmetric about zero; OPD = 2 * mirror displacement
   const { opd_cm, dx_cm } = useMemo(() => {
@@ -538,7 +506,7 @@ export default function FTIR_Michelson_VCSEL_Sim() {
           for (let i = 1; i < vAxis.length; i++) {
             const v = vAxis[i];
             const nm = wavenumberToNm(v);
-            if (nm >= DEFAULT_SPECTRAL_WINDOW.min && nm <= DEFAULT_SPECTRAL_WINDOW.max) data.push({ nm, S: mag[i] });
+            if (nm >= 1100 && nm <= 2500) data.push({ nm, S: mag[i] });
           }
           data.sort((a, b) => a.nm - b.nm);
           setSpectrum(data);
@@ -665,8 +633,6 @@ export default function FTIR_Michelson_VCSEL_Sim() {
                         <div className="space-y-1">
                           <div className="flex items-center justify-between"><span>Halogen</span><span className="tabular-nums">{fmt(halogenMag,2)}</span></div>
                           <Slider value={[halogenMag]} min={0} max={2} step={0.01} onValueChange={([v]) => setHalogenMag(v)} />
-                          <div className="flex items-center justify-between pt-2"><span>Temperature</span><span className="tabular-nums">{fmt(halogenTempK,0)} K</span></div>
-                          <Slider value={[halogenTempK]} min={2400} max={3600} step={25} onValueChange={([v]) => setHalogenTempK(v)} />
                         </div>
                         {/* Xenon arc */}
                         <div className="pt-2 space-y-1">
@@ -696,13 +662,7 @@ export default function FTIR_Michelson_VCSEL_Sim() {
                         </div>
                         <div className="space-y-1">
                           <div className="flex items-center justify-between"><span>Laser wavelength</span><span className="tabular-nums">{fmt(laserNm,1)} nm</span></div>
-                          <Slider
-                            value={[laserNm]}
-                            min={DEFAULT_SPECTRAL_WINDOW.min}
-                            max={DEFAULT_SPECTRAL_WINDOW.max}
-                            step={1}
-                            onValueChange={([v]) => setLaserNm(v)}
-                          />
+                          <Slider value={[laserNm]} min={1100} max={2500} step={1} onValueChange={([v]) => setLaserNm(v)} />
                         </div>
                         <div className="space-y-1">
                           <div className="flex items-center justify-between"><span>Laser width</span><span className="tabular-nums">{fmt(laserWidth,1)} nm</span></div>
@@ -813,13 +773,7 @@ export default function FTIR_Michelson_VCSEL_Sim() {
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={spectrum} margin={{ left: 8, right: 8, top: 8, bottom: 8 }}>
                       <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis
-                        dataKey="nm"
-                        type="number"
-                        domain={[DEFAULT_SPECTRAL_WINDOW.min, DEFAULT_SPECTRAL_WINDOW.max]}
-                        tickCount={8}
-                        label={{ value: "Wavelength (nm)", position: "insideBottomRight", offset: -4 }}
-                      />
+                      <XAxis dataKey="nm" type="number" domain={[1100,2500]} tickCount={8} label={{ value: "Wavelength (nm)", position: "insideBottomRight", offset: -4 }} />
                       <YAxis domain={["auto","auto"]} tickFormatter={(v)=>fmt(v,1)} />
                       <Tooltip formatter={(v)=>fmt(v,3)} labelFormatter={(v)=>`${fmt(v,0)} nm`} />
                       <Legend />
