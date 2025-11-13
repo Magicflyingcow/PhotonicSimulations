@@ -170,6 +170,10 @@ const ABSORPTION_PROFILES = {
     { center: 1720, sigma: 22, depth: 0.4 },
     { center: 2300, sigma: 26, depth: 0.25 },
   ],
+  isopropyl: [
+    { center: 1725, sigma: 18, depth: 0.36 },
+    { center: 2305, sigma: 24, depth: 0.3 },
+  ],
 };
 
 const ABSORPTION_MEDIA = [
@@ -177,6 +181,7 @@ const ABSORPTION_MEDIA = [
   { id: "co2", label: "Carbon dioxide", description: "Strong overtone pair near 2 µm" },
   { id: "methane", label: "Methane", description: "Combination bands near 1.66 / 2.2 µm" },
   { id: "polyethylene", label: "Polyethylene film", description: "Plastic absorption near 1.72 µm" },
+  { id: "isopropyl", label: "Isopropyl alcohol", description: "OH bands near 1.73 / 2.3 µm" },
 ];
 
 function buildSourceMix({
