@@ -87,6 +87,26 @@ function computeMirrorFaceX(mirrorModuleCenterX, offsetPx) {
 
 // Default wavelength window for the simulated sources / plots (configurable in one spot)
 const DEFAULT_SPECTRAL_WINDOW = Object.freeze({ min: 900, max: 2800 });
+const SPECTRAL_WINDOW_TAPER_NM = 60; // cosine roll-off applied near edges to avoid abrupt cliffs
+
+function spectralWindowWeight(nm, window = DEFAULT_SPECTRAL_WINDOW, taperNm = SPECTRAL_WINDOW_TAPER_NM) {
+  const { min, max } = window;
+  if (nm <= min || nm >= max) return 0;
+  const span = max - min;
+  const taper = Math.max(0, Math.min(taperNm, span / 2));
+  if (taper === 0) return 1;
+  const fadeIn = nm - min;
+  const fadeOut = max - nm;
+  if (fadeIn < taper) {
+    const t = fadeIn / taper;
+    return 0.5 - 0.5 * Math.cos(Math.PI * t);
+  }
+  if (fadeOut < taper) {
+    const t = fadeOut / taper;
+    return 0.5 - 0.5 * Math.cos(Math.PI * t);
+  }
+  return 1;
+}
 
 // Relative blackbody radiance (normalize to value near the short-wave edge to keep numbers tame)
 function blackbodyRel(nm, tempK = 6000, refNm = DEFAULT_SPECTRAL_WINDOW.min) {
@@ -223,7 +243,7 @@ function buildSourceMix({
       }
     }
 
-    B.push(val);
+    B.push(val * spectralWindowWeight(nm));
   }
   return { lambda, B, step };
 }
