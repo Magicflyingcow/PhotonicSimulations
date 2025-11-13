@@ -85,17 +85,11 @@ function computeMirrorFaceX(mirrorModuleCenterX, offsetPx) {
   return mirrorModuleCenterX - 6 + offsetPx; // 12px mirror width → left face is moduleCenter - 6
 }
 
-// Display and simulation spectral windows. The simulated sources extend beyond the
-// visible band so the FFT spectrum doesn't fall off a cliff right at the plot edge.
-const DISPLAY_SPECTRAL_WINDOW = Object.freeze({ min: 900, max: 2800 });
-const SOURCE_WINDOW_PADDING_NM = 400;
-const SOURCE_SPECTRAL_WINDOW = Object.freeze({
-  min: Math.max(200, DISPLAY_SPECTRAL_WINDOW.min - SOURCE_WINDOW_PADDING_NM),
-  max: DISPLAY_SPECTRAL_WINDOW.max + SOURCE_WINDOW_PADDING_NM,
-});
+// Default wavelength window for the simulated sources / plots (configurable in one spot)
+const DEFAULT_SPECTRAL_WINDOW = Object.freeze({ min: 900, max: 2800 });
 
 // Relative blackbody radiance (normalize to value near the short-wave edge to keep numbers tame)
-function blackbodyRel(nm, tempK = 6000, refNm = SOURCE_SPECTRAL_WINDOW.min) {
+function blackbodyRel(nm, tempK = 6000, refNm = DEFAULT_SPECTRAL_WINDOW.min) {
   const BB = (lam_nm) => {
     const lam = Math.max(1e-9, lam_nm);
     const x = C2_NM_K / (lam * tempK);
@@ -194,8 +188,8 @@ function buildSourceMix({
   halogenMag, halogenTempK,
   laserMag, laserNm, laserWidth, absorptionMedium,
   xenonMag, xenonRipplePct, xenonPeriodNm,
-  wavelengthMin = SOURCE_SPECTRAL_WINDOW.min,
-  wavelengthMax = SOURCE_SPECTRAL_WINDOW.max,
+  wavelengthMin = DEFAULT_SPECTRAL_WINDOW.min,
+  wavelengthMax = DEFAULT_SPECTRAL_WINDOW.max,
   sampleStep = 2,
 }) {
   const lambda = [];
@@ -384,8 +378,8 @@ export default function FTIR_Michelson_VCSEL_Sim() {
     halogenMag, halogenTempK,
     laserMag, laserNm, laserWidth, absorptionMedium,
     xenonMag, xenonRipplePct, xenonPeriodNm,
-    wavelengthMin: SOURCE_SPECTRAL_WINDOW.min,
-    wavelengthMax: SOURCE_SPECTRAL_WINDOW.max,
+    wavelengthMin: DEFAULT_SPECTRAL_WINDOW.min,
+    wavelengthMax: DEFAULT_SPECTRAL_WINDOW.max,
   }), [halogenMag, halogenTempK, laserMag, laserNm, laserWidth, absorptionMedium, xenonMag, xenonRipplePct, xenonPeriodNm]);
 
   // OPD grid: symmetric about zero; OPD = 2 * mirror displacement
@@ -524,7 +518,7 @@ export default function FTIR_Michelson_VCSEL_Sim() {
           for (let i = 1; i < vAxis.length; i++) {
             const v = vAxis[i];
             const nm = wavenumberToNm(v);
-            if (nm >= DISPLAY_SPECTRAL_WINDOW.min && nm <= DISPLAY_SPECTRAL_WINDOW.max) data.push({ nm, S: mag[i] });
+            if (nm >= DEFAULT_SPECTRAL_WINDOW.min && nm <= DEFAULT_SPECTRAL_WINDOW.max) data.push({ nm, S: mag[i] });
           }
           data.sort((a, b) => a.nm - b.nm);
           setSpectrum(data);
@@ -684,8 +678,8 @@ export default function FTIR_Michelson_VCSEL_Sim() {
                           <div className="flex items-center justify-between"><span>Laser wavelength</span><span className="tabular-nums">{fmt(laserNm,1)} nm</span></div>
                           <Slider
                             value={[laserNm]}
-                            min={DISPLAY_SPECTRAL_WINDOW.min}
-                            max={DISPLAY_SPECTRAL_WINDOW.max}
+                            min={DEFAULT_SPECTRAL_WINDOW.min}
+                            max={DEFAULT_SPECTRAL_WINDOW.max}
                             step={1}
                             onValueChange={([v]) => setLaserNm(v)}
                           />
@@ -802,7 +796,7 @@ export default function FTIR_Michelson_VCSEL_Sim() {
                       <XAxis
                         dataKey="nm"
                         type="number"
-                        domain={[DISPLAY_SPECTRAL_WINDOW.min, DISPLAY_SPECTRAL_WINDOW.max]}
+                        domain={[DEFAULT_SPECTRAL_WINDOW.min, DEFAULT_SPECTRAL_WINDOW.max]}
                         tickCount={8}
                         label={{ value: "Wavelength (nm)", position: "insideBottomRight", offset: -4 }}
                       />
