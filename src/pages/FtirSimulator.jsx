@@ -154,7 +154,6 @@ function zeroFill(arr, factor = 1) {
 
 // Build a mixed source: Halogen + Laser + Xenon arc
 const ABSORPTION_PROFILES = {
-  none: [],
   water: [
     { center: 1450, sigma: 25, depth: 0.35 },
     { center: 1930, sigma: 30, depth: 0.45 },
@@ -174,7 +173,6 @@ const ABSORPTION_PROFILES = {
 };
 
 const ABSORPTION_MEDIA = [
-  { id: "none", label: "None", description: "Open path" },
   { id: "water", label: "Water vapor", description: "Bands near 1450 / 1930 nm" },
   { id: "co2", label: "Carbon dioxide", description: "Strong overtone pair near 2 µm" },
   { id: "methane", label: "Methane", description: "Combination bands near 1.66 / 2.2 µm" },
@@ -182,7 +180,7 @@ const ABSORPTION_MEDIA = [
 ];
 
 function buildSourceMix({
-  halogenMag, laserMag, laserNm, laserWidth, absorptionMedium,
+  halogenMag, laserMag, laserNm, laserWidth, absorptionMedia,
   xenonMag, xenonRipplePct, xenonPeriodNm,
 }) {
   const lambda = [];
@@ -208,7 +206,8 @@ function buildSourceMix({
     }
 
     // Optional absorption bands applied multiplicatively
-    const features = ABSORPTION_PROFILES[absorptionMedium] || [];
+    const features = (absorptionMedia || [])
+      .flatMap((medium) => ABSORPTION_PROFILES[medium] || []);
     if (features.length) {
       for (const { center, sigma, depth } of features) {
         val *= 1 - depth * Math.exp(-0.5 * ((nm - center) / sigma) ** 2);
@@ -343,7 +342,7 @@ export default function FTIR_Michelson_VCSEL_Sim() {
   const [Npoints, setNpoints] = useState(1024);
   const [zeroFillFactor, setZeroFillFactor] = useState(2);
   const [apodize, setApodize] = useState(true);
-  const [absorptionMedium, setAbsorptionMedium] = useState("water");
+  const [absorptionMedia, setAbsorptionMedia] = useState([]);
   const [halogenMag, setHalogenMag] = useState(1);
   const [laserMag, setLaserMag] = useState(0);
   const [laserNm, setLaserNm] = useState(1532.8);
@@ -366,9 +365,9 @@ export default function FTIR_Michelson_VCSEL_Sim() {
 
   // Build mixed source spectrum B(λ)
   const source = useMemo(() => buildSourceMix({
-    halogenMag, laserMag, laserNm, laserWidth, absorptionMedium,
+    halogenMag, laserMag, laserNm, laserWidth, absorptionMedia,
     xenonMag, xenonRipplePct, xenonPeriodNm,
-  }), [halogenMag, laserMag, laserNm, laserWidth, absorptionMedium, xenonMag, xenonRipplePct, xenonPeriodNm]);
+  }), [halogenMag, laserMag, laserNm, laserWidth, absorptionMedia, xenonMag, xenonRipplePct, xenonPeriodNm]);
 
   // OPD grid: symmetric about zero; OPD = 2 * mirror displacement
   const { opd_cm, dx_cm } = useMemo(() => {
@@ -690,22 +689,30 @@ export default function FTIR_Michelson_VCSEL_Sim() {
                 {showAbsorption && (
                   <div className="mt-4 space-y-3">
                     <p className="text-sm text-slate-600">
-                      Select a medium to multiply the source spectrum by representative absorption bands.
+                      Toggle one or more media to multiply the source spectrum by representative absorption bands.
                     </p>
+                    <p className="text-xs text-slate-500">No media selected keeps the path open.</p>
                     <div className="grid gap-2 sm:grid-cols-2">
                       {ABSORPTION_MEDIA.map((medium) => (
                         <button
                           key={medium.id}
                           type="button"
-                          onClick={() => setAbsorptionMedium(medium.id)}
+                          onClick={() =>
+                            setAbsorptionMedia((prev) =>
+                              prev.includes(medium.id)
+                                ? prev.filter((id) => id !== medium.id)
+                                : [...prev, medium.id]
+                            )
+                          }
+                          aria-pressed={absorptionMedia.includes(medium.id)}
                           className={`rounded-md border p-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500 ${
-                            absorptionMedium === medium.id
+                            absorptionMedia.includes(medium.id)
                               ? "border-slate-900 bg-slate-900 text-white"
                               : "border-slate-200 hover:border-slate-400"
                           }`}
                         >
                           <div className="font-medium">{medium.label}</div>
-                          <div className={`text-xs mt-1 ${absorptionMedium === medium.id ? "text-slate-100" : "text-slate-600"}`}>
+                          <div className={`text-xs mt-1 ${absorptionMedia.includes(medium.id) ? "text-slate-100" : "text-slate-600"}`}>
                             {medium.description}
                           </div>
                         </button>
