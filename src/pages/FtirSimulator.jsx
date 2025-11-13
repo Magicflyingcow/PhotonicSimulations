@@ -85,15 +85,18 @@ function computeMirrorFaceX(mirrorModuleCenterX, offsetPx) {
   return mirrorModuleCenterX - 6 + offsetPx; // 12px mirror width → left face is moduleCenter - 6
 }
 
-// Relative blackbody radiance (normalize to value at 1100 nm to keep numbers tame in NIR tail)
-function blackbodyRel(nm, tempK = 6000) {
+// Default wavelength window for the simulated sources / plots (configurable in one spot)
+const DEFAULT_SPECTRAL_WINDOW = Object.freeze({ min: 900, max: 2800 });
+
+// Relative blackbody radiance (normalize to value near the short-wave edge to keep numbers tame)
+function blackbodyRel(nm, tempK = 6000, refNm = DEFAULT_SPECTRAL_WINDOW.min) {
   const BB = (lam_nm) => {
     const lam = Math.max(1e-9, lam_nm);
     const x = C2_NM_K / (lam * tempK);
     const denom = Math.expm1(x); // e^x - 1
     return (1 / Math.pow(lam, 5)) * (1 / denom);
   };
-  const ref = BB(1100);
+  const ref = BB(refNm);
   return BB(nm) / (ref || 1);
 }
 
@@ -185,12 +188,17 @@ function buildSourceMix({
   halogenMag, halogenTempK,
   laserMag, laserNm, laserWidth, absorptionMedium,
   xenonMag, xenonRipplePct, xenonPeriodNm,
+  wavelengthMin = DEFAULT_SPECTRAL_WINDOW.min,
+  wavelengthMax = DEFAULT_SPECTRAL_WINDOW.max,
+  sampleStep = 2,
 }) {
   const lambda = [];
   const B = [];
-  const step = 2; // nm
+  const step = Math.max(0.5, sampleStep); // nm
+  const start = Math.min(wavelengthMin, wavelengthMax);
+  const stop = Math.max(wavelengthMin, wavelengthMax);
   const lw = Math.max(0.5, laserWidth || 2);
-  for (let nm = 1100; nm <= 2500; nm += step) {
+  for (let nm = start; nm <= stop; nm += step) {
     lambda.push(nm);
     let val = 0;
     // Halogen (adjustable blackbody tail)
@@ -202,7 +210,7 @@ function buildSourceMix({
 
     // Xenon arc: hot continuum (approx. 6000 K blackbody tail) + small spectral ripple
     if (xenonMag > 0) {
-      const bb = blackbodyRel(nm, 6000); // normalized to 1100 nm
+      const bb = blackbodyRel(nm, 6000); // normalized relative to lower edge of spectral window
       const ripple = 1 + (xenonRipplePct || 0) * Math.sin((2 * Math.PI * (nm - 1100)) / Math.max(5, xenonPeriodNm || 20));
       val += xenonMag * bb * ripple;
     }
@@ -370,6 +378,8 @@ export default function FTIR_Michelson_VCSEL_Sim() {
     halogenMag, halogenTempK,
     laserMag, laserNm, laserWidth, absorptionMedium,
     xenonMag, xenonRipplePct, xenonPeriodNm,
+    wavelengthMin: DEFAULT_SPECTRAL_WINDOW.min,
+    wavelengthMax: DEFAULT_SPECTRAL_WINDOW.max,
   }), [halogenMag, halogenTempK, laserMag, laserNm, laserWidth, absorptionMedium, xenonMag, xenonRipplePct, xenonPeriodNm]);
 
   // OPD grid: symmetric about zero; OPD = 2 * mirror displacement
@@ -508,7 +518,7 @@ export default function FTIR_Michelson_VCSEL_Sim() {
           for (let i = 1; i < vAxis.length; i++) {
             const v = vAxis[i];
             const nm = wavenumberToNm(v);
-            if (nm >= 1100 && nm <= 2500) data.push({ nm, S: mag[i] });
+            if (nm >= DEFAULT_SPECTRAL_WINDOW.min && nm <= DEFAULT_SPECTRAL_WINDOW.max) data.push({ nm, S: mag[i] });
           }
           data.sort((a, b) => a.nm - b.nm);
           setSpectrum(data);
@@ -666,7 +676,13 @@ export default function FTIR_Michelson_VCSEL_Sim() {
                         </div>
                         <div className="space-y-1">
                           <div className="flex items-center justify-between"><span>Laser wavelength</span><span className="tabular-nums">{fmt(laserNm,1)} nm</span></div>
-                          <Slider value={[laserNm]} min={1100} max={2500} step={1} onValueChange={([v]) => setLaserNm(v)} />
+                          <Slider
+                            value={[laserNm]}
+                            min={DEFAULT_SPECTRAL_WINDOW.min}
+                            max={DEFAULT_SPECTRAL_WINDOW.max}
+                            step={1}
+                            onValueChange={([v]) => setLaserNm(v)}
+                          />
                         </div>
                         <div className="space-y-1">
                           <div className="flex items-center justify-between"><span>Laser width</span><span className="tabular-nums">{fmt(laserWidth,1)} nm</span></div>
@@ -777,7 +793,13 @@ export default function FTIR_Michelson_VCSEL_Sim() {
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={spectrum} margin={{ left: 8, right: 8, top: 8, bottom: 8 }}>
                       <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="nm" type="number" domain={[1100,2500]} tickCount={8} label={{ value: "Wavelength (nm)", position: "insideBottomRight", offset: -4 }} />
+                      <XAxis
+                        dataKey="nm"
+                        type="number"
+                        domain={[DEFAULT_SPECTRAL_WINDOW.min, DEFAULT_SPECTRAL_WINDOW.max]}
+                        tickCount={8}
+                        label={{ value: "Wavelength (nm)", position: "insideBottomRight", offset: -4 }}
+                      />
                       <YAxis domain={["auto","auto"]} tickFormatter={(v)=>fmt(v,1)} />
                       <Tooltip formatter={(v)=>fmt(v,3)} labelFormatter={(v)=>`${fmt(v,0)} nm`} />
                       <Legend />
