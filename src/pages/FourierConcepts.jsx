@@ -1,54 +1,103 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, ReferenceLine } from "recharts";
 
-const colors = {
-  wave1: "#0ea5e9",
-  wave2: "#ec4899",
-  wave3: "#8b5cf6",
-  sum: "#0f172a",
-};
+const waveConfigs = [
+  {
+    key: "wave1",
+    label: "λ₁ (long wave)",
+    description: "Long wavelength, slow oscillation",
+    amplitude: 1,
+    frequency: 1,
+    phase: 0,
+    color: "#0ea5e9",
+  },
+  {
+    key: "wave2",
+    label: "λ₂ (mid IR)",
+    description: "Medium wavelength component",
+    amplitude: 0.55,
+    frequency: 2.2,
+    phase: Math.PI / 4,
+    color: "#ec4899",
+  },
+  {
+    key: "wave3",
+    label: "λ₃ (short IR)",
+    description: "Short wavelength, rapid oscillation",
+    amplitude: 0.35,
+    frequency: 3.8,
+    phase: Math.PI / 6,
+    color: "#8b5cf6",
+  },
+];
+
+const sumColor = "#0f172a";
 
 const formatNumber = (value) => value.toFixed(2);
 
 export default function FourierConcepts() {
-  const waveData = useMemo(() => {
+  const [activeWaves, setActiveWaves] = useState(() =>
+    waveConfigs.reduce((acc, wave) => {
+      acc[wave.key] = true;
+      return acc;
+    }, {})
+  );
+
+  const baseWaveData = useMemo(() => {
     const arr = [];
     for (let t = 0; t <= 8 * Math.PI; t += 0.1) {
-      const wave1 = Math.sin(t);
-      const wave2 = 0.55 * Math.sin(2.2 * t + Math.PI / 4);
-      const wave3 = 0.35 * Math.sin(3.8 * t + Math.PI / 6);
-      const sum = wave1 + wave2 + wave3;
-      arr.push({
+      const point = {
         t: parseFloat((t / Math.PI).toFixed(2)),
-        wave1,
-        wave2,
-        wave3,
-        sum,
+      };
+      waveConfigs.forEach((wave) => {
+        point[wave.key] = wave.amplitude * Math.sin(wave.frequency * t + wave.phase);
       });
+      arr.push(point);
     }
     return arr;
   }, []);
 
+  const waveData = useMemo(() => {
+    return baseWaveData.map((point) => {
+      const sum = waveConfigs.reduce((acc, wave) => {
+        if (!activeWaves[wave.key]) {
+          return acc;
+        }
+        return acc + point[wave.key];
+      }, 0);
+      return { ...point, sum };
+    });
+  }, [baseWaveData, activeWaves]);
+
   const freqData = useMemo(() => {
-    const peaks = [
-      { center: 1, amp: 1 },
-      { center: 2.2, amp: 0.55 },
-      { center: 3.8, amp: 0.35 },
-    ];
     const data = [];
     for (let f = 0; f <= 5; f += 0.05) {
-      let amplitude = 0;
-      peaks.forEach((peak) => {
+      const point = { freq: parseFloat(f.toFixed(2)) };
+      waveConfigs.forEach((wave) => {
         const width = 0.12;
-        amplitude += peak.amp * Math.exp(-Math.pow((f - peak.center) / width, 2));
+        point[wave.key] = wave.amplitude * Math.exp(-Math.pow((f - wave.frequency) / width, 2));
       });
-      data.push({ freq: parseFloat(f.toFixed(2)), amplitude });
+      data.push(point);
     }
     return data;
   }, []);
+
+  const activeFreqData = useMemo(() => {
+    return freqData.map((point) => {
+      const total = waveConfigs.reduce((acc, wave) => {
+        if (!activeWaves[wave.key]) {
+          return acc;
+        }
+        return acc + point[wave.key];
+      }, 0);
+      return { ...point, total };
+    });
+  }, [freqData, activeWaves]);
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
@@ -76,28 +125,64 @@ export default function FourierConcepts() {
             <CardHeader>
               <CardTitle className="text-xl">Principle of superposition</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4 text-sm text-slate-600">
-              <p>
-                Light beams interfere because electromagnetic waves add together. The mirror motion in a Michelson interferometer
-                sweeps the optical path difference so that each wavelength creates a sinusoidal response with its own period. What
-                we measure is the sum of all of those oscillations. Below we add three representative components to illustrate how a
-                seemingly complicated trace is built from simple ingredients.
+          <CardContent className="space-y-4 text-sm text-slate-600">
+            <p>
+              Light beams interfere because electromagnetic waves add together. The mirror motion in a Michelson interferometer
+              sweeps the optical path difference so that each wavelength creates a sinusoidal response with its own period. What
+              we measure is the sum of all of those oscillations. Below we add three representative components to illustrate how a
+              seemingly complicated trace is built from simple ingredients.
+            </p>
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-xs text-slate-500">
+              <p className="mb-3 text-sm font-semibold text-slate-800">
+                Toggle individual wavelengths to see how each one contributes.
               </p>
-              <div className="h-72 w-full">
-                <ResponsiveContainer>
-                  <LineChart data={waveData} margin={{ top: 10, left: 0, right: 10, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#cbd5f5" />
-                    <XAxis dataKey="t" label={{ value: "OPD / π", position: "insideBottomRight", offset: -5 }} />
-                    <YAxis domain={[-2.5, 2.5]} tickFormatter={formatNumber} />
-                    <Tooltip formatter={(value) => formatNumber(value)} labelFormatter={(value) => `OPD multiple: ${value}`} />
-                    <Legend />
-                    <Line type="monotone" dataKey="wave1" stroke={colors.wave1} dot={false} strokeWidth={2} />
-                    <Line type="monotone" dataKey="wave2" stroke={colors.wave2} dot={false} strokeWidth={2} />
-                    <Line type="monotone" dataKey="wave3" stroke={colors.wave3} dot={false} strokeWidth={2} />
-                    <Line type="monotone" dataKey="sum" stroke={colors.sum} dot={false} strokeWidth={3} />
-                  </LineChart>
-                </ResponsiveContainer>
+              <div className="flex flex-wrap gap-6">
+                {waveConfigs.map((wave) => (
+                  <div key={wave.key} className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        id={`toggle-${wave.key}`}
+                        checked={activeWaves[wave.key]}
+                        onCheckedChange={(checked) =>
+                          setActiveWaves((prev) => ({
+                            ...prev,
+                            [wave.key]: checked,
+                          }))
+                        }
+                      />
+                      <Label htmlFor={`toggle-${wave.key}`} className="font-semibold" style={{ color: wave.color }}>
+                        {wave.label}
+                      </Label>
+                    </div>
+                    <p>{wave.description}</p>
+                  </div>
+                ))}
               </div>
+            </div>
+            <div className="h-72 w-full">
+              <ResponsiveContainer>
+                <LineChart data={waveData} margin={{ top: 10, left: 0, right: 10, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#cbd5f5" />
+                  <XAxis dataKey="t" label={{ value: "OPD / π", position: "insideBottomRight", offset: -5 }} />
+                  <YAxis domain={[-2.5, 2.5]} tickFormatter={formatNumber} />
+                  <Tooltip formatter={(value) => formatNumber(value)} labelFormatter={(value) => `OPD multiple: ${value}`} />
+                  <Legend />
+                  {waveConfigs.map((wave) => (
+                    <Line
+                      key={wave.key}
+                      type="monotone"
+                      dataKey={wave.key}
+                      stroke={wave.color}
+                      dot={false}
+                      strokeWidth={2}
+                      hide={!activeWaves[wave.key]}
+                      name={`${wave.label} (time)`}
+                    />
+                  ))}
+                  <Line type="monotone" dataKey="sum" stroke={sumColor} dot={false} strokeWidth={3} name="Active sum" />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
               <ul className="list-disc space-y-1 pl-6">
                 <li>The <span className="font-medium text-sky-600">blue</span> wave represents a long-period component from a long wavelength.</li>
                 <li>The <span className="font-medium text-pink-500">pink</span> and <span className="font-medium text-violet-500">violet</span> waves oscillate faster, like shorter infrared wavelengths.</li>
@@ -119,15 +204,37 @@ export default function FourierConcepts() {
               </p>
               <div className="h-64 w-full">
                 <ResponsiveContainer>
-                  <LineChart data={freqData} margin={{ top: 10, right: 10, bottom: 0, left: 0 }}>
+                  <LineChart data={activeFreqData} margin={{ top: 10, right: 10, bottom: 0, left: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#cbd5f5" />
                     <XAxis dataKey="freq" label={{ value: "Normalized wavenumber", position: "insideBottomRight", offset: -5 }} />
                     <YAxis label={{ value: "Relative intensity", angle: -90, position: "insideLeft" }} />
                     <Tooltip formatter={(value) => formatNumber(value)} labelFormatter={(value) => `${value} kcm⁻¹`} />
-                    <Line type="monotone" dataKey="amplitude" stroke="#0ea5e9" strokeWidth={3} dot={false} />
-                    <ReferenceLine x={1} stroke="#0ea5e9" strokeDasharray="4 2" label="λ₁" />
-                    <ReferenceLine x={2.2} stroke="#ec4899" strokeDasharray="4 2" label="λ₂" />
-                    <ReferenceLine x={3.8} stroke="#8b5cf6" strokeDasharray="4 2" label="λ₃" />
+                    <Legend />
+                    {waveConfigs.map((wave) => (
+                      <Line
+                        key={`freq-${wave.key}`}
+                        type="monotone"
+                        dataKey={wave.key}
+                        stroke={wave.color}
+                        strokeWidth={2}
+                        dot={false}
+                        strokeDasharray="5 3"
+                        hide={!activeWaves[wave.key]}
+                        name={`${wave.label} (spectrum)`}
+                      />
+                    ))}
+                    <Line type="monotone" dataKey="total" stroke={sumColor} strokeWidth={3} dot={false} name="Active spectrum" />
+                    {waveConfigs.map((wave) =>
+                      activeWaves[wave.key] ? (
+                        <ReferenceLine
+                          key={`ref-${wave.key}`}
+                          x={wave.frequency}
+                          stroke={wave.color}
+                          strokeDasharray="4 2"
+                          label={wave.label.split(" ")[0]}
+                        />
+                      ) : null
+                    )}
                   </LineChart>
                 </ResponsiveContainer>
               </div>
