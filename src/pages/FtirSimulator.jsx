@@ -630,12 +630,12 @@ export default function FTIR_Michelson_VCSEL_Sim() {
                       <Label className="font-medium">Sources (mix)</Label>
                       <div className="space-y-3">
                         {/* Halogen */}
-                        <div className="space-y-1">
+                        <div className="space-y-1 rounded-md border border-slate-200 p-3">
                           <div className="flex items-center justify-between"><span>Halogen</span><span className="tabular-nums">{fmt(halogenMag,2)}</span></div>
                           <Slider value={[halogenMag]} min={0} max={2} step={0.01} onValueChange={([v]) => setHalogenMag(v)} />
                         </div>
                         {/* Xenon arc */}
-                        <div className="pt-2 space-y-1">
+                        <div className="space-y-1 rounded-md border border-slate-200 p-3">
                           <div className="flex items-center justify-between"><span>Xenon arc (6000 K)</span><span className="tabular-nums">{fmt(xenonMag,2)}</span></div>
                           <Slider value={[xenonMag]} min={0} max={2} step={0.01} onValueChange={([v]) => setXenonMag(v)} />
                           <div className="grid grid-cols-2 gap-3 pt-1">
@@ -654,7 +654,7 @@ export default function FTIR_Michelson_VCSEL_Sim() {
 
                     <div className="space-y-4">
                       <Label className="font-medium">Laser</Label>
-                      <div className="space-y-3">
+                      <div className="space-y-3 rounded-md border border-slate-200 p-3">
                         {/* Laser */}
                         <div className="space-y-1">
                           <div className="flex items-center justify-between"><span>Laser magnitude</span><span className="tabular-nums">{fmt(laserMag,2)}</span></div>
