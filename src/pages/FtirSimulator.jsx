@@ -56,6 +56,13 @@ const ChevronDownIcon = (props) => (
 const nmToWavenumber = (nm) => 1e7 / nm; // [cm^-1]
 const wavenumberToNm = (v) => 1e7 / v;   // [nm]
 
+// Spectrometer band (InGaAs) and broader source emission range
+const SENSOR_MIN_NM = 1100;
+const SENSOR_MAX_NM = 2500;
+const SOURCE_MIN_NM = 400;
+const SOURCE_MAX_NM = 5000;
+const SOURCE_STEP_NM = 2;
+
 // Global constants (avoid TDZ bugs in hooks)
 const VVCSEL_NM = 1532.8;
 const VVCSEL_WNUM = nmToWavenumber(VVCSEL_NM);
@@ -66,6 +73,7 @@ const SPECTRUM_STROKE = 3; // px stroke width for the FFT spectrum line
 
 // Physical constants for Planck curve (relative units)
 const C2_NM_K = 1.438777e7; // second radiation constant in nm*K
+const BLACKBODY_REF_NM = SENSOR_MIN_NM; // keep relative scaling anchored in-band
 
 // Hann window for apodization
 function hann(N) {
@@ -85,7 +93,7 @@ function computeMirrorFaceX(mirrorModuleCenterX, offsetPx) {
   return mirrorModuleCenterX - 6 + offsetPx; // 12px mirror width → left face is moduleCenter - 6
 }
 
-// Relative blackbody radiance (normalize to value at 1100 nm to keep numbers tame in NIR tail)
+// Relative blackbody radiance (normalize to value near the detector band to keep numbers tame)
 function blackbodyRel(nm, tempK = 6000) {
   const BB = (lam_nm) => {
     const lam = Math.max(1e-9, lam_nm);
@@ -93,7 +101,7 @@ function blackbodyRel(nm, tempK = 6000) {
     const denom = Math.expm1(x); // e^x - 1
     return (1 / Math.pow(lam, 5)) * (1 / denom);
   };
-  const ref = BB(1100);
+  const ref = BB(BLACKBODY_REF_NM);
   return BB(nm) / (ref || 1);
 }
 
@@ -191,9 +199,9 @@ function buildSourceMix({
 }) {
   const lambda = [];
   const B = [];
-  const step = 2; // nm
+  const step = SOURCE_STEP_NM; // nm
   const lw = Math.max(0.5, laserWidth || 2);
-  for (let nm = 1100; nm <= 2500; nm += step) {
+  for (let nm = SOURCE_MIN_NM; nm <= SOURCE_MAX_NM; nm += step) {
     lambda.push(nm);
     let val = 0;
     // Halogen (broad Gaussian proxy)
@@ -206,8 +214,8 @@ function buildSourceMix({
 
     // Xenon arc: hot continuum (approx. 6000 K blackbody tail) + small spectral ripple
     if (xenonMag > 0) {
-      const bb = blackbodyRel(nm, 6000); // normalized to 1100 nm
-      const ripple = 1 + (xenonRipplePct || 0) * Math.sin((2 * Math.PI * (nm - 1100)) / Math.max(5, xenonPeriodNm || 20));
+      const bb = blackbodyRel(nm, 6000); // normalized relative to BLACKBODY_REF_NM
+      const ripple = 1 + (xenonRipplePct || 0) * Math.sin((2 * Math.PI * (nm - SENSOR_MIN_NM)) / Math.max(5, xenonPeriodNm || 20));
       val += xenonMag * bb * ripple;
     }
 
@@ -223,6 +231,21 @@ function buildSourceMix({
     B.push(val);
   }
   return { lambda, B, step };
+}
+
+function bandlimitSource(source, minNm, maxNm) {
+  const { lambda, B, step } = source || {};
+  const filteredLambda = [];
+  const filteredB = [];
+  if (!lambda || !B) return { lambda: [], B: [], step };
+  for (let i = 0; i < lambda.length; i++) {
+    const nm = lambda[i];
+    if (nm >= minNm && nm <= maxNm) {
+      filteredLambda.push(nm);
+      filteredB.push(B[i]);
+    }
+  }
+  return { lambda: filteredLambda, B: filteredB, step };
 }
 
 // Compute interferogram I(x) for OPD array x (in cm) given B(λ)
@@ -377,6 +400,11 @@ export default function FTIR_Michelson_VCSEL_Sim() {
     xenonMag, xenonRipplePct, xenonPeriodNm,
   }), [halogenMag, halogenTempK, laserMag, laserNm, laserWidth, absorptionMedia, xenonMag, xenonRipplePct, xenonPeriodNm]);
 
+  const ingaasBandSource = useMemo(
+    () => bandlimitSource(source, SENSOR_MIN_NM, SENSOR_MAX_NM),
+    [source]
+  );
+
   // OPD grid: symmetric about zero; OPD = 2 * mirror displacement
   const { opd_cm, dx_cm } = useMemo(() => {
     const L1_um = mirrorAmp_um; // mirror amplitude
@@ -392,7 +420,7 @@ export default function FTIR_Michelson_VCSEL_Sim() {
   }, [mirrorAmp_um, Npoints]);
 
   // Generate one clean interferogram for the current source/state
-  const cleanInterf = useMemo(() => computeInterferogram(opd_cm, source), [opd_cm, source]);
+  const cleanInterf = useMemo(() => computeInterferogram(opd_cm, ingaasBandSource), [opd_cm, ingaasBandSource]);
 
   // Live acquisition buffers & runtime refs
   const [acqIndex, setAcqIndex] = useState(0);
@@ -516,7 +544,7 @@ export default function FTIR_Michelson_VCSEL_Sim() {
           for (let i = 1; i < vAxis.length; i++) {
             const v = vAxis[i];
             const nm = wavenumberToNm(v);
-            if (nm >= 1100 && nm <= 2500) data.push({ nm, S: mag[i] });
+            if (nm >= SENSOR_MIN_NM && nm <= SENSOR_MAX_NM) data.push({ nm, S: mag[i] });
           }
           data.sort((a, b) => a.nm - b.nm);
           setSpectrum(data);
@@ -685,7 +713,7 @@ export default function FTIR_Michelson_VCSEL_Sim() {
                         </div>
                         <div className="space-y-1">
                           <div className="flex items-center justify-between"><span>Laser wavelength</span><span className="tabular-nums">{fmt(laserNm,1)} nm</span></div>
-                          <Slider value={[laserNm]} min={1100} max={2500} step={1} onValueChange={([v]) => setLaserNm(v)} />
+                          <Slider value={[laserNm]} min={SENSOR_MIN_NM} max={SENSOR_MAX_NM} step={1} onValueChange={([v]) => setLaserNm(v)} />
                         </div>
                         <div className="space-y-1">
                           <div className="flex items-center justify-between"><span>Laser width</span><span className="tabular-nums">{fmt(laserWidth,1)} nm</span></div>
@@ -804,7 +832,7 @@ export default function FTIR_Michelson_VCSEL_Sim() {
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={spectrum} margin={{ left: 8, right: 8, top: 8, bottom: 8 }}>
                       <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="nm" type="number" domain={[1100,2500]} tickCount={8} label={{ value: "Wavelength (nm)", position: "insideBottomRight", offset: -4 }} />
+                      <XAxis dataKey="nm" type="number" domain={[SENSOR_MIN_NM, SENSOR_MAX_NM]} tickCount={8} label={{ value: "Wavelength (nm)", position: "insideBottomRight", offset: -4 }} />
                       <YAxis domain={["auto","auto"]} tickFormatter={(v)=>fmt(v,1)} />
                       <Tooltip formatter={(v)=>fmt(v,3)} labelFormatter={(v)=>`${fmt(v,0)} nm`} />
                       <Legend />
