@@ -3,6 +3,7 @@ import ReactDOM from "react-dom/client";
 import { createHashRouter, RouterProvider } from "react-router-dom";
 import IndexPage from "./pages/Index.jsx";
 import FtirSimulator from "./pages/FtirSimulator.jsx";
+import FourierConcepts from "./pages/FourierConcepts.jsx";
 import PmtSimulator from "./pages/PmtSimulator.jsx";
 import ProfileSensor from "./pages/ProfileSensor.jsx";
 import LcosSlmDemo from "./pages/LcosSlmDemo.jsx";
@@ -16,6 +17,10 @@ const router = createHashRouter([
   {
     path: "/ftir",
     element: <FtirSimulator />,
+  },
+  {
+    path: "/ftir/fourier-insight",
+    element: <FourierConcepts />,
   },
   {
     path: "/pmt",
