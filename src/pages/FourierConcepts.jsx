@@ -61,9 +61,9 @@ export default function FourierConcepts() {
 
   const baseWaveData = useMemo(() => {
     const arr = [];
-    for (let t = 0; t <= 8 * Math.PI; t += 0.1) {
+    for (let opd = minOpticalPathDifference; opd <= maxOpticalPathDifference; opd += opticalPathStep) {
       const point = {
-        t: parseFloat((t / Math.PI).toFixed(2)),
+        opd: parseFloat(opd.toFixed(2)),
       };
       waveConfigs.forEach((wave) => {
         point[wave.key] = wave.amplitude * Math.sin(wave.temporalFrequency * t + wave.phase);
@@ -175,9 +175,14 @@ export default function FourierConcepts() {
               <ResponsiveContainer>
                 <LineChart data={waveData} margin={{ top: 10, left: 0, right: 10, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#cbd5f5" />
-                  <XAxis dataKey="t" label={{ value: "OPD / π", position: "insideBottomRight", offset: -5 }} />
+                  <XAxis
+                    dataKey="opd"
+                    domain={[minOpticalPathDifference, maxOpticalPathDifference]}
+                    label={{ value: "Optical path difference (λref multiples)", position: "insideBottomRight", offset: -5 }}
+                    type="number"
+                  />
                   <YAxis domain={[-2.5, 2.5]} tickFormatter={formatNumber} />
-                  <Tooltip formatter={(value) => formatNumber(value)} labelFormatter={(value) => `OPD multiple: ${value}`} />
+                  <Tooltip formatter={(value) => formatNumber(value)} labelFormatter={(value) => `OPD: ${value}`} />
                   <Legend />
                   {waveConfigs.map((wave) => (
                       <Line
@@ -189,10 +194,11 @@ export default function FourierConcepts() {
                         dot={false}
                         strokeWidth={2}
                         hide={!activeWaves[wave.key]}
-                        name={`${wave.label} (time)`}
+                        name={`${wave.label} (OPD)`}
                       />
                   ))}
                   <Line type="monotone" dataKey="sum" stroke={sumColor} dot={false} strokeWidth={3} name="Active sum" />
+                  <ReferenceLine x={0} stroke="#475569" strokeDasharray="4 4" label="OPD = 0" />
                 </LineChart>
               </ResponsiveContainer>
             </div>
