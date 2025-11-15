@@ -7,9 +7,7 @@ import { Button } from "@/components/ui/button";
 import { LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, ReferenceLine } from "recharts";
 
 const referenceWavelength = 550;
-const minOpticalPathDifference = -4;
-const maxOpticalPathDifference = 4;
-const opticalPathStep = 0.05;
+const toTemporalFrequency = (wavelength) => (referenceWavelength / wavelength) * 5;
 const gaussian = (x, mean, width) => Math.exp(-0.5 * Math.pow((x - mean) / width, 2));
 
 const waveConfigs = [
@@ -18,8 +16,10 @@ const waveConfigs = [
     label: "Blue (λ ≈ 450 nm)",
     description: "Short wavelength component representing blue light.",
     amplitude: 0.95,
+    temporalFrequency: toTemporalFrequency(450),
     wavelength: 450,
     bandwidth: 12,
+    phase: Math.PI / 6,
     color: "#3b82f6",
   },
   {
@@ -27,8 +27,10 @@ const waveConfigs = [
     label: "Green (λ ≈ 550 nm)",
     description: "Mid-band green wavelength typical of sunlight.",
     amplitude: 0.75,
+    temporalFrequency: toTemporalFrequency(550),
     wavelength: 550,
     bandwidth: 14,
+    phase: Math.PI / 4,
     color: "#22c55e",
   },
   {
@@ -36,8 +38,10 @@ const waveConfigs = [
     label: "Red (λ ≈ 650 nm)",
     description: "Long wavelength component associated with deep red.",
     amplitude: 0.6,
+    temporalFrequency: toTemporalFrequency(650),
     wavelength: 650,
     bandwidth: 18,
+    phase: 0,
     color: "#ef4444",
   },
 ];
@@ -62,8 +66,7 @@ export default function FourierConcepts() {
         opd: parseFloat(opd.toFixed(2)),
       };
       waveConfigs.forEach((wave) => {
-        const phase = (2 * Math.PI * opd * referenceWavelength) / wave.wavelength;
-        point[wave.key] = wave.amplitude * Math.cos(phase);
+        point[wave.key] = wave.amplitude * Math.sin(wave.temporalFrequency * t + wave.phase);
       });
       arr.push(point);
     }
@@ -137,10 +140,9 @@ export default function FourierConcepts() {
           <CardContent className="space-y-4 text-sm text-slate-600">
             <p>
               Light beams interfere because electromagnetic waves add together. The mirror motion in a Michelson interferometer
-              sweeps the optical path difference (OPD) from negative to positive delays so that each wavelength creates a
-              sinusoidal response with its own period but a shared peak when the OPD is zero. What we measure is the sum of all
-              of those oscillations. Below we add three representative visible wavelengths—blue, green, and red—to illustrate how
-              a seemingly complicated trace is built from simple ingredients.
+              sweeps the optical path difference so that each wavelength creates a sinusoidal response with its own period. What
+              we measure is the sum of all of those oscillations. Below we add three representative visible wavelengths—blue,
+              green, and red—to illustrate how a seemingly complicated trace is built from simple ingredients.
             </p>
             <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-xs text-slate-500">
               <p className="mb-3 text-sm font-semibold text-slate-800">
@@ -203,7 +205,6 @@ export default function FourierConcepts() {
               <ul className="list-disc space-y-1 pl-6">
                 <li>The <span className="font-medium text-sky-600">blue</span> wave represents a 450 nm component with the shortest period.</li>
                 <li>The <span className="font-medium text-emerald-500">green</span> wave sits in the middle around 550 nm, while the <span className="font-medium text-rose-500">red</span> wave at 650 nm oscillates slowest.</li>
-                <li>Each component—and therefore their sum—reaches a maximum at an OPD of zero, emphasized by the dashed reference line.</li>
                 <li>The dark trace is the interferogram recorded by the detector—simply the arithmetic sum.</li>
               </ul>
             </CardContent>
