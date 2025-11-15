@@ -6,33 +6,43 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, ReferenceLine } from "recharts";
 
+const referenceWavelength = 550;
+const toTemporalFrequency = (wavelength) => (referenceWavelength / wavelength) * 5;
+const gaussian = (x, mean, width) => Math.exp(-0.5 * Math.pow((x - mean) / width, 2));
+
 const waveConfigs = [
   {
-    key: "wave1",
-    label: "λ₁ (long wave)",
-    description: "Long wavelength, slow oscillation",
-    amplitude: 1,
-    frequency: 1,
-    phase: 0,
-    color: "#0ea5e9",
-  },
-  {
-    key: "wave2",
-    label: "λ₂ (mid IR)",
-    description: "Medium wavelength component",
-    amplitude: 0.55,
-    frequency: 2.2,
-    phase: Math.PI / 4,
-    color: "#ec4899",
-  },
-  {
-    key: "wave3",
-    label: "λ₃ (short IR)",
-    description: "Short wavelength, rapid oscillation",
-    amplitude: 0.35,
-    frequency: 3.8,
+    key: "blue",
+    label: "Blue (λ ≈ 450 nm)",
+    description: "Short wavelength component representing blue light.",
+    amplitude: 0.95,
+    temporalFrequency: toTemporalFrequency(450),
+    wavelength: 450,
+    bandwidth: 12,
     phase: Math.PI / 6,
-    color: "#8b5cf6",
+    color: "#3b82f6",
+  },
+  {
+    key: "green",
+    label: "Green (λ ≈ 550 nm)",
+    description: "Mid-band green wavelength typical of sunlight.",
+    amplitude: 0.75,
+    temporalFrequency: toTemporalFrequency(550),
+    wavelength: 550,
+    bandwidth: 14,
+    phase: Math.PI / 4,
+    color: "#22c55e",
+  },
+  {
+    key: "red",
+    label: "Red (λ ≈ 650 nm)",
+    description: "Long wavelength component associated with deep red.",
+    amplitude: 0.6,
+    temporalFrequency: toTemporalFrequency(650),
+    wavelength: 650,
+    bandwidth: 18,
+    phase: 0,
+    color: "#ef4444",
   },
 ];
 
@@ -56,7 +66,7 @@ export default function FourierConcepts() {
         t: parseFloat((t / Math.PI).toFixed(2)),
       };
       waveConfigs.forEach((wave) => {
-        point[wave.key] = wave.amplitude * Math.sin(wave.frequency * t + wave.phase);
+        point[wave.key] = wave.amplitude * Math.sin(wave.temporalFrequency * t + wave.phase);
       });
       arr.push(point);
     }
@@ -75,21 +85,21 @@ export default function FourierConcepts() {
     });
   }, [baseWaveData, activeWaves]);
 
-  const freqData = useMemo(() => {
+  const spectrumData = useMemo(() => {
     const data = [];
-    for (let f = 0; f <= 5; f += 0.05) {
-      const point = { freq: parseFloat(f.toFixed(2)) };
+    for (let wavelength = 400; wavelength <= 700; wavelength += 1) {
+      const point = { wavelength };
       waveConfigs.forEach((wave) => {
-        const width = 0.12;
-        point[wave.key] = wave.amplitude * Math.exp(-Math.pow((f - wave.frequency) / width, 2));
+        const width = wave.bandwidth ?? 15;
+        point[wave.key] = wave.amplitude * gaussian(wavelength, wave.wavelength, width);
       });
       data.push(point);
     }
     return data;
   }, []);
 
-  const activeFreqData = useMemo(() => {
-    return freqData.map((point) => {
+  const activeSpectrumData = useMemo(() => {
+    return spectrumData.map((point) => {
       const total = waveConfigs.reduce((acc, wave) => {
         if (!activeWaves[wave.key]) {
           return acc;
@@ -98,7 +108,7 @@ export default function FourierConcepts() {
       }, 0);
       return { ...point, total };
     });
-  }, [freqData, activeWaves]);
+  }, [spectrumData, activeWaves]);
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
@@ -114,7 +124,8 @@ export default function FourierConcepts() {
               </h1>
               <p className="text-base text-slate-600">
                 Every FTIR engine relies on a simple idea: the interferogram that we scan in time is just a superposition of many
-                sine waves. The Fourier transform teases those waves apart and reveals the spectrum.
+                sine waves. The Fourier transform teases those waves apart and reveals the spectrum—in this case, familiar red,
+                green, and blue wavelengths from the visible band.
               </p>
             </div>
             <Button asChild variant="secondary">
@@ -130,8 +141,8 @@ export default function FourierConcepts() {
             <p>
               Light beams interfere because electromagnetic waves add together. The mirror motion in a Michelson interferometer
               sweeps the optical path difference so that each wavelength creates a sinusoidal response with its own period. What
-              we measure is the sum of all of those oscillations. Below we add three representative components to illustrate how a
-              seemingly complicated trace is built from simple ingredients.
+              we measure is the sum of all of those oscillations. Below we add three representative visible wavelengths—blue,
+              green, and red—to illustrate how a seemingly complicated trace is built from simple ingredients.
             </p>
             <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-xs text-slate-500">
               <p className="mb-3 text-sm font-semibold text-slate-800">
@@ -186,8 +197,8 @@ export default function FourierConcepts() {
               </ResponsiveContainer>
             </div>
               <ul className="list-disc space-y-1 pl-6">
-                <li>The <span className="font-medium text-sky-600">blue</span> wave represents a long-period component from a long wavelength.</li>
-                <li>The <span className="font-medium text-pink-500">pink</span> and <span className="font-medium text-violet-500">violet</span> waves oscillate faster, like shorter infrared wavelengths.</li>
+                <li>The <span className="font-medium text-sky-600">blue</span> wave represents a 450 nm component with the shortest period.</li>
+                <li>The <span className="font-medium text-emerald-500">green</span> wave sits in the middle around 550 nm, while the <span className="font-medium text-rose-500">red</span> wave at 650 nm oscillates slowest.</li>
                 <li>The dark trace is the interferogram recorded by the detector—simply the arithmetic sum.</li>
               </ul>
             </CardContent>
@@ -199,22 +210,26 @@ export default function FourierConcepts() {
             </CardHeader>
             <CardContent className="space-y-4 text-sm text-slate-600">
               <p>
-                The Fourier transform decomposes the interferogram into its frequency (or wavenumber) content. Each sinusoidal
-                component becomes a narrow peak in the spectral domain. In an FTIR, the abscissa is typically wavenumber
-                (cm⁻¹), which is proportional to optical frequency. The peaks below correspond directly to the three
-                components shown above.
+                The Fourier transform decomposes the interferogram into its wavelength (or wavenumber) content. Each sinusoidal
+                component becomes a narrow peak in the spectral domain. The plot below uses actual visible wavelengths so the
+                peaks line up with blue (~450 nm), green (~550 nm), and red (~650 nm) light.
               </p>
               <div className="h-64 w-full">
                 <ResponsiveContainer>
-                  <LineChart data={activeFreqData} margin={{ top: 10, right: 10, bottom: 0, left: 0 }}>
+                  <LineChart data={activeSpectrumData} margin={{ top: 10, right: 10, bottom: 0, left: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#cbd5f5" />
-                    <XAxis dataKey="freq" label={{ value: "Normalized wavenumber", position: "insideBottomRight", offset: -5 }} />
+                    <XAxis
+                      dataKey="wavelength"
+                      domain={[400, 700]}
+                      type="number"
+                      label={{ value: "Wavelength (nm)", position: "insideBottomRight", offset: -5 }}
+                    />
                     <YAxis label={{ value: "Relative intensity", angle: -90, position: "insideLeft" }} />
-                    <Tooltip formatter={(value) => formatNumber(value)} labelFormatter={(value) => `${value} kcm⁻¹`} />
+                    <Tooltip formatter={(value) => formatNumber(value)} labelFormatter={(value) => `${value} nm`} />
                     <Legend />
                     {waveConfigs.map((wave) => (
                       <Line
-                        key={`freq-${wave.key}`}
+                        key={`spectrum-${wave.key}`}
                         type="monotone"
                         dataKey={wave.key}
                         stroke={wave.color}
@@ -231,11 +246,11 @@ export default function FourierConcepts() {
                       activeWaves[wave.key] ? (
                         <ReferenceLine
                           key={`ref-${wave.key}`}
-                          x={wave.frequency}
+                          x={wave.wavelength}
                           stroke={wave.color}
                           strokeOpacity={wavelengthOpacity}
                           strokeDasharray="4 2"
-                          label={wave.label.split(" ")[0]}
+                          label={`${wave.wavelength} nm`}
                         />
                       ) : null
                     )}
