@@ -10,6 +10,10 @@ const referenceWavelength = 550;
 const toTemporalFrequency = (wavelength) => (referenceWavelength / wavelength) * 5;
 const gaussian = (x, mean, width) => Math.exp(-0.5 * Math.pow((x - mean) / width, 2));
 
+const minOpticalPathDifference = -4;
+const maxOpticalPathDifference = 4;
+const opticalPathStep = 0.05;
+
 const waveConfigs = [
   {
     key: "blue",
@@ -66,7 +70,7 @@ export default function FourierConcepts() {
         opd: parseFloat(opd.toFixed(2)),
       };
       waveConfigs.forEach((wave) => {
-        point[wave.key] = wave.amplitude * Math.sin(wave.temporalFrequency * t + wave.phase);
+        point[wave.key] = wave.amplitude * Math.sin(wave.temporalFrequency * opd + wave.phase);
       });
       arr.push(point);
     }
