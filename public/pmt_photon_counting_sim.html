@@ -7,16 +7,15 @@
   <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
   <style>
 
-    :root { color-scheme: light dark; }
     body {
       font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
       margin: 0;
       line-height: 1.35;
-      background: Canvas;
-      color: CanvasText;
+      background: #f5f7fb;
+      color: #111827;
     }
     .container{
-      max-width: 1240px;
+      max-width: 1440px;
       margin: 0 auto;
       padding: 18px 16px 22px;
     }
@@ -29,7 +28,7 @@
       border: 1px solid rgba(127,127,127,.25);
       border-radius: 14px;
       padding: 12px;
-      background: rgba(127,127,127,.06);
+      background: #ffffff;
       box-shadow: 0 1px 0 rgba(127,127,127,.08);
     }
 
@@ -51,7 +50,7 @@
       border: 1px solid rgba(127,127,127,.22);
       border-radius: 12px;
       padding: 10px 10px 8px;
-      background: rgba(127,127,127,.04);
+      background: #f8fafc;
     }
     .row {
       display: grid;
@@ -62,7 +61,7 @@
     }
     label { font-size: 0.88rem; opacity: 0.9; }
     input[type="range"] { width: 100%; margin-top: 8px; }
-    input[type="number"] { width: 88px; padding: 4px 8px; border-radius: 10px; border: 1px solid rgba(127,127,127,.28); background: transparent; color: inherit; }
+    input[type="number"] { width: 88px; padding: 4px 8px; border-radius: 10px; border: 1px solid rgba(127,127,127,.28); background: #ffffff; color: inherit; }
 
     /* Options / actions */
     .seedbar{
@@ -75,14 +74,14 @@
       padding: 10px;
       border-radius: 12px;
       border: 1px solid rgba(127,127,127,.22);
-      background: rgba(127,127,127,.04);
+      background: #f8fafc;
     }
     .btnrow { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
     button {
       padding: 7px 10px;
       border-radius: 12px;
       border: 1px solid rgba(127,127,127,.28);
-      background: rgba(127,127,127,.02);
+      background: #ffffff;
       cursor: pointer;
       color: inherit;
     }
@@ -95,7 +94,7 @@
       padding: 6px 8px;
       border-radius: 12px;
       border: 1px solid rgba(127,127,127,.18);
-      background: rgba(127,127,127,.03);
+      background: #ffffff;
       user-select: none;
     }
 
@@ -105,7 +104,7 @@
       padding: 12px 12px;
       border-radius: 12px;
       border: 1px solid rgba(127,127,127,.22);
-      background: rgba(127,127,127,.03);
+      background: #f8fafc;
       font-size: 2.05rem; /* larger */
     }
     .eqbox .mjx-container { margin: 0 !important; }
@@ -116,7 +115,7 @@
       padding: 1px 6px;
       border-radius: 8px;
       border: 1px solid rgba(127,127,127,.25);
-      background: rgba(127,127,127,.03);
+      background: #f8fafc;
     }
 
     /* Plots */
