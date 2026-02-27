@@ -13,6 +13,11 @@ const simulations = [
     path: "/pmt",
   },
   {
+    title: "PMT Photon Counting (Plotly)",
+    description: "Standalone PMT counting simulator with chemiluminescence model and SNR plots.",
+    path: "/pmt-photon-counting",
+  },
+  {
     title: "Profile Sensor Speckle Demo",
     description: "2D sensor walkthrough for speckle behaviour and projection tools.",
     path: "/profile-sensor",
