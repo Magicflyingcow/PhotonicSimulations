@@ -1,0 +1,564 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Photon-counting PMT: Signal + Dark + Background (Chemiluminescence)</title>
+  <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+  <style>
+
+    :root { color-scheme: light dark; }
+    body {
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      margin: 0;
+      line-height: 1.35;
+      background: Canvas;
+      color: CanvasText;
+    }
+    .container{
+      max-width: 1240px;
+      margin: 0 auto;
+      padding: 18px 16px 22px;
+    }
+    h1 { font-size: 1.35rem; margin: 0 0 6px 0; letter-spacing: -0.01em; }
+    .sub { opacity: 0.8; margin-bottom: 14px; max-width: 1000px; }
+
+    .wrap { display: grid; grid-template-columns: 1fr; gap: 14px; align-items: start; }
+
+    .panel {
+      border: 1px solid rgba(127,127,127,.25);
+      border-radius: 14px;
+      padding: 12px;
+      background: rgba(127,127,127,.06);
+      box-shadow: 0 1px 0 rgba(127,127,127,.08);
+    }
+
+    /* Top area */
+    .topgrid { display: grid; grid-template-columns: 2.1fr 1fr; gap: 14px; align-items: start; }
+    .controlsWrap, .readoutWrap{ display:block; }
+    .sectionTitle{ font-size: 0.95rem; font-weight: 650; margin: 0 0 10px 0; opacity: 0.9; }
+    .readout { padding-top: 2px; }
+    .note { margin: 8px 0 10px; opacity: 0.85; font-size: 0.92rem; }
+
+    /* Compact parameter tiles */
+    .controls {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 10px 12px;
+      align-items: start;
+    }
+    .param{
+      border: 1px solid rgba(127,127,127,.22);
+      border-radius: 12px;
+      padding: 10px 10px 8px;
+      background: rgba(127,127,127,.04);
+    }
+    .row {
+      display: grid;
+      grid-template-columns: 1fr 88px;
+      gap: 10px;
+      align-items: center;
+      margin: 0;
+    }
+    label { font-size: 0.88rem; opacity: 0.9; }
+    input[type="range"] { width: 100%; margin-top: 8px; }
+    input[type="number"] { width: 88px; padding: 4px 8px; border-radius: 10px; border: 1px solid rgba(127,127,127,.28); background: transparent; color: inherit; }
+
+    /* Options / actions */
+    .seedbar{
+      grid-column: 1 / -1;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      padding: 10px;
+      border-radius: 12px;
+      border: 1px solid rgba(127,127,127,.22);
+      background: rgba(127,127,127,.04);
+    }
+    .btnrow { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    button {
+      padding: 7px 10px;
+      border-radius: 12px;
+      border: 1px solid rgba(127,127,127,.28);
+      background: rgba(127,127,127,.02);
+      cursor: pointer;
+      color: inherit;
+    }
+    button:hover { filter: brightness(1.06); }
+    .small { font-size: 0.92rem; opacity: 0.9; }
+    .check{
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 8px;
+      border-radius: 12px;
+      border: 1px solid rgba(127,127,127,.18);
+      background: rgba(127,127,127,.03);
+      user-select: none;
+    }
+
+    /* Equation box */
+    .eqbox {
+      margin-top: 10px;
+      padding: 12px 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(127,127,127,.22);
+      background: rgba(127,127,127,.03);
+      font-size: 2.05rem; /* larger */
+    }
+    .eqbox .mjx-container { margin: 0 !important; }
+    .eqhint { margin-top: 6px; font-size: 0.9rem; opacity: 0.82; }
+
+    .metrics { font-size: 0.95rem; }
+    .metrics code {
+      padding: 1px 6px;
+      border-radius: 8px;
+      border: 1px solid rgba(127,127,127,.25);
+      background: rgba(127,127,127,.03);
+    }
+
+    /* Plots */
+    .plots { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+    @media (max-width: 980px) {
+      .topgrid { grid-template-columns: 1fr; }
+      .plots { grid-template-columns: 1fr; }
+      .controls { grid-template-columns: 1fr; }
+    }
+
+</style>
+
+  <script>
+    window.MathJax = {
+      tex: { inlineMath: [['\\(','\\)'], ['$', '$']] },
+      svg: { fontCache: 'global' }
+    };
+  </script>
+  <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+
+</head>
+<body>
+  <div class="container">
+  <h1>Photon-counting PMT simulation: signal + dark + background counts (1 s chemiluminescence)</h1>
+  <div class="sub">
+    Counts are simulated as independent Poisson processes in time bins. Signal/background photons are converted to detected counts using the PMT quantum efficiency (QE). The chemiluminescence signal is modeled as a fast-rise / exponential-decay pulse whose <em>integral over 1 s</em> equals the chosen incident signal photons (before QE).
+  </div>
+
+  <div class="wrap">
+  <div class="panel">
+      <div class="topgrid">
+        <div class="controlsWrap">
+          <div class="sectionTitle">Parameters</div>
+          <div class="controls">
+
+        <div class="param">
+          <div class="row">
+            <label for="signal">Signal photons (incident over 1 s, log slider)</label>
+            <input id="signalN" type="number" min="0" max="1000000" step="10" value="2000"/>
+          </div>
+          <input id="signal" type="range" min="0" max="6" step="0.01" value="3.3010"/>
+        </div>
+
+        
+        <div class="param">
+          <div class="row">
+            <label for="qe">PMT QE (%)</label>
+            <input id="qeN" type="number" min="0" max="100" step="1" value="30"/>
+          </div>
+          <input id="qe" type="range" min="0" max="100" step="1" value="30"/>
+        </div>
+
+<div class="param">
+          <div class="row">
+            <label for="dark">Dark counts (integrated over 1 s)</label>
+            <input id="darkN" type="number" min="0" max="2000" step="1" value="60"/>
+          </div>
+          <input id="dark" type="range" min="0" max="2000" step="1" value="60"/>
+        </div>
+
+        <div class="param">
+          <div class="row">
+            <label for="bkg">Background photons (incident over 1 s)</label>
+            <input id="bkgN" type="number" min="0" max="5000" step="1" value="100"/>
+          </div>
+          <input id="bkg" type="range" min="0" max="5000" step="1" value="100"/>
+        </div>
+
+        <div class="param">
+          <div class="row">
+            <label for="bins">Time bins per second</label>
+            <input id="binsN" type="number" min="50" max="5000" step="50" value="1000"/>
+          </div>
+          <input id="bins" type="range" min="50" max="5000" step="50" value="1000"/>
+        </div>
+
+        <div class="seedbar">
+          <div class="row">
+            <label for="seed">Random seed</label>
+            <input id="seed" type="number" min="0" max="4294967295" step="1" value="12345"/>
+          </div>
+
+          <div class="btnrow">
+            <button id="resim">Resimulate</button>
+            <button id="newseed">New seed</button>
+            <label class="check small"><input id="auto" type="checkbox" checked/>auto-resimulate</label>
+            <label class="check small"><input id="subDark" type="checkbox"/>subtract expected dark</label>
+          </div>
+        </div>
+</div>
+        </div>
+
+        <div class="readoutWrap">
+          <div class="sectionTitle">SNR & readout</div>
+        <div class="readout">
+<div class="note">
+        Tip: Increase dark/background or lower QE to see how they inflate the shot-noise floor (≈ √N) and reduce SNR.
+      </div>
+
+          <div class="metrics" id="metrics"></div>
+        </div>
+        </div>
+      </div>
+
+  </div>
+
+  <div class="plots">
+      <div class="panel">
+        <div id="plot1" style="height: 440px;"></div>
+      </div>
+      <div class="panel">
+        <div id="plot2" style="height: 440px;"></div>
+      </div>
+    </div>
+</div>
+
+<script>
+(function(){
+  const T = 1.0; // seconds
+
+  // Fixed chemiluminescence shape parameters (fast rise + decay)
+  const tr = 0.03; // s
+  const td = 0.25; // s
+
+  // Analytic integral of f(t)=(1-exp(-t/tr))*exp(-t/td) from 0..T
+  function shapeIntegral(T){
+    const k = (1/td + 1/tr);
+    const term1 = td * (1 - Math.exp(-T/td));
+    const term2 = (td*tr/(td+tr)) * (1 - Math.exp(-k*T));
+    return term1 - term2;
+  }
+  const SHAPE_INT = shapeIntegral(T);
+
+  function shape(t){
+    return (1 - Math.exp(-t/tr)) * Math.exp(-t/td);
+  }
+
+  // Seeded RNG (LCG)
+  function makeRng(seed){
+    let s = (seed >>> 0);
+    return function(){
+      s = (1664525 * s + 1013904223) >>> 0;
+      return s / 4294967296;
+    };
+  }
+
+  // Poisson sampler (Knuth), good for small-to-moderate lambda
+  function poisson(lambda, rand){
+    if (lambda <= 0) return 0;
+    // For larger lambda, Knuth can be slow; use normal approx as a fallback.
+    if (lambda > 60){
+      // Box-Muller for ~N(0,1)
+      const u1 = Math.max(rand(), 1e-12);
+      const u2 = rand();
+      const z = Math.sqrt(-2*Math.log(u1)) * Math.cos(2*Math.PI*u2);
+      const x = Math.round(lambda + Math.sqrt(lambda)*z);
+      return Math.max(0, x);
+    }
+    const L = Math.exp(-lambda);
+    let k = 0;
+    let p = 1.0;
+    do {
+      k++;
+      p *= rand();
+    } while (p > L);
+    return k - 1;
+  }
+
+  const el = (id)=>document.getElementById(id);
+
+  const signal = el("signal"), dark = el("dark"), bkg = el("bkg"), qe = el("qe");
+  const signalN = el("signalN"), darkN = el("darkN"), bkgN = el("bkgN"), qeN = el("qeN");
+  const bins = el("bins"), binsN = el("binsN");
+  const seedEl = el("seed");
+  const auto = el("auto");
+  const subDark = el("subDark");
+  const metrics = el("metrics");
+
+  function randomizeSeed(){
+    try {
+      if (window.crypto && crypto.getRandomValues) {
+        const a = new Uint32Array(1);
+        crypto.getRandomValues(a);
+        seedEl.value = (a[0] >>> 0);
+        return;
+      }
+    } catch(e) {}
+    seedEl.value = Math.floor(Math.random()*4294967296);
+  }
+
+
+  function syncRangeAndNumber(rangeEl, numEl){
+    rangeEl.addEventListener("input", ()=>{
+      numEl.value = rangeEl.value;
+      randomizeSeed();
+      if (auto.checked) update(true);
+      else update(false, true);
+    });
+    numEl.addEventListener("input", ()=>{
+      rangeEl.value = numEl.value;
+      randomizeSeed();
+      if (auto.checked) update(true);
+      else update(false, true);
+    });
+  }
+
+  // Signal slider uses log10 scale: slider value v -> counts = 10^v (max 1e6)
+  function signalSliderToCounts(v){
+    return Math.round(Math.pow(10, v));
+  }
+  function countsToSignalSlider(c){
+    if (c <= 1) return 0;
+    return Math.log10(c);
+  }
+
+  // Keep slider and number input in sync (log scale)
+  signal.addEventListener("input", ()=>{
+    const counts = signalSliderToCounts(Number(signal.value));
+    signalN.value = counts;
+    randomizeSeed();
+    if (auto.checked) update(true);
+    else update(false, true);
+  });
+  signalN.addEventListener("input", ()=>{
+    const c = Number(signalN.value);
+    if (c <= 0){
+      signal.value = 0;
+    } else {
+      const v = countsToSignalSlider(c);
+      signal.value = Math.min(6, Math.max(0, v));
+    }
+    randomizeSeed();
+    if (auto.checked) update(true);
+    else update(false, true);
+  });
+
+  syncRangeAndNumber(qe, qeN);
+
+  syncRangeAndNumber(dark, darkN);
+  syncRangeAndNumber(bkg, bkgN);
+  syncRangeAndNumber(bins, binsN);
+
+  el("resim").addEventListener("click", ()=>update(true));
+  el("newseed").addEventListener("click", ()=>{
+    seedEl.value = Math.floor(Math.random()*4294967296);
+    update(true);
+  });
+  seedEl.addEventListener("input", ()=>{ if (auto.checked) update(true); });
+  subDark.addEventListener("input", ()=>{ if (auto.checked) update(true); else update(false, true); });
+
+  let cachedExpected = null; // allow slider movement without re-simulating
+
+  function computeExpected(nBins, S_total, D_total, B_total){
+    const dt = T / nBins;
+    const t = new Array(nBins);
+    const sExp = new Array(nBins);
+    const dExp = new Array(nBins);
+    const bExp = new Array(nBins);
+    const totExp = new Array(nBins);
+
+    const darkPerBin = D_total / nBins;
+    const bkgPerBin = B_total / nBins;
+
+    for (let i=0; i<nBins; i++){
+      const tm = (i + 0.5) * dt;
+      t[i] = tm;
+      const rateShape = shape(tm) / SHAPE_INT; // integrates to 1 over 0..T
+      const sigPerBin = (S_total * rateShape) * dt; // expected counts in bin
+      sExp[i] = sigPerBin;
+      dExp[i] = darkPerBin;
+      bExp[i] = bkgPerBin;
+      totExp[i] = sigPerBin + darkPerBin + bkgPerBin;
+    }
+    return {t, dt, sExp, dExp, bExp, totExp};
+  }
+
+  function simulate(expected, seed){
+    const rand = makeRng(seed);
+    const n = expected.t.length;
+    const sObs = new Array(n);
+    const dObs = new Array(n);
+    const bObs = new Array(n);
+    const totObs = new Array(n);
+
+    let S=0, D=0, B=0, TOT=0;
+    for (let i=0; i<n; i++){
+      const s = poisson(expected.sExp[i], rand);
+      const d = poisson(expected.dExp[i], rand);
+      const b = poisson(expected.bExp[i], rand);
+      const tot = s + d + b;
+      sObs[i]=s; dObs[i]=d; bObs[i]=b; totObs[i]=tot;
+      S+=s; D+=d; B+=b; TOT+=tot;
+    }
+    return {sObs, dObs, bObs, totObs, S, D, B, TOT};
+  }
+
+  function cumulative(arr){
+    const out = new Array(arr.length);
+    let c = 0;
+    for (let i=0;i<arr.length;i++){ c += arr[i]; out[i]=c; }
+    return out;
+  }
+
+  function formatInt(x){ return Math.round(x).toLocaleString(); }
+  function formatFloat(x, d=2){ return Number(x).toFixed(d); }
+
+  function update(doResim=true, keepSim=false){
+    const S_in = Number(signalN.value);
+    const B_in = Number(bkg.value);
+    const qeFrac = Math.max(0, Math.min(1, Number(qe.value)/100));
+    const S_total = S_in * qeFrac; // detected signal counts over 1 s
+    const D_total = Number(dark.value); // dark counts over 1 s (independent of QE)
+    const B_total = B_in * qeFrac; // detected background counts over 1 s
+    const nBins = Number(bins.value);
+    const seed = Number(seedEl.value) >>> 0;
+
+    // Expected curves
+    const expected = computeExpected(nBins, S_total, D_total, B_total);
+    cachedExpected = expected;
+
+    // Simulate
+    let sim = window._lastSim;
+    if (doResim || !sim || sim.nBins !== nBins || sim.S_total !== S_total || sim.D_total !== D_total || sim.B_total !== B_total){
+      sim = simulate(expected, seed);
+      sim.nBins = nBins; sim.S_total=S_total; sim.D_total=D_total; sim.B_total=B_total; sim.seed=seed;
+      window._lastSim = sim;
+    } else if (!doResim && keepSim && sim){
+      // keep previous sim while adjusting (if user unticks auto)
+    }
+
+    // Metrics
+    const expectedTotal = S_total + D_total + B_total;
+    const expectedShot = Math.sqrt(expectedTotal);
+    const expectedSNR_simple = (expectedTotal>0) ? (S_total / expectedShot) : 0;
+
+    // Handbook photon-counting SNR (Eq. 6-6): SNR = Ns*sqrt(T) / sqrt(Ns + 2(Nb+Nd))
+    // With this demo's 1 s window, the user inputs can be treated as counts per second.
+    const denomExp = (S_total + 2*(B_total + D_total));
+    const expectedSNR_pc = (denomExp>0) ? (S_total * Math.sqrt(T) / Math.sqrt(denomExp)) : 0;
+
+    const simShot = Math.sqrt(Math.max(1e-12, sim.TOT));
+    const simSNR_simple = (sim.TOT>0) ? (sim.S / simShot) : 0;
+
+    const denomSim = (sim.S + 2*(sim.B + sim.D));
+    const simSNR_pc = (denomSim>0) ? (sim.S * Math.sqrt(T) / Math.sqrt(denomSim)) : 0;
+
+    metrics.innerHTML = `
+      <div><strong>Photon-counting SNR (as in the handbook):</strong></div>
+      <div class="eqbox">\\[
+        \\mathrm{SNR} = \\frac{N_s\\sqrt{T}}{\\sqrt{N_s + 2\\left(N_b + N_d\\right)}}
+      \\]</div>
+      <div class="eqhint">
+        Here \(N_s\) and \(N_b\) are the detected (post-QE) signal/background count rates, \(N_d\) is dark count rate, and \(T\) is measurement time. (Eq. 6-6)
+      </div>
+
+      <div style="margin-top:10px;"><strong>Expected (T = ${T.toFixed(2)} s):</strong>
+        QE <code>${formatFloat(qeFrac*100,0)}%</code>
+        &nbsp;|&nbsp; Incident signal <code>${formatInt(S_in)}</code> → detected <code>${formatInt(S_total)}</code>
+        &nbsp;|&nbsp; Incident background <code>${formatInt(B_in)}</code> → detected <code>${formatInt(B_total)}</code>
+      </div>
+      <div style="margin-top:6px;"><strong>Detected counts (1 s):</strong>
+        Signal <code>${formatInt(S_total)}</code>,
+        Dark <code>${formatInt(D_total)}</code>,
+        Background <code>${formatInt(B_total)}</code>,
+        Total <code>${formatInt(expectedTotal)}</code>
+      </div>
+      <div class="small">
+        Simple Poisson SNR (no subtraction): <code>${formatFloat(expectedSNR_simple,2)}</code>
+        &nbsp;|&nbsp;
+        Photon-counting SNR (Eq. 6-6): <code>${formatFloat(expectedSNR_pc,2)}</code>
+      </div>
+
+      <div style="margin-top:8px;"><strong>Simulated (this run):</strong>
+        Signal <code>${formatInt(sim.S)}</code>,
+        Dark <code>${formatInt(sim.D)}</code>,
+        Background <code>${formatInt(sim.B)}</code>,
+        Total <code>${formatInt(sim.TOT)}</code>
+      </div>
+      <div class="small">
+        Simple Poisson SNR: <code>${formatFloat(simSNR_simple,2)}</code>
+        &nbsp;|&nbsp;
+        Photon-counting SNR: <code>${formatFloat(simSNR_pc,2)}</code>
+      </div>
+    `;
+
+    if (window.MathJax && MathJax.typesetPromise) {
+      MathJax.typesetPromise([metrics]);
+    }
+
+
+    // Plot 1: per-bin counts (expected components stacked) + simulated total
+    const t = expected.t;
+        const subtractDark = (subDark && subDark.checked);
+    const simPerBin = subtractDark ? sim.totObs.map((v,i)=> v - expected.dExp[i]) : sim.totObs;
+
+    const traces1 = subtractDark ? [
+      {x:t, y:expected.sExp, name:"Expected signal/bin", type:"scatter", mode:"lines", stackgroup:"one"},
+      {x:t, y:expected.bExp, name:"Expected background/bin", type:"scatter", mode:"lines", stackgroup:"one"},
+      {x:t, y:simPerBin, name:"Simulated (total − expected dark)/bin", type:"scatter", mode:"lines"}
+    ] : [
+      {x:t, y:expected.sExp, name:"Expected signal/bin", type:"scatter", mode:"lines", stackgroup:"one"},
+      {x:t, y:expected.dExp, name:"Expected dark/bin",   type:"scatter", mode:"lines", stackgroup:"one"},
+      {x:t, y:expected.bExp, name:"Expected background/bin", type:"scatter", mode:"lines", stackgroup:"one"},
+      {x:t, y:simPerBin, name:"Simulated total/bin", type:"scatter", mode:"lines"}
+    ];
+    const layout1 = {
+      title: {text:"Counts per time bin (1 s)"},
+      xaxis: {title:"Time (s)", range:[0,1]},
+      yaxis: {title:`Counts per bin (bin width = ${(expected.dt).toFixed(4)} s)`},
+      legend: {orientation:"h"},
+      margin: {l:55, r:15, t:45, b:45}
+    };
+    Plotly.react("plot1", traces1, layout1, {displayModeBar:false, responsive:true});
+
+    // Plot 2: cumulative total (expected vs simulated)
+        const cumExp = cumulative(expected.sExp); // expected signal only (no dark/background)
+    const cumSim = cumulative(simPerBin);
+    const traces2 = [
+      {x:t, y:cumExp, name:"Expected cumulative signal", type:"scatter", mode:"lines"},
+      {x:t, y:cumSim, name: subtractDark ? "Simulated cumulative (total − expected dark)" : "Simulated cumulative total", type:"scatter", mode:"lines"}
+    ];
+    const layout2 = {
+      title: {text:"Cumulative counts (integrated over time)"},
+      xaxis: {title:"Time (s)", range:[0,1]},
+      yaxis: {title:"Cumulative counts"},
+      legend: {orientation:"h"},
+      margin: {l:55, r:15, t:45, b:45}
+    };
+    Plotly.react("plot2", traces2, layout2, {displayModeBar:false, responsive:true});
+  }
+
+  // init
+  // Ensure initial slider position matches the numeric signal value
+  {
+    const c0 = Number(signalN.value);
+    if (c0 <= 0) signal.value = 0;
+    else signal.value = Math.min(6, Math.max(0, countsToSignalSlider(c0)));
+  }
+  update(true);
+})();
+</script>
+  </div>
+</body>
+</html>
