@@ -5,8 +5,8 @@ export default function PmtPhotonCounting() {
   const navigate = useNavigate();
 
   return (
-    <div className="min-h-screen bg-slate-100 p-4 sm:p-6">
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-4">
+    <div className="flex h-screen flex-col bg-slate-100">
+      <div className="p-4 sm:p-6">
         <button
           type="button"
           onClick={() => navigate("/")}
@@ -14,14 +14,14 @@ export default function PmtPhotonCounting() {
         >
           ← Back to library
         </button>
+      </div>
 
-        <div className="overflow-hidden rounded-2xl border border-slate-300 bg-white shadow-sm">
-          <iframe
-            title="PMT photon counting simulation"
-            src="/pmt_photon_counting_sim.html"
-            className="h-[calc(100vh-9rem)] w-full"
-          />
-        </div>
+      <div className="min-h-0 flex-1 overflow-hidden border-y border-slate-300 bg-white shadow-sm">
+        <iframe
+          title="PMT photon counting simulation"
+          src="/pmt_photon_counting_sim.html"
+          className="h-full w-full"
+        />
       </div>
     </div>
   );
