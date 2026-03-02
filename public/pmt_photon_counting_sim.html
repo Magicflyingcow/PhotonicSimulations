@@ -76,6 +76,23 @@
       border: 1px solid rgba(127,127,127,.22);
       background: #f8fafc;
     }
+    .presetbar{
+      grid-column: 1 / -1;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+      padding: 10px;
+      border-radius: 12px;
+      border: 1px solid rgba(127,127,127,.22);
+      background: #f8fafc;
+    }
+    .presetlabel {
+      font-size: 0.9rem;
+      font-weight: 600;
+      opacity: 0.85;
+      margin-right: 2px;
+    }
     .btnrow { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
     button {
       padding: 7px 10px;
@@ -169,12 +186,19 @@
           <input id="qe" type="range" min="0" max="100" step="1" value="30"/>
         </div>
 
-<div class="param">
+        <div class="param">
           <div class="row">
             <label for="dark">Dark counts (integrated over 1 s)</label>
             <input id="darkN" type="number" min="0" max="2000" step="1" value="60"/>
           </div>
           <input id="dark" type="range" min="0" max="2000" step="1" value="60"/>
+        </div>
+
+        <div class="presetbar">
+          <span class="presetlabel">PMT presets:</span>
+          <button type="button" class="preset" data-qe="25.10" data-dark="60">H11870-64 (current)</button>
+          <button type="button" class="preset" data-qe="30.67" data-dark="75">R1924P-700</button>
+          <button type="button" class="preset" data-qe="25.91" data-dark="30">R3550P-600</button>
         </div>
 
         <div class="param">
@@ -294,6 +318,7 @@
   const auto = el("auto");
   const subDark = el("subDark");
   const metrics = el("metrics");
+  const presetButtons = Array.from(document.querySelectorAll(".preset"));
 
   function randomizeSeed(){
     try {
@@ -358,6 +383,20 @@
   syncRangeAndNumber(dark, darkN);
   syncRangeAndNumber(bkg, bkgN);
   syncRangeAndNumber(bins, binsN);
+
+  presetButtons.forEach((btn)=>{
+    btn.addEventListener("click", ()=>{
+      const presetQe = Number(btn.dataset.qe);
+      const presetDark = Number(btn.dataset.dark);
+      qe.value = presetQe;
+      qeN.value = presetQe;
+      dark.value = presetDark;
+      darkN.value = presetDark;
+      randomizeSeed();
+      if (auto.checked) update(true);
+      else update(false, true);
+    });
+  });
 
   el("resim").addEventListener("click", ()=>update(true));
   el("newseed").addEventListener("click", ()=>{
