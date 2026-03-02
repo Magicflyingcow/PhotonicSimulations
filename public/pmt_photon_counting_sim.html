@@ -505,7 +505,7 @@
     metrics.innerHTML = `
       <div><strong>Photon-counting SNR (as in the handbook):</strong></div>
       <div class="eqbox">\\[
-        \\mathrm{SNR} = \\frac{N_s\\sqrt{T}}{\\sqrt{N_s + 2\\left(N_b + N_d\\right)}}
+        \\mathrm{SNR} = \\frac{N_s\\sqrt{T}}{\\sqrt{N_s + 2\\left(N_b + N_d\\right)}} = ${formatFloat(expectedSNR_pc,2)}
       \\]</div>
       <div class="eqhint">
         Here \(N_s\) and \(N_b\) are the detected (post-QE) signal/background count rates, \(N_d\) is dark count rate, and \(T\) is measurement time. (Eq. 6-6)
