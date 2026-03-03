@@ -103,6 +103,8 @@ function computeVoltage(t, pulses, tauRise, tauFall, noise = 0) {
 // ================= TIMING HELPERS =================
 const PHOTON_TRAVEL_TIME_S = 0.35;
 const ELECTRON_TRANSIT_TIME_S = 0.22;
+const MAX_PHOTON_FLUX = 500_000;
+const MAX_PHOTON_FLUX_EXP = Math.log10(MAX_PHOTON_FLUX);
 
 function drawOscilloscope(canvas, samples, timeWindow, thresholdVoltage) {
   if (!canvas) return;
@@ -239,7 +241,7 @@ function Control({ label, value, min, max, step, onValueChange }) {
 // ================= MAIN COMPONENT =================
 export default function PmtSimulator() {
   const [fluxExp, setFluxExp] = useState(Math.log10(400));
-  const flux = Math.pow(10, fluxExp);
+  const flux = Math.min(Math.pow(10, fluxExp), MAX_PHOTON_FLUX);
   const [qe, setQe] = useState(0.25);
   const [darkRate, setDarkRate] = useState(20);
   const [darkNoise, setDarkNoise] = useState(0.02);
@@ -295,7 +297,7 @@ export default function PmtSimulator() {
 
   useEffect(() => {
     paramsRef.current = {
-      flux: Math.pow(10, fluxExp),
+      flux: Math.min(Math.pow(10, fluxExp), MAX_PHOTON_FLUX),
       qe,
       darkRate,
       darkNoise,
@@ -488,9 +490,9 @@ export default function PmtSimulator() {
         }
         value={[fluxExp]}
         min={0}
-        max={7}
+        max={MAX_PHOTON_FLUX_EXP}
         step={0.001}
-        onValueChange={([value]) => setFluxExp(value)}
+        onValueChange={([value]) => setFluxExp(Math.min(value, MAX_PHOTON_FLUX_EXP))}
       />
       <Control
         label={
