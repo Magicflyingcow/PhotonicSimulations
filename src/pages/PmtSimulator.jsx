@@ -100,187 +100,9 @@ function computeVoltage(t, pulses, tauRise, tauFall, noise = 0) {
   return v;
 }
 
-// ================= PARTICLES & DRAWING =================
-class Photon {
-  constructor(x, y, speed, delay = 0) {
-    this.x = x;
-    this.y = y;
-    this.speed = speed;
-    this.delay = delay;
-    this.alive = true;
-  }
-
-  update(dt, targetX) {
-    let remaining = dt;
-    if (this.delay > 0) {
-      if (remaining <= this.delay) {
-        this.delay -= remaining;
-        return;
-      }
-      remaining -= this.delay;
-      this.delay = 0;
-    }
-    this.x += this.speed * remaining;
-    if (this.x >= targetX) {
-      this.x = targetX;
-      this.alive = false;
-    }
-  }
-}
-
-class Electron {
-  constructor(x, y, speed, xEnd, amplitude, createdAt, isDark = false) {
-    this.x = x;
-    this.y = y;
-    this.speed = speed;
-    this.xEnd = xEnd;
-    this.alive = true;
-    this.amplitude = amplitude;
-    this.createdAt = createdAt;
-    this.isDark = isDark;
-  }
-
-  update(dt, currentTime) {
-    const prevX = this.x;
-    this.x += this.speed * dt;
-    if (this.x >= this.xEnd) {
-      const distance = this.xEnd - prevX;
-      const travelTime = distance > 0 ? distance / this.speed : 0;
-      const arrivalTime = currentTime - dt + travelTime;
-      this.x = this.xEnd;
-      this.alive = false;
-      return {
-        t: Math.max(this.createdAt, arrivalTime),
-        amplitude: this.amplitude,
-        isDark: this.isDark,
-      };
-    }
-    return null;
-  }
-}
-
-const MAX_ANIMATED_PHOTONS = 500;
-const MIN_ANIMATED_PHOTONS = 80;
-const MAX_ELECTRONS = 800;
-
-function computeAnimatedPhotonLimit(flux) {
-  if (!(flux > 0)) return 0;
-  const logFlux = Math.log10(flux);
-  if (logFlux <= 3) return MAX_ANIMATED_PHOTONS;
-  if (logFlux >= 6) return MIN_ANIMATED_PHOTONS;
-  const t = (logFlux - 3) / 3;
-  const span = MAX_ANIMATED_PHOTONS - MIN_ANIMATED_PHOTONS;
-  const limit = MAX_ANIMATED_PHOTONS - span * t;
-  return Math.round(Math.max(MIN_ANIMATED_PHOTONS, Math.min(MAX_ANIMATED_PHOTONS, limit)));
-}
-
-function computePhotonEntryOffset(W) {
-  return Math.min(W * 0.25, 140);
-}
-
-function drawPMT(ctx, W, H, entryOffset = computePhotonEntryOffset(W)) {
-  const cy = H * 0.5;
-  const radius = Math.min(H * 0.22, W * 0.1);
-  const tubeLen = Math.min(W * 0.75, W - 40);
-  const xLeft = (W - tubeLen) / 2;
-  const xRight = xLeft + tubeLen;
-
-  ctx.save();
-  ctx.lineWidth = 2;
-  ctx.strokeStyle = "rgba(148, 163, 184, 0.55)";
-  ctx.fillStyle = "rgba(56, 189, 248, 0.08)";
-  ctx.beginPath();
-  ctx.moveTo(xLeft + radius, cy - radius);
-  ctx.lineTo(xRight - radius, cy - radius);
-  ctx.arc(xRight - radius, cy, radius, -Math.PI / 2, Math.PI / 2, false);
-  ctx.lineTo(xLeft + radius, cy + radius);
-  ctx.arc(xLeft + radius, cy, radius, Math.PI / 2, -Math.PI / 2, false);
-  ctx.closePath();
-  ctx.fill();
-  ctx.stroke();
-
-  const pcR = radius * 0.65;
-  const pcX = xLeft + radius * 0.95;
-  const pcY = cy;
-  ctx.fillStyle = "#8B5A2B";
-  ctx.beginPath();
-  ctx.arc(pcX, pcY, pcR, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.strokeStyle = "#64748b";
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  ctx.arc(xRight - radius * 0.95, cy, pcR * 0.65, 0, Math.PI * 2);
-  ctx.stroke();
-
-  ctx.strokeStyle = "rgba(250, 204, 21, 0.6)";
-  ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  ctx.moveTo(xLeft - entryOffset, cy);
-  ctx.lineTo(pcX - pcR, cy);
-  ctx.stroke();
-  ctx.restore();
-}
-
-function drawPhoton(ctx, photon) {
-  ctx.save();
-  ctx.fillStyle = "#FDE047";
-  ctx.beginPath();
-  ctx.arc(photon.x, photon.y, 2, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.restore();
-}
-
-function drawElectron(ctx, electron) {
-  ctx.save();
-  ctx.fillStyle = "#60A5FA";
-  ctx.beginPath();
-  ctx.arc(electron.x, electron.y, 2, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.restore();
-}
-
-function drawFluxBlur(ctx, x1, x2, y, thickness, intensity) {
-  ctx.save();
-  ctx.globalCompositeOperation = "lighter";
-  const len = Math.max(0, x2 - x1);
-  const k = Math.min(1, Math.max(0, Math.pow(intensity, 0.7)));
-  const h = thickness * (1 + 0.8 * k);
-  const yTop = y - h / 2;
-  ctx.filter = `blur(${10 + 22 * k}px)`;
-  ctx.globalAlpha = 0.16 + 0.28 * k;
-  ctx.fillStyle = "#FDE047";
-  ctx.fillRect(x1, yTop, len, h);
-  ctx.filter = `blur(${6 + 14 * k}px)`;
-  ctx.globalAlpha = 0.22 + 0.36 * k;
-  ctx.fillRect(x1 + len * 0.03, yTop + h * 0.12, len * 0.94, h * 0.76);
-  ctx.filter = `blur(${3 + 8 * k}px)`;
-  ctx.globalAlpha = 0.3 + 0.45 * k;
-  ctx.fillRect(x1 + len * 0.12, yTop + h * 0.36, len * 0.76, h * 0.28);
-  ctx.filter = "none";
-  ctx.restore();
-}
-
-function drawElectronBlur(ctx, x1, x2, y, thickness, intensity) {
-  ctx.save();
-  ctx.globalCompositeOperation = "lighter";
-  const len = Math.max(0, x2 - x1);
-  const k = Math.min(1, Math.max(0, Math.pow(intensity, 0.7)));
-  const h = thickness * (1 + 0.8 * k);
-  const yTop = y - h / 2;
-  ctx.filter = `blur(${10 + 22 * k}px)`;
-  ctx.globalAlpha = 0.18 + 0.3 * k;
-  ctx.fillStyle = "#60A5FA";
-  ctx.fillRect(x1, yTop, len, h);
-  ctx.filter = `blur(${6 + 14 * k}px)`;
-  ctx.globalAlpha = 0.24 + 0.38 * k;
-  ctx.fillRect(x1 + len * 0.03, yTop + h * 0.12, len * 0.94, h * 0.76);
-  ctx.filter = `blur(${3 + 8 * k}px)`;
-  ctx.globalAlpha = 0.32 + 0.46 * k;
-  ctx.fillRect(x1 + len * 0.12, yTop + h * 0.36, len * 0.76, h * 0.28);
-  ctx.filter = "none";
-  ctx.restore();
-}
+// ================= TIMING HELPERS =================
+const PHOTON_TRAVEL_TIME_S = 0.35;
+const ELECTRON_TRANSIT_TIME_S = 0.22;
 
 function drawOscilloscope(canvas, samples, timeWindow, thresholdVoltage) {
   if (!canvas) return;
@@ -432,7 +254,6 @@ export default function PmtSimulator() {
 
   const oscCanvasRef = useRef(null);
   const ttlCanvasRef = useRef(null);
-  const pmtCanvasRef = useRef(null);
 
   const lastTsRef = useRef(null);
   const tRef = useRef(0);
@@ -440,9 +261,6 @@ export default function PmtSimulator() {
   const sampleInterval = 1 / sampleRate;
   const nextSampleTimeRef = useRef(0);
   const samplesRef = useRef([]);
-  const photonsRef = useRef([]);
-  const electronsRef = useRef([]);
-  const photonHitsRef = useRef([]);
   const arrivalEventsRef = useRef([]);
   const analogStateRef = useRef({ rise: 0, fall: 0, lastTime: 0 });
   const nextPhotonTimeRef = useRef(null);
@@ -514,35 +332,8 @@ export default function PmtSimulator() {
       const p = paramsRef.current;
       tRef.current += dt;
 
-      const pmtCanvas = pmtCanvasRef.current;
-      const dpr = window.devicePixelRatio || 1;
-      const W = pmtCanvas ? pmtCanvas.width / dpr : 0;
-      const H = pmtCanvas ? pmtCanvas.height / dpr : 0;
-      const beamY = H * 0.5;
-      const radius = Math.min(H * 0.22, W * 0.1);
-      const tubeLen = Math.min(W * 0.75, W - 40);
-      const xLeft = (W - tubeLen) / 2;
-      const pcX = xLeft + radius * 0.95;
-      const targetX = pcX;
-      const xEndAnode = xLeft + tubeLen - radius * 0.95;
-      const photonEntryOffset = computePhotonEntryOffset(W);
-
-      const highPhotonFlux = p.flux > 1e3;
-      const electronRate = p.flux * p.qe + p.darkRate;
-      const photonAnimationLimit = Math.min(
-        MAX_ANIMATED_PHOTONS,
-        Math.max(0, computeAnimatedPhotonLimit(p.flux)),
-      );
-      if (photonsRef.current.length > photonAnimationLimit) {
-        photonsRef.current.length = photonAnimationLimit;
-      }
-
-      const photonSpeed = W * 0.6;
-      const electronSpeed = W * 1.2;
-      const photonSourceX = xLeft - photonEntryOffset;
-      const electronStartX = targetX + 2;
-      const electronTransitTime = Math.max(0, (xEndAnode - electronStartX) / Math.max(1e-6, electronSpeed));
-      const photonTravel = Math.max(0, (targetX - photonSourceX) / Math.max(1e-6, photonSpeed));
+      const electronTransitTime = ELECTRON_TRANSIT_TIME_S;
+      const photonTravel = PHOTON_TRAVEL_TIME_S;
 
       const amplitudeForEvent = (isDark) => {
         const variation = 0.85 + Math.random() * 0.3;
@@ -561,58 +352,22 @@ export default function PmtSimulator() {
         else queue.splice(idx, 0, event);
       };
 
-      const spawnElectron = (eventTime, y, amplitude, isDark) => {
+      const spawnElectron = (eventTime, amplitude, isDark) => {
         if (!Number.isFinite(eventTime)) return;
-        const arrivalTime = eventTime + electronTransitTime;
-        if (arrivalTime <= tRef.current) {
-          registerArrival({ t: arrivalTime, amplitude, isDark });
-          return;
-        }
-        if (electronsRef.current.length >= MAX_ELECTRONS) {
-          registerArrival({ t: arrivalTime, amplitude, isDark });
-          return;
-        }
-        const age = Math.max(0, tRef.current - eventTime);
-        if (age >= electronTransitTime) {
-          registerArrival({ t: arrivalTime, amplitude, isDark });
-          return;
-        }
-        const startX = electronStartX + electronSpeed * age;
-        if (startX >= xEndAnode) {
-          registerArrival({ t: arrivalTime, amplitude, isDark });
-          return;
-        }
-        electronsRef.current.push(
-          new Electron(startX, y, electronSpeed, xEndAnode, amplitude, eventTime, isDark),
-        );
-      };
-
-      const enqueuePhotonHit = (arrivalTime, y, willConvert) => {
-        photonHitsRef.current.push({ t: arrivalTime, y, willConvert });
+        registerArrival({ t: eventTime + electronTransitTime, amplitude, isDark });
       };
 
       const spawnPhotonEvent = (emissionTime) => {
-        const y = beamY + (Math.random() - 0.5) * (H * 0.2);
         const arrivalTime = emissionTime + photonTravel;
-        const willConvert = Math.random() < p.qe;
-        enqueuePhotonHit(arrivalTime, y, willConvert);
-        if (!(photonAnimationLimit > 0)) return;
-        if (photonsRef.current.length >= photonAnimationLimit) return;
-        const age = Math.max(0, tRef.current - emissionTime);
-        if (age >= photonTravel) return;
-        const startX = Math.max(
-          photonSourceX,
-          Math.min(targetX - 0.5, photonSourceX + photonSpeed * age),
-        );
-        if (startX < targetX) {
-          photonsRef.current.push(new Photon(startX, y, photonSpeed));
+        if (Math.random() < p.qe) {
+          const amplitude = amplitudeForEvent(false);
+          spawnElectron(arrivalTime, amplitude, false);
         }
       };
 
       const spawnDarkElectron = (eventTime) => {
-        const y = beamY + (Math.random() - 0.5) * (H * 0.2);
         const amplitude = amplitudeForEvent(true);
-        spawnElectron(eventTime, y, amplitude, true);
+        spawnElectron(eventTime, amplitude, true);
       };
 
       if (!(p.flux > 0)) {
@@ -637,64 +392,6 @@ export default function PmtSimulator() {
         nextDarkTimeRef.current += sampleExponential(p.darkRate);
       }
 
-      if (photonHitsRef.current.length) {
-        const remainHits = [];
-        for (let i = 0; i < photonHitsRef.current.length; i++) {
-          const hit = photonHitsRef.current[i];
-          if (hit.t <= tRef.current) {
-            if (hit.willConvert) {
-              const amplitude = amplitudeForEvent(false);
-              spawnElectron(hit.t, hit.y, amplitude, false);
-            }
-          } else {
-            remainHits.push(hit);
-          }
-        }
-        photonHitsRef.current = remainHits;
-      }
-
-      if (pmtCanvas) {
-        const ctx = pmtCanvas.getContext("2d");
-        if (ctx) {
-          ctx.save();
-          ctx.scale(dpr, dpr);
-          ctx.clearRect(0, 0, W, H);
-          drawPMT(ctx, W, H, photonEntryOffset);
-
-          const pcR = Math.min(H * 0.22, W * 0.1) * 0.65;
-          if (highPhotonFlux) {
-            const xStart = xLeft - photonEntryOffset;
-            const xEnd = targetX - pcR;
-            const intensity = Math.min(1, Math.max(0, (Math.log10(p.flux) - 3) / 4));
-            drawFluxBlur(ctx, xStart, xEnd, beamY, Math.max(4, H * 0.14), intensity);
-          }
-          if (electronRate > 1e3) {
-            const xStartEl = electronStartX;
-            const xEndEl = xEndAnode;
-            const intensityE = Math.min(1, Math.max(0, (Math.log10(Math.max(1, electronRate)) - 3) / 4));
-            drawElectronBlur(ctx, xStartEl, xEndEl, beamY, Math.max(3, H * 0.12), intensityE);
-          }
-
-          for (let i = 0; i < electronsRef.current.length; i++) {
-            const el = electronsRef.current[i];
-            const arrival = el.update(dt, tRef.current);
-            if (arrival) {
-              registerArrival(arrival);
-            }
-            drawElectron(ctx, el);
-          }
-          electronsRef.current = electronsRef.current.filter((e) => e.alive);
-
-          for (let i = 0; i < photonsRef.current.length; i++) {
-            const ph = photonsRef.current[i];
-            ph.update(dt, targetX);
-            drawPhoton(ctx, ph);
-          }
-          photonsRef.current = photonsRef.current.filter((ph) => ph.alive);
-
-          ctx.restore();
-        }
-      }
 
       while (nextSampleTimeRef.current <= tRef.current) {
         const tSample = nextSampleTimeRef.current;
@@ -760,7 +457,6 @@ export default function PmtSimulator() {
     const resize = () => {
       fitCanvas(oscCanvasRef.current);
       fitCanvas(ttlCanvasRef.current);
-      fitCanvas(pmtCanvasRef.current);
     };
     resize();
     window.addEventListener("resize", resize);
@@ -769,9 +465,6 @@ export default function PmtSimulator() {
 
   const reset = () => {
     samplesRef.current = [];
-    photonsRef.current = [];
-    electronsRef.current = [];
-    photonHitsRef.current = [];
     arrivalEventsRef.current = [];
     analogStateRef.current = { rise: 0, fall: 0, lastTime: 0 };
     nextPhotonTimeRef.current = null;
@@ -940,7 +633,7 @@ export default function PmtSimulator() {
             animate={{ opacity: 1, y: 0 }}
             className="text-3xl font-semibold tracking-tight"
           >
-            PMT Live Simulator — Photon Counting Dynamics
+            PMT Simulator — Photon Counting Dynamics
           </motion.h1>
           <Button variant="ghost" size="sm" className="self-start whitespace-nowrap" onClick={() => navigate("/")}>
             ← Back to simulations
@@ -949,8 +642,8 @@ export default function PmtSimulator() {
 
         <p className="max-w-3xl text-sm text-slate-600">
           Voltage pulses feed a comparator. On a rising threshold crossing (and not during dead time) the photon counter emits a
-          fixed-width TTL pulse. Photons travel into the brown photocathode; when detected, a blue electron launches toward the
-          anode after a transit delay, contributing to the oscilloscope trace.
+          fixed-width TTL pulse. Photoelectron arrival and dark counts are simulated with fixed transit delays and shown on the
+          oscilloscopes.
         </p>
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -970,11 +663,8 @@ export default function PmtSimulator() {
 
         <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[1.1fr_0.9fr]">
           <Card className="h-[520px]">
-            <CardContent className="grid h-full grid-rows-[1fr_auto_0.6fr] gap-3 pt-3">
-              <div className="h-full rounded-md border border-slate-200 bg-slate-50">
-                <canvas ref={pmtCanvasRef} className="h-full w-full" />
-              </div>
-              <div className="h-[150px] rounded-md border border-slate-200 bg-slate-50">
+            <CardContent className="grid h-full grid-rows-[1fr_0.7fr] gap-3 pt-3">
+              <div className="h-[220px] rounded-md border border-slate-200 bg-slate-50">
                 <canvas ref={oscCanvasRef} className="h-full w-full" />
               </div>
               <div className="h-[100px] rounded-md border border-slate-200 bg-slate-50">
