@@ -173,9 +173,9 @@
         <div class="param">
           <div class="row">
             <label for="signal">Signal photons (incident over 1 s, log slider)</label>
-            <input id="signalN" type="number" min="0" max="1000000" step="10" value="5000"/>
+            <input id="signalN" type="number" min="0" max="500000" step="10" value="5000"/>
           </div>
-          <input id="signal" type="range" min="0" max="6" step="0.01" value="3.3010"/>
+          <input id="signal" type="range" min="0" max="5.699" step="0.01" value="3.3010"/>
         </div>
 
         
@@ -350,7 +350,10 @@
     });
   }
 
-  // Signal slider uses log10 scale: slider value v -> counts = 10^v (max 1e6)
+  const SIGNAL_MAX_COUNTS = 500000;
+  const SIGNAL_MAX_LOG10 = Math.log10(SIGNAL_MAX_COUNTS);
+
+  // Signal slider uses log10 scale: slider value v -> counts = 10^v (max 500,000)
   function signalSliderToCounts(v){
     return Math.round(Math.pow(10, v));
   }
@@ -373,7 +376,7 @@
       signal.value = 0;
     } else {
       const v = countsToSignalSlider(c);
-      signal.value = Math.min(6, Math.max(0, v));
+      signal.value = Math.min(SIGNAL_MAX_LOG10, Math.max(0, v));
     }
     randomizeSeed();
     if (auto.checked) update(true);
@@ -594,7 +597,7 @@
   {
     const c0 = Number(signalN.value);
     if (c0 <= 0) signal.value = 0;
-    else signal.value = Math.min(6, Math.max(0, countsToSignalSlider(c0)));
+    else signal.value = Math.min(SIGNAL_MAX_LOG10, Math.max(0, countsToSignalSlider(c0)));
   }
   update(true);
 })();
