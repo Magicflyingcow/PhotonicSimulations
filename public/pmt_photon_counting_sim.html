@@ -229,7 +229,7 @@
             <button id="resim">Resimulate</button>
             <button id="newseed">New seed</button>
             <label class="check small"><input id="auto" type="checkbox" checked/>auto-resimulate</label>
-            <label class="check small"><input id="subDark" type="checkbox"/>subtract expected dark</label>
+            <label class="check small"><input id="subDark" type="checkbox" checked/>subtract expected dark + background</label>
           </div>
         </div>
 </div>
@@ -554,12 +554,12 @@
     // Plot 1: per-bin counts (expected components stacked) + simulated total
     const t = expected.t;
         const subtractDark = (subDark && subDark.checked);
-    const simPerBin = subtractDark ? sim.totObs.map((v,i)=> v - expected.dExp[i]) : sim.totObs;
+    const simPerBin = subtractDark ? sim.totObs.map((v,i)=> v - expected.dExp[i] - expected.bExp[i]) : sim.totObs;
 
     const traces1 = subtractDark ? [
       {x:t, y:expected.sExp, name:"Expected signal/bin", type:"scatter", mode:"lines", stackgroup:"one"},
       {x:t, y:expected.bExp, name:"Expected background/bin", type:"scatter", mode:"lines", stackgroup:"one"},
-      {x:t, y:simPerBin, name:"Simulated (total − expected dark)/bin", type:"scatter", mode:"lines"}
+      {x:t, y:simPerBin, name:"Simulated (total − expected dark and background)/bin", type:"scatter", mode:"lines"}
     ] : [
       {x:t, y:expected.sExp, name:"Expected signal/bin", type:"scatter", mode:"lines", stackgroup:"one"},
       {x:t, y:expected.dExp, name:"Expected dark/bin",   type:"scatter", mode:"lines", stackgroup:"one"},
@@ -580,7 +580,7 @@
     const cumSim = cumulative(simPerBin);
     const traces2 = [
       {x:t, y:cumExp, name:"Expected cumulative signal", type:"scatter", mode:"lines"},
-      {x:t, y:cumSim, name: subtractDark ? "Simulated cumulative (total − expected dark)" : "Simulated cumulative total", type:"scatter", mode:"lines"}
+      {x:t, y:cumSim, name: subtractDark ? "Simulated cumulative (total − expected dark and background)" : "Simulated cumulative total", type:"scatter", mode:"lines"}
     ];
     const layout2 = {
       title: {text:"Cumulative counts (integrated over time)"},
