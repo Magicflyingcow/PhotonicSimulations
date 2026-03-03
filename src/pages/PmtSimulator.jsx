@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, useMotionValue, useSpring } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
@@ -220,14 +220,11 @@ function drawTTLOscope(canvas, samples, timeWindow) {
 }
 
 function Control({ label, value, min, max, step, onValueChange }) {
-  const [, startTransition] = useTransition();
   const handleValueChange = useCallback(
     (next) => {
-      startTransition(() => {
-        onValueChange?.(next);
-      });
+      onValueChange?.(next);
     },
-    [onValueChange, startTransition],
+    [onValueChange],
   );
 
   return (
