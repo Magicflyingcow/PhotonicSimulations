@@ -2,20 +2,20 @@ import { useId } from "react";
 import { cn } from "@/lib/utils";
 
 const singleThumbStyles =
-  "h-[14px] w-[14px] rounded-full border border-gray-400 bg-white shadow-sm transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-gray-400";
+  "h-[14px] w-[14px] rounded-full border border-slate-400 bg-white shadow-sm transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-sky-500/70";
 
 const singleTrackStyles =
-  "h-2 w-full cursor-pointer appearance-none rounded-full bg-slate-200 accent-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-gray-400";
+  "h-2 w-full cursor-pointer appearance-none rounded-full bg-slate-200 accent-sky-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-sky-500/70";
 
 const multiThumbStyles =
-  "pointer-events-auto h-2 w-full cursor-pointer appearance-none bg-transparent accent-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-gray-400";
+  "pointer-events-auto h-2 w-full cursor-pointer appearance-none bg-transparent accent-sky-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-sky-500/70";
 
 const thumbPseudoStyles = cn(
   `[&::-webkit-slider-thumb]:${singleThumbStyles}`,
   "[&::-moz-range-thumb]:h-[14px]",
   "[&::-moz-range-thumb]:w-[14px]",
   "[&::-moz-range-thumb]:border",
-  "[&::-moz-range-thumb]:border-gray-400",
+  "[&::-moz-range-thumb]:border-slate-400",
   "[&::-moz-range-thumb]:rounded-full",
   "[&::-moz-range-thumb]:bg-white",
   "[&::-moz-range-thumb]:shadow-sm"
@@ -62,7 +62,7 @@ export function Slider({ value = [0], min = 0, max = 100, step = 1, onValueChang
     <div className={cn("relative flex w-full items-center", className)}>
       <div className="absolute left-0 right-0 h-1 rounded-full bg-slate-200" />
       <div
-        className="absolute h-1 rounded-full bg-gray-700"
+        className="absolute h-1 rounded-full bg-sky-600"
         style={{
           left: `${((value[0] - min) / (max - min)) * 100}%`,
           right: `${100 - ((value[1] - min) / (max - min)) * 100}%`,

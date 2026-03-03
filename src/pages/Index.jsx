@@ -1,5 +1,6 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
+import { Button } from "@/components/ui/button";
 
 const simulations = [
   {
@@ -56,13 +57,15 @@ export default function IndexPage() {
                     <h3 className="text-lg font-medium text-slate-900">{title}</h3>
                     <p className="text-sm text-slate-500">{description}</p>
                   </div>
-                  <button
+                  <Button
                     type="button"
                     onClick={() => navigate(path)}
-                    className="self-start rounded-full border border-slate-200 px-4 py-1.5 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
+                    variant="outline"
+                    size="sm"
+                    className="self-start rounded-full"
                   >
                     Open
-                  </button>
+                  </Button>
                 </div>
               </article>
             ))}
