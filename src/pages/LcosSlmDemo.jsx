@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { Slider } from "@/components/ui/slider";
 
 // ============================================================
 // CGH Playground – Adjustable Phase-Only SLM Simulator (with GS)
@@ -864,7 +865,7 @@ export default function CGHPlayground() {
   const PresetButton = ({ id, label }) => (
     <button
       onClick={() => { setPreset(id); applyPreset(id); }}
-      className={`px-3 py-2 rounded-xl text-sm border transition hover:shadow ${preset === id ? "bg-black text-white" : "bg-white"}`}
+      className={`px-3 py-2 rounded-xl text-sm border border-slate-300 text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 ${preset === id ? "bg-sky-600 border-sky-600 text-white" : "bg-white"}`}
     >{label}</button>
   );
 
@@ -888,7 +889,7 @@ export default function CGHPlayground() {
                   <button
                     key={opt}
                     onClick={() => setResolution(opt)}
-                    className={`px-3 py-2 rounded-xl text-sm border transition hover:shadow ${SIZE === opt ? "bg-black text-white" : "bg-white"}`}
+                    className={`px-3 py-2 rounded-xl text-sm border border-slate-300 text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 ${SIZE === opt ? "bg-sky-600 border-sky-600 text-white" : "bg-white"}`}
                   >{opt}×{opt}</button>
                 ))}
               </div>
@@ -935,18 +936,18 @@ export default function CGHPlayground() {
                 {["set", "add", "erase"].map(m => (
                   <button key={m}
                     onClick={() => setDrawMode(m)}
-                    className={`px-3 py-2 rounded-xl text-sm border ${drawMode === m ? "bg-black text-white" : "bg-white"}`}
+                    className={`px-3 py-2 rounded-xl text-sm border border-slate-300 text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 ${drawMode === m ? "bg-sky-600 border-sky-600 text-white" : "bg-white"}`}
                   >{m === "set" ? "Pen (set)" : m === "add" ? "Pen (add)" : "Eraser"}</button>
                 ))}
               </div>
               <label className="block text-sm mt-3">Brush size: <span className="font-mono">{brushSize}px</span></label>
-              <input type="range" min={1} max={64} value={brushSize}
-                     onChange={e => setBrushSize(parseInt(e.target.value, 10))}
+              <Slider value={[brushSize]} min={1} max={64} step={1}
+                     onValueChange={([v]) => setBrushSize(parseInt(v, 10))}
                      className="w-full" />
 
               <label className="block text-sm mt-3">Pen phase (radians): <span className="font-mono">{penPhase.toFixed(2)}</span></label>
-              <input type="range" min={0} max={TWO_PI} step={0.01} value={penPhase}
-                     onChange={e => setPenPhase(parseFloat(e.target.value))}
+              <Slider value={[penPhase]} min={0} max={TWO_PI} step={0.01}
+                     onValueChange={([v]) => setPenPhase(parseFloat(v))}
                      className="w-full" />
               <div className="text-xs text-neutral-500 mt-1">Phase hue legend: 0 → red → … → 2π ≡ red</div>
             </div>
@@ -961,12 +962,12 @@ export default function CGHPlayground() {
                 <label htmlFor="logView" className="text-sm">Log-scale intensity</label>
               </div>
               <label className="block text-sm">Gamma: <span className="font-mono">{gamma.toFixed(2)}</span></label>
-              <input type="range" min={0.2} max={2.0} step={0.05} value={gamma}
-                     onChange={e => setGamma(parseFloat(e.target.value))}
+              <Slider value={[gamma]} min={0.2} max={2.0} step={0.05}
+                     onValueChange={([v]) => setGamma(parseFloat(v))}
                      className="w-full" />
               <button
                 onClick={() => { queueRecompute(0); }}
-                className="mt-3 px-3 py-2 rounded-xl text-sm border bg-white hover:shadow"
+                className="mt-3 px-3 py-2 rounded-xl text-sm border border-slate-300 bg-white text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
               >Recompute now</button>
               {busy && <div className="text-xs text-neutral-500 mt-2">Recomputing…</div>}
             </div>
@@ -988,7 +989,7 @@ export default function CGHPlayground() {
               <div className="text-sm font-medium">Hologram (phase) – {SIZE}×{SIZE}</div>
               <button
                 onClick={() => { applyPreset(preset); }}
-                className="px-3 py-1.5 rounded-lg text-xs border bg-white hover:shadow"
+                className="px-3 py-1.5 rounded-lg text-xs border border-slate-300 bg-white text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
               >Reset preset</button>
             </div>
             <div className="relative w-full aspect-square">
@@ -1011,7 +1012,7 @@ export default function CGHPlayground() {
               <div className="text-sm font-medium">Reconstruction (far field)</div>
               <button
                 onClick={() => { queueRecompute(0); }}
-                className="px-3 py-1.5 rounded-lg text-xs border bg-white hover:shadow"
+                className="px-3 py-1.5 rounded-lg text-xs border border-slate-300 bg-white text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
               >Recompute</button>
             </div>
             <div className="relative w-full aspect-square">

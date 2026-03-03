@@ -19,8 +19,8 @@ import { Switch } from "@/components/ui/switch";
 // ---------- Small UI helpers ----------
 function Section({ title, children }) {
   return (
-    <div className="bg-white rounded-2xl shadow border border-gray-200 p-4 overflow-hidden">
-      <h2 className="text-sm font-semibold text-gray-800 mb-3 uppercase tracking-wide">{title}</h2>
+    <div className="bg-white rounded-2xl shadow border border-slate-200 p-4 overflow-hidden">
+      <h2 className="text-sm font-semibold text-slate-800 mb-3 uppercase tracking-wide">{title}</h2>
       {children}
     </div>
   );
@@ -40,7 +40,7 @@ function LabeledSlider({
 }) {
   return (
     <div className="flex flex-wrap items-center gap-3 min-w-0">
-      <label className="min-w-28 text-sm text-gray-700">{label}</label>
+      <label className="min-w-28 text-sm text-slate-700">{label}</label>
       <RangeSlider
         value={[value]}
         min={min}
@@ -57,9 +57,9 @@ function LabeledSlider({
         step={step}
         value={value}
         onChange={(e) => onChange(isFloat ? parseFloat(e.target.value) : parseInt(e.target.value, 10))}
-        className="w-24 px-2 py-1 text-sm border border-gray-300 rounded-md bg-white shadow-sm shrink-0"
+        className="w-24 px-2 py-1 text-sm border border-slate-300 rounded-md bg-white shadow-sm shrink-0"
       />
-      <span className="w-10 text-right text-xs text-gray-500 shrink-0">{unit}</span>
+      <span className="w-10 text-right text-xs text-slate-500 shrink-0">{unit}</span>
     </div>
   );
 }
@@ -68,7 +68,7 @@ function Toggle({ label, checked, onChange, id }) {
   const autoId = useId();
   const inputId = id ?? autoId;
   return (
-    <div className="flex items-center gap-2 text-sm text-gray-700 select-none">
+    <div className="flex items-center gap-2 text-sm text-slate-700 select-none">
       <Switch id={inputId} checked={checked} onCheckedChange={onChange} />
       <label htmlFor={inputId} className="cursor-pointer">
         {label}
@@ -468,7 +468,7 @@ export default function ProfileSensorDemo() {
             <div className="flex flex-col gap-4">
               <Section title="Sensor">
                 <div className="mb-3 flex flex-wrap items-center gap-3">
-                  <label className="min-w-28 text-sm text-gray-700">Pixels</label>
+                  <label className="min-w-28 text-sm text-slate-700">Pixels</label>
                   <select
                     className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm sm:max-w-[200px]"
                     value={size}
@@ -494,7 +494,7 @@ export default function ProfileSensorDemo() {
                 />
                 <div className="mt-3 flex items-center justify-between">
                   <Toggle label="Smooth subpixel (bilinear)" checked={smooth} onChange={setSmooth} />
-                  <button onClick={regenerate} className="rounded-2xl bg-gray-100 px-3 py-1 text-sm shadow hover:bg-gray-200">Regenerate</button>
+                  <button onClick={regenerate} className="rounded-xl border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 shadow-sm transition hover:border-slate-400 hover:bg-slate-50">Regenerate</button>
                 </div>
               </Section>
 
@@ -515,8 +515,8 @@ export default function ProfileSensorDemo() {
 
               <Section title="Actions">
                 <div className="flex flex-wrap items-center gap-2">
-                  <button onClick={resetOffsets} className="rounded-2xl bg-gray-100 px-3 py-1 text-sm shadow hover:bg-gray-200">Center view</button>
-                  <button onClick={regenerate} className="rounded-2xl bg-gray-100 px-3 py-1 text-sm shadow hover:bg-gray-200">New speckle</button>
+                  <button onClick={resetOffsets} className="rounded-xl border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 shadow-sm transition hover:border-slate-400 hover:bg-slate-50">Center view</button>
+                  <button onClick={regenerate} className="rounded-xl border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 shadow-sm transition hover:border-slate-400 hover:bg-slate-50">New speckle</button>
                 </div>
               </Section>
             </div>

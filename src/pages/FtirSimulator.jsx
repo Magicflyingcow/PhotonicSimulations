@@ -773,10 +773,10 @@ export default function FTIR_Michelson_VCSEL_Sim() {
                             )
                           }
                           aria-pressed={absorptionMedia.includes(medium.id)}
-                          className={`rounded-md border p-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500 ${
+                          className={`rounded-md border p-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500/70 ${
                             absorptionMedia.includes(medium.id)
-                              ? "border-slate-900 bg-slate-900 text-white"
-                              : "border-slate-200 hover:border-slate-400"
+                              ? "border-sky-600 bg-sky-600 text-white"
+                              : "border-slate-200 hover:border-slate-300 hover:bg-slate-50"
                           }`}
                         >
                           <div className="font-medium">{medium.label}</div>
