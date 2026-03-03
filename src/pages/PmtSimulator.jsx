@@ -237,10 +237,10 @@ function Control({ label, value, min, max, step, onValueChange }) {
 
 // ================= MAIN COMPONENT =================
 export default function PmtSimulator() {
-  const [fluxExp, setFluxExp] = useState(Math.log10(400));
+  const [fluxExp, setFluxExp] = useState(Math.log10(5));
   const flux = Math.min(Math.pow(10, fluxExp), MAX_PHOTON_FLUX);
   const [qe, setQe] = useState(0.25);
-  const [darkRate, setDarkRate] = useState(20);
+  const [darkRate, setDarkRate] = useState(0);
   const [darkNoise, setDarkNoise] = useState(0.02);
   const [gain, setGain] = useState(0.5);
   const [tauRise, setTauRise] = useState(0.01);
