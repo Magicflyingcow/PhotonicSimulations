@@ -230,6 +230,7 @@
             <button id="newseed">New seed</button>
             <label class="check small"><input id="auto" type="checkbox" checked/>auto-resimulate</label>
             <label class="check small"><input id="subDark" type="checkbox" checked/>subtract expected dark + background</label>
+            <label class="check small"><input id="sat" type="checkbox"/>H11870 saturation model</label>
           </div>
         </div>
 </div>
@@ -319,8 +320,15 @@
   const seedEl = el("seed");
   const auto = el("auto");
   const subDark = el("subDark");
+  const sat = el("sat");
   const metrics = el("metrics");
   const presetButtons = Array.from(document.querySelectorAll(".preset"));
+
+  // H11870 reference: 10% pulse loss at 6×10^6 counts/s.
+  // Model with a non-paralyzable counter: Robs = Rtrue / (1 + Rtrue*tau)
+  // -> tau chosen so Robs/Rtrue = 0.9 at Rtrue = 6e6 s^-1.
+  const H11870_REF_RATE = 6e6;
+  const H11870_TAU = ((1 / 0.9) - 1) / H11870_REF_RATE;
 
   function randomizeSeed(){
     try {
@@ -410,10 +418,11 @@
   });
   seedEl.addEventListener("input", ()=>{ if (auto.checked) update(true); });
   subDark.addEventListener("input", ()=>{ if (auto.checked) update(true); else update(false, true); });
+  sat.addEventListener("input", ()=>{ if (auto.checked) update(true); else update(false, true); });
 
   let cachedExpected = null; // allow slider movement without re-simulating
 
-  function computeExpected(nBins, S_total, D_total, B_total){
+  function computeExpected(nBins, S_total, D_total, B_total, applySaturation){
     const dt = T / nBins;
     const t = new Array(nBins);
     const sExp = new Array(nBins);
@@ -428,11 +437,21 @@
       const tm = (i + 0.5) * dt;
       t[i] = tm;
       const rateShape = shape(tm) / SHAPE_INT; // integrates to 1 over 0..T
-      const sigPerBin = (S_total * rateShape) * dt; // expected counts in bin
-      sExp[i] = sigPerBin;
-      dExp[i] = darkPerBin;
-      bExp[i] = bkgPerBin;
-      totExp[i] = sigPerBin + darkPerBin + bkgPerBin;
+      const sigPerBinRaw = (S_total * rateShape) * dt; // expected counts in bin
+      const darkPerBinRaw = darkPerBin;
+      const bkgPerBinRaw = bkgPerBin;
+
+      const rawTotal = sigPerBinRaw + darkPerBinRaw + bkgPerBinRaw;
+      let scale = 1;
+      if (applySaturation && rawTotal > 0) {
+        const rawRate = rawTotal / dt;
+        scale = 1 / (1 + rawRate * H11870_TAU);
+      }
+
+      sExp[i] = sigPerBinRaw * scale;
+      dExp[i] = darkPerBinRaw * scale;
+      bExp[i] = bkgPerBinRaw * scale;
+      totExp[i] = rawTotal * scale;
     }
     return {t, dt, sExp, dExp, bExp, totExp};
   }
@@ -476,30 +495,34 @@
     const B_total = B_in * qeFrac; // detected background counts over 1 s
     const nBins = Number(bins.value);
     const seed = Number(seedEl.value) >>> 0;
+    const applySaturation = !!(sat && sat.checked);
 
     // Expected curves
-    const expected = computeExpected(nBins, S_total, D_total, B_total);
+    const expected = computeExpected(nBins, S_total, D_total, B_total, applySaturation);
     cachedExpected = expected;
 
     // Simulate
     let sim = window._lastSim;
-    if (doResim || !sim || sim.nBins !== nBins || sim.S_total !== S_total || sim.D_total !== D_total || sim.B_total !== B_total){
+    if (doResim || !sim || sim.nBins !== nBins || sim.S_total !== S_total || sim.D_total !== D_total || sim.B_total !== B_total || sim.applySaturation !== applySaturation){
       sim = simulate(expected, seed);
-      sim.nBins = nBins; sim.S_total=S_total; sim.D_total=D_total; sim.B_total=B_total; sim.seed=seed;
+      sim.nBins = nBins; sim.S_total=S_total; sim.D_total=D_total; sim.B_total=B_total; sim.seed=seed; sim.applySaturation=applySaturation;
       window._lastSim = sim;
     } else if (!doResim && keepSim && sim){
       // keep previous sim while adjusting (if user unticks auto)
     }
 
     // Metrics
-    const expectedTotal = S_total + D_total + B_total;
+    const expectedSignal = expected.sExp.reduce((a,b)=>a+b,0);
+    const expectedDark = expected.dExp.reduce((a,b)=>a+b,0);
+    const expectedBackground = expected.bExp.reduce((a,b)=>a+b,0);
+    const expectedTotal = expectedSignal + expectedDark + expectedBackground;
     const expectedShot = Math.sqrt(expectedTotal);
-    const expectedSNR_simple = (expectedTotal>0) ? (S_total / expectedShot) : 0;
+    const expectedSNR_simple = (expectedTotal>0) ? (expectedSignal / expectedShot) : 0;
 
     // Handbook photon-counting SNR (Eq. 6-6): SNR = Ns*sqrt(T) / sqrt(Ns + 2(Nb+Nd))
     // With this demo's 1 s window, the user inputs can be treated as counts per second.
-    const denomExp = (S_total + 2*(B_total + D_total));
-    const expectedSNR_pc = (denomExp>0) ? (S_total * Math.sqrt(T) / Math.sqrt(denomExp)) : 0;
+    const denomExp = (expectedSignal + 2*(expectedBackground + expectedDark));
+    const expectedSNR_pc = (denomExp>0) ? (expectedSignal * Math.sqrt(T) / Math.sqrt(denomExp)) : 0;
 
     const simShot = Math.sqrt(Math.max(1e-12, sim.TOT));
     const simSNR_simple = (sim.TOT>0) ? (sim.S / simShot) : 0;
@@ -518,14 +541,17 @@
 
       <div style="margin-top:10px;"><strong>Expected (T = ${T.toFixed(2)} s):</strong>
         QE <code>${formatFloat(qeFrac*100,0)}%</code>
-        &nbsp;|&nbsp; Incident signal <code>${formatInt(S_in)}</code> → detected <code>${formatInt(S_total)}</code>
-        &nbsp;|&nbsp; Incident background <code>${formatInt(B_in)}</code> → detected <code>${formatInt(B_total)}</code>
+        &nbsp;|&nbsp; Incident signal <code>${formatInt(S_in)}</code> → detected <code>${formatInt(expectedSignal)}</code>
+        &nbsp;|&nbsp; Incident background <code>${formatInt(B_in)}</code> → detected <code>${formatInt(expectedBackground)}</code>
       </div>
       <div style="margin-top:6px;"><strong>Detected counts (1 s):</strong>
-        Signal <code>${formatInt(S_total)}</code>,
-        Dark <code>${formatInt(D_total)}</code>,
-        Background <code>${formatInt(B_total)}</code>,
+        Signal <code>${formatInt(expectedSignal)}</code>,
+        Dark <code>${formatInt(expectedDark)}</code>,
+        Background <code>${formatInt(expectedBackground)}</code>,
         Total <code>${formatInt(expectedTotal)}</code>
+      </div>
+      <div class="small">
+        Saturation model: <code>${applySaturation ? "ON (H11870 non-paralyzable model; 10% loss @ 6×10^6 s^-1)" : "OFF"}</code>
       </div>
       <div class="small">
         Simple Poisson SNR (no subtraction): <code>${formatFloat(expectedSNR_simple,2)}</code>
