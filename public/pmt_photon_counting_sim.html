@@ -497,8 +497,10 @@
     const seed = Number(seedEl.value) >>> 0;
     const applySaturation = !!(sat && sat.checked);
 
-    // Expected curves
+    // Expected curves used to drive simulation (may include saturation)
     const expected = computeExpected(nBins, S_total, D_total, B_total, applySaturation);
+    // Reference expected curves without saturation, used for plotting expected quantities
+    const expectedNoSat = computeExpected(nBins, S_total, D_total, B_total, false);
     cachedExpected = expected;
 
     // Simulate
@@ -577,19 +579,19 @@
     }
 
 
-    // Plot 1: per-bin counts (expected components stacked) + simulated total
-    const t = expected.t;
+    // Plot 1: per-bin counts (expected components stacked, always no-saturation) + simulated total
+    const t = expectedNoSat.t;
         const subtractDark = (subDark && subDark.checked);
-    const simPerBin = subtractDark ? sim.totObs.map((v,i)=> v - expected.dExp[i] - expected.bExp[i]) : sim.totObs;
+    const simPerBin = subtractDark ? sim.totObs.map((v,i)=> v - expectedNoSat.dExp[i] - expectedNoSat.bExp[i]) : sim.totObs;
 
     const traces1 = subtractDark ? [
-      {x:t, y:expected.sExp, name:"Expected signal/bin", type:"scatter", mode:"lines", stackgroup:"one"},
-      {x:t, y:expected.bExp, name:"Expected background/bin", type:"scatter", mode:"lines", stackgroup:"one"},
+      {x:t, y:expectedNoSat.sExp, name:"Expected signal/bin (no saturation)", type:"scatter", mode:"lines", stackgroup:"one"},
+      {x:t, y:expectedNoSat.bExp, name:"Expected background/bin (no saturation)", type:"scatter", mode:"lines", stackgroup:"one"},
       {x:t, y:simPerBin, name:"Simulated (total − expected dark and background)/bin", type:"scatter", mode:"lines"}
     ] : [
-      {x:t, y:expected.sExp, name:"Expected signal/bin", type:"scatter", mode:"lines", stackgroup:"one"},
-      {x:t, y:expected.dExp, name:"Expected dark/bin",   type:"scatter", mode:"lines", stackgroup:"one"},
-      {x:t, y:expected.bExp, name:"Expected background/bin", type:"scatter", mode:"lines", stackgroup:"one"},
+      {x:t, y:expectedNoSat.sExp, name:"Expected signal/bin (no saturation)", type:"scatter", mode:"lines", stackgroup:"one"},
+      {x:t, y:expectedNoSat.dExp, name:"Expected dark/bin (no saturation)",   type:"scatter", mode:"lines", stackgroup:"one"},
+      {x:t, y:expectedNoSat.bExp, name:"Expected background/bin (no saturation)", type:"scatter", mode:"lines", stackgroup:"one"},
       {x:t, y:simPerBin, name:"Simulated total/bin", type:"scatter", mode:"lines"}
     ];
     const layout1 = {
@@ -602,7 +604,7 @@
     Plotly.react("plot1", traces1, layout1, {displayModeBar:false, responsive:true});
 
     // Plot 2: cumulative total (expected vs simulated)
-        const cumExp = cumulative(expected.sExp); // expected signal only (no dark/background)
+        const cumExp = cumulative(expectedNoSat.sExp); // expected signal only (no dark/background), no saturation
     const cumSim = cumulative(simPerBin);
     const traces2 = [
       {x:t, y:cumExp, name:"Expected cumulative signal", type:"scatter", mode:"lines"},
