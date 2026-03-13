@@ -14,7 +14,7 @@ const simulations = [
     path: "/pmt",
   },
   {
-    title: "PMT Photon Counting (Plotly)",
+    title: "Photon Counting Module SNR",
     description: "Standalone PMT counting simulator with chemiluminescence model and SNR plots.",
     path: "/pmt-photon-counting",
   },
