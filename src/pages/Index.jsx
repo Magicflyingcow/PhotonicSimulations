@@ -9,7 +9,7 @@ const simulations = [
     path: "/ftir",
   },
   {
-    title: "PMT Photon Counter",
+    title: "PMT Oscilloscope",
     description: "Analog pulse chain and comparator logic for single-photon detection demos.",
     path: "/pmt",
   },
