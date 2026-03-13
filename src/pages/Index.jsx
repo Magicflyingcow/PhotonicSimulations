@@ -24,6 +24,11 @@ const simulations = [
     path: "/profile-sensor",
   },
   {
+    title: "Common Equations",
+    description: "Quick converters for detector equations, starting with QE and count sensitivity.",
+    path: "/common-equations",
+  },
+  {
     title: "LCOS-SLM Playground",
     description: "Paired drawing canvases for LCOS phase masks and resulting field estimates.",
     path: "/lcos-slm",
