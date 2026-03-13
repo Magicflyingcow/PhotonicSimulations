@@ -8,6 +8,7 @@ import PmtSimulator from "./pages/PmtSimulator.jsx";
 import PmtPhotonCounting from "./pages/PmtPhotonCounting.jsx";
 import ProfileSensor from "./pages/ProfileSensor.jsx";
 import LcosSlmDemo from "./pages/LcosSlmDemo.jsx";
+import CommonEquations from "./pages/CommonEquations.jsx";
 import "./index.css";
 
 const router = createHashRouter([
@@ -38,6 +39,10 @@ const router = createHashRouter([
   {
     path: "/lcos-slm",
     element: <LcosSlmDemo />,
+  },
+  {
+    path: "/common-equations",
+    element: <CommonEquations />,
   },
 ]);
 
