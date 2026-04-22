@@ -33,10 +33,10 @@
     }
 
     /* Top area */
-    .topgrid { display: grid; grid-template-columns: 2.1fr 1fr; gap: 14px; align-items: start; }
-    .controlsWrap, .readoutWrap{ display:block; }
+    .topgrid { display: grid; grid-template-columns: minmax(0, 2.1fr) minmax(0, 1fr); gap: 14px; align-items: start; }
+    .controlsWrap, .readoutWrap{ display:block; min-width: 0; }
     .sectionTitle{ font-size: 0.95rem; font-weight: 650; margin: 0 0 10px 0; opacity: 0.9; }
-    .readout { padding-top: 2px; }
+    .readout { padding-top: 2px; min-width: 0; }
     .note { margin: 8px 0 10px; opacity: 0.85; font-size: 0.92rem; }
 
     /* Compact parameter tiles */
@@ -151,7 +151,7 @@
     }
     .eqhint { margin-top: 6px; font-size: 0.9rem; opacity: 0.82; }
 
-    .metrics { font-size: 0.95rem; }
+    .metrics { font-size: 0.95rem; overflow-wrap: anywhere; }
     .metrics code {
       padding: 1px 6px;
       border-radius: 8px;
