@@ -54,7 +54,7 @@
     }
     .row {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) 96px;
+      grid-template-columns: minmax(0, 1fr) var(--value-input-width, 112px);
       gap: 10px;
       align-items: center;
       margin: 0;
@@ -71,7 +71,16 @@
       background: #ffffff;
       color: inherit;
       font-variant-numeric: tabular-nums;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      appearance: textfield;
+      -moz-appearance: textfield;
     }
+    input[type="number"]::-webkit-outer-spin-button,
+    input[type="number"]::-webkit-inner-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+    .seedbar .row { --value-input-width: 168px; }
 
     /* Options / actions */
     .seedbar{
