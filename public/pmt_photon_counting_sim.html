@@ -142,8 +142,13 @@
       border: 1px solid rgba(127,127,127,.22);
       background: #f8fafc;
       font-size: 2.05rem; /* larger */
+      overflow-x: auto;
+      overflow-y: hidden;
     }
-    .eqbox .mjx-container { margin: 0 !important; }
+    .eqbox .mjx-container {
+      margin: 0 !important;
+      white-space: nowrap !important;
+    }
     .eqhint { margin-top: 6px; font-size: 0.9rem; opacity: 0.82; }
 
     .metrics { font-size: 0.95rem; }
