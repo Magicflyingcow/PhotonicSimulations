@@ -33,7 +33,7 @@
     }
 
     /* Top area */
-    .topgrid { display: grid; grid-template-columns: minmax(0, 2.1fr) minmax(0, 1fr); gap: 14px; align-items: start; }
+    .topgrid { display: grid; grid-template-columns: minmax(0, 1.9fr) minmax(360px, 1fr); gap: 14px; align-items: start; }
     .controlsWrap, .readoutWrap{ display:block; min-width: 0; }
     .sectionTitle{ font-size: 0.95rem; font-weight: 650; margin: 0 0 10px 0; opacity: 0.9; }
     .readout { padding-top: 2px; min-width: 0; }
@@ -141,7 +141,7 @@
       border-radius: 12px;
       border: 1px solid rgba(127,127,127,.22);
       background: #f8fafc;
-      font-size: 2.05rem; /* larger */
+      font-size: clamp(1.2rem, 1.35vw, 1.75rem);
       overflow-x: auto;
       overflow-y: hidden;
     }
@@ -161,6 +161,10 @@
 
     /* Plots */
     .plots { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+    @media (max-width: 1200px) {
+      .topgrid { grid-template-columns: 1fr; }
+    }
 
     @media (max-width: 980px) {
       .topgrid { grid-template-columns: 1fr; }
