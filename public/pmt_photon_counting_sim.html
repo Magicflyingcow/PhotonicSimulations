@@ -218,17 +218,18 @@
         <div class="param">
           <div class="row">
             <label for="dark">Dark counts (integrated over 1 s)</label>
-            <input id="darkN" type="number" min="0" max="2000" step="1" value="60"/>
+            <input id="darkN" type="number" min="0" max="200000000" step="1" value="60"/>
           </div>
-          <input id="dark" type="range" min="0" max="2000" step="1" value="60"/>
+          <input id="dark" type="range" min="0" max="200000000" step="1000" value="60"/>
         </div>
 
         <div class="presetbar">
           <span class="presetlabel">PMT presets:</span>
-          <button type="button" class="preset" data-qe="25.10" data-dark="60">H11870-64 (current)</button>
-          <button type="button" class="preset" data-qe="30.67" data-dark="75">R1924P-700</button>
-          <button type="button" class="preset" data-qe="25.91" data-dark="30">R3550P-600</button>
-          <button type="button" class="preset" data-qe="100" data-dark="0">Ideal detector</button>
+          <button type="button" class="preset" data-qe="25.10" data-dark="60" data-sat-mode="h11870">H11870-64 (current)</button>
+          <button type="button" class="preset" data-qe="30.67" data-dark="75" data-sat-mode="h11870">R1924P-700</button>
+          <button type="button" class="preset" data-qe="25.91" data-dark="30" data-sat-mode="h11870">R3550P-600</button>
+          <button type="button" class="preset" data-qe="100" data-dark="0" data-sat-mode="none">Ideal detector</button>
+          <button type="button" class="preset" data-qe="50" data-dark="99750000" data-sat-mode="sipm22" data-sat-pixels="229296">SiPM array (≈22 mm equiv., S14161-6050HS-04)</button>
         </div>
 
         <div class="param">
@@ -258,7 +259,7 @@
             <button id="newseed">New seed</button>
             <label class="check small"><input id="auto" type="checkbox" checked/>auto-resimulate</label>
             <label class="check small"><input id="subDark" type="checkbox" checked/>subtract expected dark + background</label>
-            <label class="check small"><input id="sat" type="checkbox"/>H11870 saturation model</label>
+            <label class="check small"><input id="sat" type="checkbox"/>apply selected saturation model</label>
           </div>
         </div>
 </div>
@@ -357,6 +358,9 @@
   // -> tau chosen so Robs/Rtrue = 0.9 at Rtrue = 6e6 s^-1.
   const H11870_REF_RATE = 6e6;
   const H11870_TAU = ((1 / 0.9) - 1) / H11870_REF_RATE;
+  const SIPM22_PIXEL_CAPACITY = 229296; // S14161-6050HS-04: 16 ch × 14331 pixels/ch
+  let selectedSatMode = "h11870";
+  let selectedSipmPixels = SIPM22_PIXEL_CAPACITY;
 
   function randomizeSeed(){
     try {
@@ -429,10 +433,14 @@
     btn.addEventListener("click", ()=>{
       const presetQe = Number(btn.dataset.qe);
       const presetDark = Number(btn.dataset.dark);
+      const satMode = btn.dataset.satMode || "h11870";
+      const satPixels = Number(btn.dataset.satPixels);
       qe.value = presetQe;
       qeN.value = presetQe;
       dark.value = presetDark;
       darkN.value = presetDark;
+      selectedSatMode = satMode;
+      if (Number.isFinite(satPixels) && satPixels > 0) selectedSipmPixels = satPixels;
       randomizeSeed();
       if (auto.checked) update(true);
       else update(false, true);
@@ -450,7 +458,7 @@
 
   let cachedExpected = null; // allow slider movement without re-simulating
 
-  function computeExpected(nBins, S_total, D_total, B_total, applySaturation){
+  function computeExpected(nBins, S_total, D_total, B_total, applySaturation, saturationMode, sipmPixels){
     const dt = T / nBins;
     const t = new Array(nBins);
     const sExp = new Array(nBins);
@@ -470,16 +478,23 @@
       const bkgPerBinRaw = bkgPerBin;
 
       const rawTotal = sigPerBinRaw + darkPerBinRaw + bkgPerBinRaw;
-      let scale = 1;
+      let totalAfterSat = rawTotal;
       if (applySaturation && rawTotal > 0) {
-        const rawRate = rawTotal / dt;
-        scale = 1 / (1 + rawRate * H11870_TAU);
+        if (saturationMode === "sipm22") {
+          const nPix = Math.max(1, sipmPixels || SIPM22_PIXEL_CAPACITY);
+          totalAfterSat = nPix * (1 - Math.exp(-rawTotal / nPix));
+        } else if (saturationMode === "h11870") {
+          const rawRate = rawTotal / dt;
+          const scale = 1 / (1 + rawRate * H11870_TAU);
+          totalAfterSat = rawTotal * scale;
+        }
       }
 
+      const scale = rawTotal > 0 ? (totalAfterSat / rawTotal) : 1;
       sExp[i] = sigPerBinRaw * scale;
       dExp[i] = darkPerBinRaw * scale;
       bExp[i] = bkgPerBinRaw * scale;
-      totExp[i] = rawTotal * scale;
+      totExp[i] = totalAfterSat;
     }
     return {t, dt, sExp, dExp, bExp, totExp};
   }
@@ -526,9 +541,9 @@
     const applySaturation = !!(sat && sat.checked);
 
     // Expected curves used to drive simulation (may include saturation)
-    const expected = computeExpected(nBins, S_total, D_total, B_total, applySaturation);
+    const expected = computeExpected(nBins, S_total, D_total, B_total, applySaturation, selectedSatMode, selectedSipmPixels);
     // Reference expected curves without saturation, used for plotting expected quantities
-    const expectedNoSat = computeExpected(nBins, S_total, D_total, B_total, false);
+    const expectedNoSat = computeExpected(nBins, S_total, D_total, B_total, false, selectedSatMode, selectedSipmPixels);
     cachedExpected = expected;
 
     // Simulate
@@ -581,7 +596,7 @@
         Total <code>${formatInt(expectedTotal)}</code>
       </div>
       <div class="small">
-        Saturation model: <code>${applySaturation ? "ON (H11870 non-paralyzable model; 10% loss @ 6×10^6 s^-1)" : "OFF"}</code>
+        Saturation model: <code>${applySaturation ? (selectedSatMode === "sipm22" ? `ON (SiPM finite-pixel model; ${formatInt(selectedSipmPixels)} pixels)` : (selectedSatMode === "h11870" ? "ON (H11870 non-paralyzable model; 10% loss @ 6×10^6 s^-1)" : "ON")) : "OFF"}</code>
       </div>
       <div class="small">
         Simple Poisson SNR (no subtraction): <code>${formatFloat(expectedSNR_simple,2)}</code>
