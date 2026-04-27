@@ -19,7 +19,7 @@ import { Switch } from "@/components/ui/switch";
 // ---------- Small UI helpers ----------
 function Section({ title, children }) {
   return (
-    <div className="bg-white rounded-2xl shadow border border-slate-200 p-4 overflow-hidden">
+    <div className="sim-surface p-4 overflow-hidden">
       <h2 className="text-sm font-semibold text-slate-800 mb-3 uppercase tracking-wide">{title}</h2>
       {children}
     </div>
@@ -437,7 +437,7 @@ export default function ProfileSensorDemo() {
   const regenerate = () => regenerateSpeckle(sigma);
 
   return (
-    <div className="min-h-screen bg-slate-50 py-8 px-4 text-slate-900">
+    <div className="sim-app-bg min-h-screen px-4 py-8 text-slate-900">
       <div className="mx-auto w-full max-w-6xl">
         <div className="mb-4">
           <h1 className="text-xl font-semibold text-slate-900 drop-shadow-sm">Interactive Profile Sensor Demo</h1>

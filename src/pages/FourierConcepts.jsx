@@ -115,29 +115,29 @@ export default function FourierConcepts() {
   }, [spectrumData, activeWaves]);
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
-      <main className="px-4 py-10 lg:px-8">
-        <div className="mx-auto max-w-5xl space-y-6">
+    <div className="sim-app-bg">
+      <main className="sim-page-wrap">
+        <div className="mx-auto max-w-6xl space-y-6">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-300">
                 FTIR learning station
               </p>
-              <h1 className="text-3xl font-semibold tracking-tight text-slate-900">
+              <h1 className="text-3xl font-semibold tracking-tight text-white">
                 Superposition & Fourier Transform intuition
               </h1>
-              <p className="text-base text-slate-600">
+              <p className="text-base text-slate-200">
                 Every FTIR engine relies on a simple idea: the interferogram that we scan in time is just a superposition of many
                 sine waves. The Fourier transform teases those waves apart and reveals the spectrum—in this case, familiar red,
                 green, and blue wavelengths from the visible band.
               </p>
             </div>
-            <Button asChild variant="secondary">
+            <Button asChild variant="outline">
               <Link to="/ftir">← Back to FTIR simulator</Link>
             </Button>
           </div>
 
-          <Card className="border-slate-200 bg-white/80">
+          <Card className="sim-surface">
             <CardHeader>
               <CardTitle className="text-xl">Principle of superposition</CardTitle>
             </CardHeader>
@@ -214,7 +214,7 @@ export default function FourierConcepts() {
             </CardContent>
           </Card>
 
-          <Card className="border-slate-200 bg-white/80">
+          <Card className="sim-surface">
             <CardHeader>
               <CardTitle className="text-xl">Fourier transform reveals the spectrum</CardTitle>
             </CardHeader>
@@ -293,7 +293,7 @@ export default function FourierConcepts() {
                 visibility of the peaks you saw above.
               </p>
               <div>
-                <Button asChild variant="secondary" className="text-slate-900">
+                <Button asChild variant="outline" className="text-slate-900">
                   <Link to="/ftir">Launch the FTIR engine</Link>
                 </Button>
               </div>

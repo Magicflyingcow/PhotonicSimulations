@@ -870,10 +870,10 @@ export default function CGHPlayground() {
   );
 
   return (
-    <div className="w-full h-full p-4 md:p-6 xl:p-8 bg-neutral-50 text-neutral-900">
-      <div className="max-w-[1200px] mx-auto">
-        <h1 className="text-2xl md:text-3xl font-semibold mb-3">CGH Playground – {SIZE}×{SIZE} Phase-Only SLM Simulator</h1>
-        <p className="text-sm text-neutral-600 mb-4 leading-relaxed">
+    <div className="sim-app-bg w-full h-full">
+      <div className="sim-page-wrap max-w-[1200px] mx-auto">
+        <h1 className="text-2xl md:text-3xl font-semibold mb-3 text-white">CGH Playground – {SIZE}×{SIZE} Phase-Only SLM Simulator</h1>
+        <p className="text-sm text-slate-200 mb-4 leading-relaxed">
           Pick a hologram, then draw on it. The panel on the right shows the simulated far‑field reconstruction
           (intensity of the 2D FFT of <span className="font-mono">exp(i·φ)</span>). Try the presets like “Multispot” or “Vortex”,
           and paint with different phases to see how the output moves and reshapes.
@@ -881,7 +881,7 @@ export default function CGHPlayground() {
 
         <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr_1fr] gap-4">
           {/* Left controls */}
-          <div className="bg-white rounded-2xl shadow-sm border p-4 space-y-4">
+          <div className="sim-surface p-4 space-y-4">
             <div>
               <div className="text-[13px] font-medium mb-2 uppercase tracking-wide text-neutral-500">Resolution</div>
               <div className="grid grid-cols-2 gap-2 mb-1">
@@ -984,7 +984,7 @@ export default function CGHPlayground() {
           </div>
 
           {/* Middle: Hologram editor */}
-          <div className="bg-white rounded-2xl shadow-sm border p-4 flex flex-col items-center">
+          <div className="sim-surface p-4 flex flex-col items-center">
             <div className="w-full flex items-center justify-between mb-2">
               <div className="text-sm font-medium">Hologram (phase) – {SIZE}×{SIZE}</div>
               <button
@@ -1007,7 +1007,7 @@ export default function CGHPlayground() {
           </div>
 
           {/* Right: Reconstruction */}
-          <div className="bg-white rounded-2xl shadow-sm border p-4 flex flex-col items-center">
+          <div className="sim-surface p-4 flex flex-col items-center">
             <div className="w-full flex items-center justify-between mb-2">
               <div className="text-sm font-medium">Reconstruction (far field)</div>
               <button

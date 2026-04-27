@@ -68,27 +68,27 @@ export default function CommonEquations() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
-      <main className="mx-auto flex min-h-screen w-full max-w-3xl flex-col gap-8 px-6 py-10">
+    <div className="sim-app-bg">
+      <main className="sim-page-wrap flex min-h-screen max-w-4xl flex-col gap-8">
         <header className="space-y-3">
           <button
             type="button"
             onClick={() => navigate("/")}
-            className="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-600 hover:border-slate-300 hover:text-slate-900"
+            className="sim-back-link"
           >
             ← Back to library
           </button>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Common Equations</p>
-          <h1 className="text-2xl font-semibold tracking-tight text-slate-900">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-300">Common Equations</p>
+          <h1 className="text-2xl font-semibold tracking-tight text-white">
             QE ↔ Count Sensitivity ↔ Cathode Radiant Sensitivity Converter
           </h1>
-          <p className="max-w-2xl text-sm text-slate-500">
+          <p className="max-w-2xl text-sm text-slate-200">
             Convert between detector quantum efficiency, count sensitivity (counts/s/pW), and cathode radiant sensitivity
             (mA/W) at a selected wavelength.
           </p>
         </header>
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <section className="sim-surface p-6">
           <div className="grid gap-5 sm:grid-cols-2">
             <label className="space-y-2">
               <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Wavelength (nm)</span>
@@ -175,7 +175,7 @@ export default function CommonEquations() {
           </div>
         </section>
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <section className="sim-surface p-6">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Equation used</h2>
           <p className="mt-3 text-sm text-slate-700">Photon flux at 1 pW: Φ = (P·λ)/(h·c), with P = 1×10⁻¹² W.</p>
           <p className="mt-2 text-sm text-slate-700">Count sensitivity = QE × Φ, where QE is expressed as a fraction.</p>

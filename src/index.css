@@ -20,3 +20,22 @@ button, input, select {
 svg text {
   font-family: inherit;
 }
+
+
+@layer components {
+  .sim-app-bg {
+    @apply min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 text-slate-100;
+  }
+
+  .sim-page-wrap {
+    @apply mx-auto w-full max-w-7xl px-4 py-8 md:px-8 md:py-10;
+  }
+
+  .sim-surface {
+    @apply rounded-2xl border border-white/15 bg-white/95 text-slate-900 shadow-2xl shadow-slate-950/30 backdrop-blur;
+  }
+
+  .sim-back-link {
+    @apply inline-flex items-center rounded-full border border-white/30 bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white transition hover:bg-white/20;
+  }
+}

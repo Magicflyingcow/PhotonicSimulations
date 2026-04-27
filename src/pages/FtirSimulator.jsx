@@ -559,21 +559,21 @@ export default function FTIR_Michelson_VCSEL_Sim() {
   const res = estimateResolutionNm(VVCSEL_NM, mirrorAmp_um);
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
-      <main className="px-4 py-10 lg:px-8">
+    <div className="sim-app-bg">
+      <main className="sim-page-wrap">
         <div className="mx-auto max-w-[1200px] space-y-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div className="flex flex-col gap-2">
               <h1 className="text-2xl font-semibold tracking-tight">FTIR Engine — Michelson Interferometer with VCSEL Metrology</h1>
-              <p className="text-sm text-slate-600">
+              <p className="text-sm text-slate-200">
                 Real-time simulation of a compact FT-NIR engine: beamsplitter, fixed & movable mirrors (MEMS), VCSEL metrology, interferogram acquisition, and FFT-based spectrum.
               </p>
             </div>
             <Button
               onClick={() => navigate("/")}
-              variant="ghost"
+              variant="outline"
               size="sm"
-              className="self-start whitespace-nowrap"
+              className="self-start whitespace-nowrap border-white/30 bg-white/10 text-white hover:bg-white/20"
             >
               ← Back to simulations
             </Button>
@@ -607,7 +607,7 @@ export default function FTIR_Michelson_VCSEL_Sim() {
               <div className="flex flex-wrap items-center gap-3">
                 <Button onClick={() => setRunning(true)} variant="default" size="sm" className="gap-2"><PlayIcon className="w-4 h-4"/>Run</Button>
                 <Button onClick={() => setRunning(false)} variant="secondary" size="sm" className="gap-2"><PauseIcon className="w-4 h-4"/>Pause</Button>
-                <Button onClick={() => { setAcqIndex(0); iBufferRef.current.set(cleanInterf); for (let i = 0; i < Npoints; i++) siBufferRef.current[i] = 1 + Math.cos(2 * Math.PI * VVCSEL_WNUM * opd_cm[i]); }} variant="ghost" size="sm" className="gap-2"><RotateIcon className="w-4 h-4"/>Reset</Button>
+                <Button onClick={() => { setAcqIndex(0); iBufferRef.current.set(cleanInterf); for (let i = 0; i < Npoints; i++) siBufferRef.current[i] = 1 + Math.cos(2 * Math.PI * VVCSEL_WNUM * opd_cm[i]); }} variant="outline" size="sm" className="gap-2"><RotateIcon className="w-4 h-4"/>Reset</Button>
               </div>
 
               {/* Sliders row */}
