@@ -46,6 +46,10 @@ const router = createHashRouter([
     element: <CommonEquations />,
   },
   {
+    path: "/medical-imaging",
+    element: <PetCoincidence />,
+  },
+  {
     path: "/pet-coincidence",
     element: <PetCoincidence />,
   },
