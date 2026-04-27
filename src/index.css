@@ -24,7 +24,7 @@ svg text {
 
 @layer components {
   .sim-app-bg {
-    @apply min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 text-slate-100;
+    @apply min-h-screen bg-gradient-to-br from-slate-50 via-white to-sky-50 text-slate-900;
   }
 
   .sim-page-wrap {
@@ -36,6 +36,6 @@ svg text {
   }
 
   .sim-back-link {
-    @apply inline-flex items-center rounded-full border border-white/30 bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white transition hover:bg-white/20;
+    @apply inline-flex items-center rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-700 shadow-sm transition hover:border-slate-400 hover:bg-slate-50;
   }
 }

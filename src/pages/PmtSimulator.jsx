@@ -634,12 +634,12 @@ export default function PmtSimulator() {
           >
             PMT Simulator — Photon Counting Dynamics
           </motion.h1>
-          <Button variant="outline" size="sm" className="self-start whitespace-nowrap border-white/30 bg-white/10 text-white hover:bg-white/20" onClick={() => navigate("/")}>
+          <Button variant="outline" size="sm" className="self-start whitespace-nowrap border-slate-300 bg-white text-slate-700 hover:bg-slate-50" onClick={() => navigate("/")}>
             ← Back to simulations
           </Button>
         </div>
 
-        <p className="max-w-3xl text-sm text-slate-200">
+        <p className="max-w-3xl text-sm text-slate-700">
           Voltage pulses feed a comparator. On a rising threshold crossing (and not during dead time) the photon counter emits a
           fixed-width TTL pulse. Photoelectron arrival and dark counts are simulated with fixed transit delays and shown on the
           oscilloscopes.

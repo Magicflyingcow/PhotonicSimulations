@@ -872,8 +872,8 @@ export default function CGHPlayground() {
   return (
     <div className="sim-app-bg w-full h-full">
       <div className="sim-page-wrap max-w-[1200px] mx-auto">
-        <h1 className="text-2xl md:text-3xl font-semibold mb-3 text-white">CGH Playground – {SIZE}×{SIZE} Phase-Only SLM Simulator</h1>
-        <p className="text-sm text-slate-200 mb-4 leading-relaxed">
+        <h1 className="text-2xl md:text-3xl font-semibold mb-3 text-slate-900">CGH Playground – {SIZE}×{SIZE} Phase-Only SLM Simulator</h1>
+        <p className="text-sm text-slate-700 mb-4 leading-relaxed">
           Pick a hologram, then draw on it. The panel on the right shows the simulated far‑field reconstruction
           (intensity of the 2D FFT of <span className="font-mono">exp(i·φ)</span>). Try the presets like “Multispot” or “Vortex”,
           and paint with different phases to see how the output moves and reshapes.
