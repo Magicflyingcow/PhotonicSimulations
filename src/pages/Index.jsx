@@ -33,6 +33,11 @@ const simulations = [
     description: "Paired drawing canvases for LCOS phase masks and resulting field estimates.",
     path: "/lcos-slm",
   },
+  {
+    title: "PET Coincidence Detection",
+    description: "Detector-ring coincidence simulator with live gamma tracks, sinogram, and backprojection.",
+    path: "/pet-coincidence",
+  },
 ];
 
 export default function IndexPage() {
