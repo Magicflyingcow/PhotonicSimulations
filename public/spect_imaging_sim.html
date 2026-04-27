@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SPECT Imaging Simulator</title>
+  <style>
+    :root{--bg:#0f172a;--panel:#111827;--card:#1f2937;--text:#e5e7eb;--muted:#9ca3af;--accent:#22c55e;--line:#374151}
+    *{box-sizing:border-box} body{margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,sans-serif;background:linear-gradient(180deg,#0b1220,#0f172a 35%);color:var(--text)}
+    .wrap{max-width:1360px;margin:22px auto;padding:0 14px 24px}
+    h1{margin:0 0 4px;font-size:1.45rem}.subtitle{color:var(--muted);margin-bottom:12px;line-height:1.4;max-width:1050px}
+    .grid{display:grid;grid-template-columns:390px 1fr;gap:12px}.panel,.viz{background:rgba(17,24,39,.86);border:1px solid #273449;border-radius:14px;padding:12px}
+    .control{margin-bottom:8px;background:rgba(31,41,55,.72);border:1px solid #303a4e;border-radius:10px;padding:8px 9px}
+    .top{display:flex;justify-content:space-between;gap:8px;font-size:.88rem;margin-bottom:4px}.value{color:#86efac;font-variant-numeric:tabular-nums}
+    input[type=range],select{width:100%;accent-color:var(--accent)}
+    .row{display:grid;grid-template-columns:1fr 1fr;gap:8px}.btns{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:10px}
+    button{border:1px solid #3a475f;border-radius:10px;background:#1f2937;color:#e5e7eb;padding:8px 9px;cursor:pointer;font-weight:600}
+    button.primary{background:#14532d;border-color:#1f6f44}button:hover{background:#273449}
+    .stats,.note{margin-top:8px;padding:9px;background:#0b1322;border:1px solid #2d3749;border-radius:10px;font-size:.85rem;line-height:1.45}
+    .vgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.card{background:rgba(31,41,55,.72);border:1px solid #303a4e;border-radius:12px;padding:9px}
+    canvas{width:100%;height:auto;border-radius:8px;border:1px solid #2f3a4e;background:#060d18;image-rendering:pixelated}
+    .legend{font-size:.8rem;color:#a8b7cc;margin-top:4px}.tiny{font-size:.78rem;color:#93a7c3}.full{margin-top:10px}
+    @media (max-width:1100px){.grid{grid-template-columns:1fr}.vgrid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Interactive SPECT Gamma-Camera Simulator</h1>
+  <div class="subtitle">Parallel-hole collimator projection, exponential attenuation, scatter blur, Poisson counting noise, and filtered backprojection (FBP) reconstruction.</div>
+  <div class="grid">
+    <div class="panel">
+      <div class="control">
+        <div class="top"><span>Radiotracer</span></div>
+        <select id="isotope">
+          <option value="tc99m">Tc-99m (140 keV)</option>
+          <option value="i123">I-123 (159 keV)</option>
+          <option value="tl201">Tl-201 (72 keV)</option>
+        </select>
+      </div>
+      <div class="row">
+        <div class="control"><div class="top"><span>Body μ (cm⁻¹)</span><span class="value" id="muVal">0.15</span></div><input id="mu" type="range" min="0.05" max="0.25" step="0.005" value="0.15"></div>
+        <div class="control"><div class="top"><span>Injected activity (mCi)</span><span class="value" id="actVal">10.0</span></div><input id="activity" type="range" min="1" max="25" step="0.5" value="10"></div>
+      </div>
+      <div class="row">
+        <div class="control"><div class="top"><span>Collimator hole d (mm)</span><span class="value" id="diamVal">1.8</span></div><input id="diam" type="range" min="1.0" max="3.2" step="0.1" value="1.8"></div>
+        <div class="control"><div class="top"><span>Collimator length L (mm)</span><span class="value" id="lenVal">28</span></div><input id="len" type="range" min="18" max="45" step="1" value="28"></div>
+      </div>
+      <div class="row">
+        <div class="control"><div class="top"><span>Intrinsic res (mm FWHM)</span><span class="value" id="intrVal">3.8</span></div><input id="intrinsic" type="range" min="2.5" max="6.5" step="0.1" value="3.8"></div>
+        <div class="control"><div class="top"><span>Scatter fraction</span><span class="value" id="scatVal">0.25</span></div><input id="scatter" type="range" min="0" max="0.55" step="0.01" value="0.25"></div>
+      </div>
+      <div class="row">
+        <div class="control"><div class="top"><span>Angular views</span><span class="value" id="viewsVal">120</span></div><input id="views" type="range" min="60" max="240" step="6" value="120"></div>
+        <div class="control"><div class="top"><span>Bins / projection</span><span class="value" id="binsVal">96</span></div><input id="bins" type="range" min="64" max="160" step="8" value="96"></div>
+      </div>
+      <div class="control"><div class="top"><span>Time / view (s)</span><span class="value" id="tvVal">12</span></div><input id="timePerView" type="range" min="2" max="40" step="1" value="12"></div>
+      <div class="btns">
+        <button class="primary" id="run">Acquire full scan</button>
+        <button id="step">Acquire 1 view</button>
+        <button id="reset">Reset</button>
+      </div>
+      <div class="stats" id="stats"></div>
+      <div class="note tiny">Physics model: collimator resolution R<sub>coll</sub>≈d(L+b)/L, sensitivity ∝ d⁴/L², attenuation I=I₀e<sup>-μx</sup>, scatter adds broad low-frequency component, counts sampled with Poisson noise.</div>
+    </div>
+
+    <div class="viz">
+      <div class="vgrid">
+        <div class="card"><h3>Phantom + camera angle</h3><canvas id="phantom" width="360" height="360"></canvas><div class="legend">Hot lesions, cold defect, attenuating torso. Cyan line = current projection angle.</div></div>
+        <div class="card"><h3>Reconstruction (FBP)</h3><canvas id="recon" width="360" height="360"></canvas><div class="legend">Ram-Lak filtered backprojection reconstructed from acquired views.</div></div>
+      </div>
+      <div class="card full"><h3>Sinogram (angles × bins)</h3><canvas id="sino" width="780" height="300"></canvas><div class="legend">Each row is one projection view. Brighter = more detected counts.</div></div>
+    </div>
+  </div>
+</div>
+<script>
+(() => {
+  const ui = {
+    isotope: document.getElementById('isotope'), mu: document.getElementById('mu'), activity: document.getElementById('activity'), diam: document.getElementById('diam'),
+    len: document.getElementById('len'), intrinsic: document.getElementById('intrinsic'), scatter: document.getElementById('scatter'), views: document.getElementById('views'),
+    bins: document.getElementById('bins'), timePerView: document.getElementById('timePerView'), run: document.getElementById('run'), step: document.getElementById('step'), reset: document.getElementById('reset'),
+    stats: document.getElementById('stats')
+  };
+  const labels = {muVal:'mu',actVal:'activity',diamVal:'diam',lenVal:'len',intrVal:'intrinsic',scatVal:'scatter',viewsVal:'views',binsVal:'bins',tvVal:'timePerView'};
+  const isotopeDefaults = { tc99m:{mu:0.15}, i123:{mu:0.135}, tl201:{mu:0.19} };
+  Object.entries(labels).forEach(([id,key])=>{ const e=document.getElementById(id); const upd=()=>e.textContent=Number(ui[key].value).toFixed(key==='views'||key==='bins'||key==='len'||key==='timePerView'?0: key==='activity'?1: key==='mu'?3:2); ui[key].addEventListener('input',upd); upd(); });
+  ui.isotope.addEventListener('change',()=>{ ui.mu.value=isotopeDefaults[ui.isotope.value].mu; ui.mu.dispatchEvent(new Event('input')); resetScan(); });
+
+  const phantomCanvas = document.getElementById('phantom'), reconCanvas = document.getElementById('recon'), sinoCanvas = document.getElementById('sino');
+  const pctx = phantomCanvas.getContext('2d'), rctx = reconCanvas.getContext('2d'), sctx = sinoCanvas.getContext('2d');
+
+  const N = 96;
+  const phantom = new Float32Array(N*N), atten = new Float32Array(N*N), recon = new Float32Array(N*N);
+  let sinogram = [], acquired = 0, running = false;
+
+  function idx(x,y){ return y*N+x; }
+  function gauss(x,y,cx,cy,sx,sy,a){ const dx=(x-cx)/sx, dy=(y-cy)/sy; return a*Math.exp(-(dx*dx+dy*dy)/2); }
+  function createPhantom(){
+    for(let y=0;y<N;y++) for(let x=0;x<N;x++){
+      const nx=(x-(N/2))/ (N/2), ny=(y-(N/2))/(N/2), r=Math.hypot(nx,ny);
+      const body = (nx*nx/0.90**2 + ny*ny/0.78**2) <= 1 ? 1 : 0;
+      let em = body*0.15;
+      em += gauss(nx,ny,-0.28,-0.12,0.11,0.11,1.2);
+      em += gauss(nx,ny,0.32,0.25,0.08,0.08,1.0);
+      em += gauss(nx,ny,0.05,-0.33,0.13,0.09,0.8);
+      em -= gauss(nx,ny,0.1,0.05,0.18,0.14,0.45);
+      phantom[idx(x,y)] = Math.max(0,em);
+      atten[idx(x,y)] = body ? 1 : 0;
+      recon[idx(x,y)] = 0;
+    }
+  }
+
+  function sampleBilinear(arr,x,y){
+    if(x<0||x>=N-1||y<0||y>=N-1) return 0;
+    const x0=x|0,y0=y|0,dx=x-x0,dy=y-y0;
+    const a=arr[idx(x0,y0)], b=arr[idx(x0+1,y0)], c=arr[idx(x0,y0+1)], d=arr[idx(x0+1,y0+1)];
+    return a*(1-dx)*(1-dy)+b*dx*(1-dy)+c*(1-dx)*dy+d*dx*dy;
+  }
+
+  function poisson(lambda){
+    if(lambda<=0) return 0;
+    if(lambda<35){ let L=Math.exp(-lambda),k=0,p=1; do{k++; p*=Math.random();}while(p>L); return k-1; }
+    const n = lambda + Math.sqrt(lambda)*(Math.sqrt(-2*Math.log(Math.max(1e-9,Math.random())))*Math.cos(2*Math.PI*Math.random()));
+    return Math.max(0,Math.round(n));
+  }
+
+  function projectAtAngle(theta, bins){
+    const mu = Number(ui.mu.value), scatterFrac = Number(ui.scatter.value), activity = Number(ui.activity.value), tv = Number(ui.timePerView.value);
+    const d = Number(ui.diam.value), L = Number(ui.len.value), intrinsic = Number(ui.intrinsic.value);
+    const sensFactor = (d**4)/(L**2); // normalized tradeoff
+    const countsScale = (activity*tv*1500) * (sensFactor/((1.8**4)/(28**2)));
+    const depthMm = 110;
+    const Rcoll = d*(L + depthMm)/L;
+    const sigmaPix = (Math.sqrt(intrinsic*intrinsic + Rcoll*Rcoll) / 2.355) / 4.0; // ~4 mm/pixel scale
+
+    const line = new Float32Array(bins);
+    const c=Math.cos(theta), s=Math.sin(theta);
+    for(let b=0;b<bins;b++){
+      const t=((b+0.5)/bins - 0.5) * (N*1.2);
+      let sum = 0, attLen = 0;
+      for(let u=-N*0.8; u<=N*0.8; u+=0.8){
+        const x = N/2 + t*c - u*s, y = N/2 + t*s + u*c;
+        const em = sampleBilinear(phantom,x,y);
+        const inBody = sampleBilinear(atten,x,y)>0.5;
+        if(inBody) attLen += 0.08;
+        const attenFactor = Math.exp(-mu * attLen);
+        sum += em * attenFactor;
+      }
+      line[b] = Math.max(0,sum*countsScale*0.006);
+    }
+
+    // blur from resolution / collimator
+    const rad = Math.max(1,Math.ceil(3*sigmaPix));
+    const blurred = new Float32Array(bins);
+    for(let i=0;i<bins;i++){
+      let wsum=0,v=0;
+      for(let k=-rad;k<=rad;k++){
+        const j=i+k; if(j<0||j>=bins) continue;
+        const w=Math.exp(-(k*k)/(2*sigmaPix*sigmaPix));
+        v += line[j]*w; wsum+=w;
+      }
+      blurred[i]=v/Math.max(1e-9,wsum);
+    }
+
+    // scatter component as broad convolution
+    const broad = new Float32Array(bins);
+    for(let i=0;i<bins;i++){
+      let v=0,wsum=0;
+      for(let k=-12;k<=12;k++){
+        const j=i+k; if(j<0||j>=bins) continue;
+        const w=Math.exp(-(k*k)/(2*25));
+        v += blurred[j]*w; wsum+=w;
+      }
+      broad[i]=v/wsum;
+    }
+
+    for(let i=0;i<bins;i++){
+      const expected = (1-scatterFrac)*blurred[i] + scatterFrac*broad[i];
+      line[i] = poisson(expected);
+    }
+
+    return line;
+  }
+
+  function ramLak(line){
+    const n=line.length, out=new Float32Array(n);
+    for(let i=1;i<n-1;i++) out[i]= -line[i-1] + 2*line[i] - line[i+1];
+    out[0]=out[1]; out[n-1]=out[n-2];
+    return out;
+  }
+
+  function reconstruct(){
+    recon.fill(0);
+    const bins = Number(ui.bins.value), views=Number(ui.views.value);
+    const used = sinogram.length;
+    if(!used) return;
+    for(let a=0;a<used;a++){
+      const theta = (a/views) * Math.PI;
+      const f = ramLak(sinogram[a]);
+      const c=Math.cos(theta), s=Math.sin(theta);
+      for(let y=0;y<N;y++) for(let x=0;x<N;x++){
+        const t = ((x-N/2)*c + (y-N/2)*s)/(N*1.2) + 0.5;
+        const b = t*bins - 0.5;
+        if(b<0||b>=bins-1) continue;
+        const b0=b|0, d=b-b0;
+        recon[idx(x,y)] += f[b0]*(1-d) + f[b0+1]*d;
+      }
+    }
+  }
+
+  function drawArrayToCanvas(ctx,arr,w,h,cm='viridis'){
+    let max=0; for(let i=0;i<arr.length;i++) if(arr[i]>max) max=arr[i]; max=max||1;
+    const im=ctx.createImageData(w,h);
+    for(let i=0;i<arr.length;i++){
+      const v=Math.min(1,arr[i]/max);
+      const [r,g,b]= cm==='hot' ? [255*v, 220*Math.pow(v,0.75), 80*Math.pow(v,2)] : [40+210*v, 30+200*Math.pow(v,0.7), 55+160*(1-v)];
+      im.data[i*4]=r;im.data[i*4+1]=g;im.data[i*4+2]=b;im.data[i*4+3]=255;
+    }
+    const tmp=document.createElement('canvas'); tmp.width=w; tmp.height=h; tmp.getContext('2d').putImageData(im,0,0);
+    ctx.clearRect(0,0,ctx.canvas.width,ctx.canvas.height); ctx.imageSmoothingEnabled=false;
+    ctx.drawImage(tmp,0,0,ctx.canvas.width,ctx.canvas.height);
+  }
+
+  function drawPhantom(){
+    drawArrayToCanvas(pctx,phantom,N,N,'hot');
+    const theta = (acquired/Math.max(1,Number(ui.views.value))) * Math.PI;
+    const cx=phantomCanvas.width/2, cy=phantomCanvas.height/2, r=phantomCanvas.width*0.44;
+    pctx.strokeStyle='#67e8f9'; pctx.lineWidth=2; pctx.beginPath();
+    pctx.moveTo(cx-r*Math.cos(theta),cy-r*Math.sin(theta)); pctx.lineTo(cx+r*Math.cos(theta),cy+r*Math.sin(theta)); pctx.stroke();
+  }
+
+  function drawSino(){
+    const w=Number(ui.bins.value), h=Number(ui.views.value), arr = new Float32Array(w*h);
+    for(let y=0;y<sinogram.length;y++) arr.set(sinogram[y], y*w);
+    drawArrayToCanvas(sctx,arr,w,h,'viridis');
+  }
+
+  function drawRecon(){ drawArrayToCanvas(rctx,recon,N,N,'hot'); }
+
+  function updateStats(){
+    const d=Number(ui.diam.value), L=Number(ui.len.value), intr=Number(ui.intrinsic.value), depth=110;
+    const Rcoll = d*(L+depth)/L, Rsys = Math.sqrt(Rcoll*Rcoll + intr*intr);
+    const sensRel = ((d**4)/(L**2))/((1.8**4)/(28**2));
+    const totalCounts = sinogram.reduce((s,row)=>s+row.reduce((a,b)=>a+b,0),0);
+    ui.stats.innerHTML = `Views acquired: <b>${sinogram.length}/${ui.views.value}</b><br>Total detected counts: <b>${Math.round(totalCounts).toLocaleString()}</b><br>Estimated system resolution: <b>${Rsys.toFixed(1)} mm FWHM</b><br>Relative collimator sensitivity: <b>${sensRel.toFixed(2)}×</b>`;
+  }
+
+  function acquireOne(){
+    const views=Number(ui.views.value), bins=Number(ui.bins.value);
+    if(sinogram.length>=views) return;
+    const theta = (sinogram.length/views)*Math.PI;
+    sinogram.push(projectAtAngle(theta,bins));
+    acquired = sinogram.length;
+    reconstruct(); drawPhantom(); drawSino(); drawRecon(); updateStats();
+  }
+
+  async function runFull(){
+    if(running) return; running = true;
+    while(sinogram.length < Number(ui.views.value)){
+      acquireOne();
+      await new Promise(r=>setTimeout(r,12));
+    }
+    running = false;
+  }
+
+  function resetScan(){ running=false; acquired=0; sinogram=[]; recon.fill(0); drawPhantom(); drawSino(); drawRecon(); updateStats(); }
+
+  Object.values(ui).forEach((el)=>{ if(el && el.tagName==='INPUT') el.addEventListener('input', resetScan); });
+  ui.run.onclick=runFull; ui.step.onclick=acquireOne; ui.reset.onclick=resetScan;
+
+  createPhantom(); resetScan();
+})();
+</script>
+</body>
+</html>

@@ -34,9 +34,9 @@ const simulations = [
     path: "/lcos-slm",
   },
   {
-    title: "PET Coincidence Detection",
-    description: "Detector-ring coincidence simulator with live gamma tracks, sinogram, and backprojection.",
-    path: "/pet-coincidence",
+    title: "Medical Imaging (PET + SPECT)",
+    description: "Multi-modality page with PET coincidence imaging and quantitative SPECT reconstruction physics.",
+    path: "/medical-imaging",
   },
 ];
 
