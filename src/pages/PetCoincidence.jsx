@@ -19,11 +19,11 @@ export default function PetCoincidence() {
         </Button>
       </div>
 
-      <div className="sim-page-wrap min-h-0 flex-1 overflow-hidden">
+      <div className="min-h-0 flex-1 overflow-hidden">
         <iframe
           title="PET coincidence detection simulation"
           src="/pet_coincidence_sim.html"
-          className="sim-surface h-full w-full"
+          className="h-full w-full border-0 bg-transparent"
         />
       </div>
     </div>
