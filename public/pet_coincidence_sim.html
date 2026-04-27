@@ -1,0 +1,1077 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PET Coincidence Detection Simulator</title>
+  <style>
+    :root{
+      --bg:#0f172a;
+      --panel:#111827;
+      --card:#1f2937;
+      --text:#e5e7eb;
+      --muted:#9ca3af;
+      --accent:#22c55e;
+      --danger:#ef4444;
+      --line:#374151;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+      background:linear-gradient(180deg,#0b1220,#0f172a 30%);
+      color:var(--text);
+      min-height:100vh;
+    }
+    .wrap{
+      max-width:1300px;
+      margin:24px auto;
+      padding:0 16px 28px;
+    }
+    h1{
+      margin:0 0 6px 0;
+      font-size:1.45rem;
+      font-weight:700;
+      letter-spacing:0.2px;
+    }
+    .subtitle{
+      color:var(--muted);
+      margin-bottom:14px;
+      line-height:1.45;
+      max-width:1000px;
+    }
+    .grid{
+      display:grid;
+      grid-template-columns: 370px 1fr;
+      gap:14px;
+    }
+    .panel,.viz{
+      background:rgba(17,24,39,.85);
+      border:1px solid #263042;
+      border-radius:16px;
+      padding:14px;
+      box-shadow:0 8px 22px rgba(0,0,0,.24);
+      backdrop-filter: blur(4px);
+    }
+    .panel h2,.viz h2{
+      margin:0 0 12px 0;
+      font-size:1rem;
+      color:#f9fafb;
+      font-weight:650;
+      letter-spacing:.2px;
+    }
+    .control{
+      margin-bottom:10px;
+      background:rgba(31,41,55,.72);
+      border:1px solid #303a4e;
+      border-radius:10px;
+      padding:8px 10px;
+    }
+    .control .top{
+      display:flex;justify-content:space-between;align-items:center;
+      gap:12px;font-size:.9rem;
+      margin-bottom:4px;
+    }
+    .control .label{color:#d1d5db}
+    .control .value{
+      color:#86efac;
+      font-variant-numeric:tabular-nums;
+      min-width:54px;
+      text-align:right;
+    }
+    input[type=range]{width:100%;accent-color:#22c55e}
+    .row{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:8px;
+    }
+    .buttons{
+      display:grid;
+      grid-template-columns:1fr 1fr 1fr;
+      gap:8px;
+      margin-top:8px;
+    }
+    button{
+      border:1px solid #3a475f;
+      border-radius:10px;
+      background:#1f2937;
+      color:#e5e7eb;
+      padding:9px 10px;
+      cursor:pointer;
+      font-weight:600;
+    }
+    button:hover{background:#273449}
+    button.primary{
+      border-color:#1f6f44;
+      background:#14532d;
+    }
+    button.primary:hover{background:#166534}
+    .stats{
+      margin-top:10px;
+      padding:10px;
+      background:#0b1322;
+      border:1px solid #2d3749;
+      border-radius:12px;
+      font-size:.9rem;
+      line-height:1.55;
+      font-variant-numeric: tabular-nums;
+    }
+    .legend{
+      display:flex;
+      gap:12px;
+      flex-wrap:wrap;
+      color:#cbd5e1;
+      font-size:.85rem;
+      margin-top:6px;
+    }
+    .dot{
+      width:10px;height:10px;border-radius:50%;display:inline-block;margin-right:5px;vertical-align:middle;
+    }
+    .vgrid{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:12px;
+    }
+    .card{
+      background:rgba(31,41,55,.72);
+      border:1px solid #303a4e;
+      border-radius:12px;
+      padding:10px;
+    }
+    canvas{
+      width:100%;
+      height:auto;
+      border-radius:10px;
+      border:1px solid #2f3a4e;
+      background:#060d18;
+      image-rendering: pixelated;
+    }
+    .hint{
+      margin-top:8px;
+      color:#9fb0c8;
+      font-size:.86rem;
+      line-height:1.45;
+    }
+    .chk{
+      display:flex;align-items:center;gap:8px;
+      color:#d1d5db;font-size:.9rem;
+      margin:6px 2px 8px;
+    }
+    .tiny{
+      color:#9ca3af;
+      font-size:.8rem;
+      margin-top:5px;
+    }
+    @media (max-width: 1080px){
+      .grid{grid-template-columns:1fr}
+      .vgrid{grid-template-columns:1fr}
+    }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Interactive PET Coincidence Detection Simulator</h1>
+  <div class="subtitle">
+    Simulates back-to-back 511&nbsp;keV photon pairs from positron annihilation in a detector ring.
+    Use <strong>Live mode</strong> to watch gamma emissions over time while the image is reconstructed event-by-event.
+  </div>
+
+  <div class="grid">
+    <div class="panel">
+      <h2>Controls</h2>
+
+      <div class="row">
+        <div class="control">
+          <div class="top"><span class="label">Source X (cm)</span><span class="value" id="sxVal">0.0</span></div>
+          <input id="sx" type="range" min="-22" max="22" step="0.2" value="0">
+        </div>
+        <div class="control">
+          <div class="top"><span class="label">Source Y (cm)</span><span class="value" id="syVal">0.0</span></div>
+          <input id="sy" type="range" min="-22" max="22" step="0.2" value="0">
+        </div>
+      </div>
+
+      <div class="control">
+        <div class="top"><span class="label">Source spread σ (cm)</span><span class="value" id="sigmaVal">4.0</span></div>
+        <input id="sigma" type="range" min="1.0" max="12.0" step="0.1" value="4.0">
+      </div>
+
+      <label class="chk">
+        <input type="checkbox" id="source2enabled">
+        Add second source
+      </label>
+
+      <div id="source2controls" style="display:none">
+        <div class="row">
+          <div class="control">
+            <div class="top"><span class="label">2nd Source X (cm)</span><span class="value" id="s2xVal">12.0</span></div>
+            <input id="s2x" type="range" min="-22" max="22" step="0.2" value="12.0">
+          </div>
+          <div class="control">
+            <div class="top"><span class="label">2nd Source Y (cm)</span><span class="value" id="s2yVal">-8.0</span></div>
+            <input id="s2y" type="range" min="-22" max="22" step="0.2" value="-8.0">
+          </div>
+        </div>
+        <div class="control">
+          <div class="top"><span class="label">2nd Source Strength</span><span class="value" id="s2wVal">0.7</span></div>
+          <input id="s2w" type="range" min="0.1" max="2.0" step="0.1" value="0.7">
+        </div>
+      </div>
+
+      <div class="control">
+        <div class="top"><span class="label">Detectors on ring</span><span class="value" id="detVal">96</span></div>
+        <input id="detectors" type="range" min="24" max="180" step="2" value="96">
+      </div>
+
+      <div class="row">
+        <div class="control">
+          <div class="top"><span class="label">Coincidence window (ns)</span><span class="value" id="winVal">1.6</span></div>
+          <input id="window" type="range" min="0.1" max="6.0" step="0.1" value="1.6">
+        </div>
+        <div class="control">
+          <div class="top"><span class="label">Timing jitter σ (ns)</span><span class="value" id="jitVal">0.25</span></div>
+          <input id="jitter" type="range" min="0.02" max="1.5" step="0.01" value="0.25">
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="control">
+          <div class="top"><span class="label">Accidental fraction</span><span class="value" id="randVal">0.15</span></div>
+          <input id="randomFrac" type="range" min="0" max="0.8" step="0.01" value="0.15">
+        </div>
+        <div class="control">
+          <div class="top"><span class="label">Events / batch</span><span class="value" id="batchVal">800</span></div>
+          <input id="batch" type="range" min="100" max="5000" step="100" value="800">
+        </div>
+      </div>
+
+      <label class="chk">
+        <input type="checkbox" id="liveMode">
+        Live mode (emit photons over time)
+      </label>
+
+      <div class="control">
+        <div class="top"><span class="label">Live rate (true events/s)</span><span class="value" id="liveRateVal">40</span></div>
+        <input id="liveRate" type="range" min="1" max="220" step="1" value="40">
+      </div>
+
+      <label class="chk">
+        <input type="checkbox" id="tofRecon">
+        TOF correction for reconstruction (reduce trails)
+      </label>
+
+      <div class="buttons">
+        <button id="run" class="primary">Run Batch</button>
+        <button id="play">Play</button>
+        <button id="reset">Reset</button>
+      </div>
+
+      <div class="stats" id="stats"></div>
+      <div class="legend">
+        <span><span class="dot" style="background:#22c55e"></span>True coincidences</span>
+        <span><span class="dot" style="background:#ef4444"></span>Random coincidences</span>
+        <span><span class="dot" style="background:#38bdf8"></span>Live gamma rays</span>
+        <span><span class="dot" style="background:#fb923c"></span>Rejected true event</span>
+      </div>
+      <div class="tiny">Model: line-of-response backprojection (unfiltered) + coincidence timing gate.</div>
+    </div>
+
+    <div class="viz">
+      <h2>Detector Ring and Reconstructed Image</h2>
+      <div class="vgrid">
+        <div class="card">
+          <div style="margin-bottom:8px;color:#cbd5e1;font-size:.9rem">Coincidence events in detector ring</div>
+          <canvas id="ringCanvas" width="520" height="520"></canvas>
+          <div class="hint">Live mode animates each annihilation and outgoing gamma pair; accepted coincidences contribute to reconstruction.</div>
+        </div>
+        <div class="card">
+          <div style="margin-bottom:8px;color:#cbd5e1;font-size:.9rem">Reconstruction (backprojection)</div>
+          <canvas id="reconCanvas" width="520" height="520"></canvas>
+          <div class="hint">This map is formed only from accepted prompt coincidences and gradually fills during live mode.</div>
+        </div>
+      </div>
+      <div class="vgrid" style="margin-top:12px;">
+        <div class="card">
+          <div style="margin-bottom:8px;color:#cbd5e1;font-size:.9rem">True activity (ground truth)</div>
+          <canvas id="truthCanvas" width="520" height="520"></canvas>
+        </div>
+        <div class="card">
+          <div style="margin-bottom:8px;color:#cbd5e1;font-size:.9rem">Sinogram (θ vs s)</div>
+          <canvas id="sinoCanvas" width="520" height="520"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  const C_CM_PER_NS = 29.9792458;
+  const RING_RADIUS_CM = 40;
+  const FOV_RADIUS_CM = 38;
+  const N = 128;
+  const N_THETA = 180;
+  const N_S = 128;
+  const LOR_HISTORY = 260;
+  const LIVE_TRACK_LIMIT = 140;
+  const LIVE_FLASH_LIMIT = 100;
+
+  const $ = (id) => document.getElementById(id);
+  const ringCanvas = $("ringCanvas");
+  const reconCanvas = $("reconCanvas");
+  const truthCanvas = $("truthCanvas");
+  const sinoCanvas = $("sinoCanvas");
+
+  const controls = {
+    sx: $("sx"), sy: $("sy"), sigma: $("sigma"),
+    source2enabled: $("source2enabled"), s2x: $("s2x"), s2y: $("s2y"), s2w: $("s2w"),
+    detectors: $("detectors"),
+    window: $("window"), jitter: $("jitter"),
+    randomFrac: $("randomFrac"), batch: $("batch"),
+    liveMode: $("liveMode"), liveRate: $("liveRate"), tofRecon: $("tofRecon"),
+    run: $("run"), play: $("play"), reset: $("reset")
+  };
+
+  const vals = {
+    sx: $("sxVal"), sy: $("syVal"), sigma: $("sigmaVal"),
+    s2x: $("s2xVal"), s2y: $("s2yVal"), s2w: $("s2wVal"),
+    det: $("detVal"), win: $("winVal"), jit: $("jitVal"), rand: $("randVal"), batch: $("batchVal"),
+    liveRate: $("liveRateVal"),
+    stats: $("stats")
+  };
+
+  const source2Controls = $("source2controls");
+
+  const state = {
+    running: false,
+    detectors: 96,
+    batchSize: 800,
+    timingWindowNs: 1.6,
+    jitterNs: 0.25,
+    randomFrac: 0.15,
+    liveMode: false,
+    liveRate: 40,
+    reconUseTOF: false,
+    source1: { x: 0, y: 0, sigma: 4.0, weight: 1.0 },
+    source2: { enabled: false, x: 12, y: -8, weight: 0.7 },
+
+    trueGenerated: 0,
+    trueAccepted: 0,
+    trueRejected: 0,
+    randAccepted: 0,
+    randRejected: 0,
+  };
+
+  let detectorPos = [];
+  let recon = new Float32Array(N * N);
+  let truth = new Float32Array(N * N);
+  let sino = new Float32Array(N_THETA * N_S);
+  let recentLORs = [];
+  let liveTracks = [];
+  let liveFlashes = [];
+
+  function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+  function randn() {
+    let u = 0, v = 0;
+    while (u === 0) u = Math.random();
+    while (v === 0) v = Math.random();
+    return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+  }
+
+  function cmToGrid(x, y, w = N, h = N) {
+    const ix = Math.floor((x + FOV_RADIUS_CM) / (2 * FOV_RADIUS_CM) * w);
+    const iy = Math.floor((y + FOV_RADIUS_CM) / (2 * FOV_RADIUS_CM) * h);
+    return { ix, iy };
+  }
+
+  function index2D(x, y, width) {
+    return y * width + x;
+  }
+
+  function buildDetectors() {
+    detectorPos = [];
+    const n = state.detectors;
+    for (let i = 0; i < n; i++) {
+      const a = (2 * Math.PI * i / n) - Math.PI;
+      detectorPos.push({ x: RING_RADIUS_CM * Math.cos(a), y: RING_RADIUS_CM * Math.sin(a) });
+    }
+  }
+
+  function nearestDetector(x, y) {
+    const ang = Math.atan2(y, x);
+    let idx = Math.round((ang + Math.PI) / (2 * Math.PI) * state.detectors) % state.detectors;
+    if (idx < 0) idx += state.detectors;
+    return idx;
+  }
+
+  function sampleSourcePoint() {
+    const s1 = state.source1;
+    const use2 = state.source2.enabled;
+    let sx = s1.x, sy = s1.y;
+    if (use2) {
+      const total = s1.weight + state.source2.weight;
+      if (Math.random() > s1.weight / total) {
+        sx = state.source2.x;
+        sy = state.source2.y;
+      }
+    }
+    const sigma = s1.sigma;
+    for (let tries = 0; tries < 40; tries++) {
+      const x = sx + randn() * sigma;
+      const y = sy + randn() * sigma;
+      if (x * x + y * y < (FOV_RADIUS_CM - 0.5) ** 2) return { x, y };
+    }
+    return {
+      x: clamp(sx, -FOV_RADIUS_CM + 0.5, FOV_RADIUS_CM - 0.5),
+      y: clamp(sy, -FOV_RADIUS_CM + 0.5, FOV_RADIUS_CM - 0.5)
+    };
+  }
+
+  function addSinogramLOR(d1, d2, weight = 1) {
+    const dx = d2.x - d1.x;
+    const dy = d2.y - d1.y;
+    let phi = Math.atan2(dy, dx) + Math.PI / 2;
+    let s = d1.x * Math.cos(phi) + d1.y * Math.sin(phi);
+
+    if (s < 0) {
+      s = -s;
+      phi += Math.PI;
+    }
+    phi = ((phi % Math.PI) + Math.PI) % Math.PI;
+
+    const ib = clamp(Math.floor(phi / Math.PI * N_THETA), 0, N_THETA - 1);
+    const jb = clamp(Math.floor((s + RING_RADIUS_CM) / (2 * RING_RADIUS_CM) * N_S), 0, N_S - 1);
+
+    sino[index2D(jb, ib, N_S)] += weight;
+  }
+
+  function backprojectLine(d1, d2, weight = 1) {
+    const dx = d2.x - d1.x;
+    const dy = d2.y - d1.y;
+    const length = Math.hypot(dx, dy);
+    const steps = Math.max(12, Math.ceil(length / 0.35));
+
+    for (let k = 0; k <= steps; k++) {
+      const t = k / steps;
+      const x = d1.x + t * dx;
+      const y = d1.y + t * dy;
+
+      if ((x * x + y * y) > FOV_RADIUS_CM * FOV_RADIUS_CM) continue;
+
+      const { ix, iy } = cmToGrid(x, y, N, N);
+      if (ix >= 0 && ix < N && iy >= 0 && iy < N) {
+        recon[index2D(ix, iy, N)] += weight;
+      }
+    }
+  }
+
+  function depositGaussian(x0, y0, sigmaCm, weight = 1) {
+    const radius = 3 * sigmaCm;
+    const xMin = x0 - radius, xMax = x0 + radius;
+    const yMin = y0 - radius, yMax = y0 + radius;
+
+    const gx0 = Math.max(0, Math.floor((xMin + FOV_RADIUS_CM) / (2 * FOV_RADIUS_CM) * N));
+    const gx1 = Math.min(N - 1, Math.floor((xMax + FOV_RADIUS_CM) / (2 * FOV_RADIUS_CM) * N));
+    const gy0 = Math.max(0, Math.floor((yMin + FOV_RADIUS_CM) / (2 * FOV_RADIUS_CM) * N));
+    const gy1 = Math.min(N - 1, Math.floor((yMax + FOV_RADIUS_CM) / (2 * FOV_RADIUS_CM) * N));
+
+    const s2 = 2 * sigmaCm * sigmaCm;
+    for (let iy = gy0; iy <= gy1; iy++) {
+      const y = ((iy + 0.5) / N) * 2 * FOV_RADIUS_CM - FOV_RADIUS_CM;
+      for (let ix = gx0; ix <= gx1; ix++) {
+        const x = ((ix + 0.5) / N) * 2 * FOV_RADIUS_CM - FOV_RADIUS_CM;
+        if (x * x + y * y > FOV_RADIUS_CM * FOV_RADIUS_CM) continue;
+        const dx = x - x0, dy = y - y0;
+        const g = Math.exp(-(dx * dx + dy * dy) / s2);
+        recon[index2D(ix, iy, N)] += weight * g;
+      }
+    }
+  }
+
+  function backprojectTOF(d1, d2, dtNs, weight = 1) {
+    const dx = d2.x - d1.x;
+    const dy = d2.y - d1.y;
+    const L = Math.hypot(dx, dy);
+    if (L < 1e-9) return;
+
+    const ux = dx / L, uy = dy / L;
+    const mx = 0.5 * (d1.x + d2.x);
+    const my = 0.5 * (d1.y + d2.y);
+
+    const offsetCm = 0.5 * C_CM_PER_NS * dtNs;
+    const xTof = mx + offsetCm * ux;
+    const yTof = my + offsetCm * uy;
+
+    const sigmaTofCm = Math.max(0.7, 0.5 * C_CM_PER_NS * state.jitterNs);
+    depositGaussian(xTof, yTof, sigmaTofCm, weight);
+  }
+
+  function addCoincidence(i, j, isTrue, dtNs = 0) {
+    const d1 = detectorPos[i];
+    const d2 = detectorPos[j];
+
+    recentLORs.push({ d1, d2, isTrue });
+    if (recentLORs.length > LOR_HISTORY) recentLORs.shift();
+
+    if (state.reconUseTOF) {
+      backprojectTOF(d1, d2, dtNs, 1.0);
+    } else {
+      backprojectLine(d1, d2, 1.0);
+    }
+    addSinogramLOR(d1, d2, 1.0);
+  }
+
+  function pushLiveTrack(evt) {
+    if (!evt || !evt.p || !evt.qA || !evt.qB) return;
+    liveTracks.push({
+      p: evt.p,
+      q1: evt.qA,
+      q2: evt.qB,
+      accepted: !!evt.accepted,
+      age: 0,
+      t: 0,
+      speed: 2.7,
+      ttl: 1.2
+    });
+    if (liveTracks.length > LIVE_TRACK_LIMIT) liveTracks.shift();
+  }
+
+  function pushRandomFlash(d1, d2) {
+    liveFlashes.push({ d1, d2, age: 0, ttl: 0.22 });
+    if (liveFlashes.length > LIVE_FLASH_LIMIT) liveFlashes.shift();
+  }
+
+  function updateLiveVisuals(dtSec) {
+    for (let i = liveTracks.length - 1; i >= 0; i--) {
+      const tr = liveTracks[i];
+      tr.age += dtSec;
+      tr.t = Math.min(1, tr.t + tr.speed * dtSec);
+      if (tr.age >= tr.ttl) liveTracks.splice(i, 1);
+    }
+    for (let i = liveFlashes.length - 1; i >= 0; i--) {
+      const fl = liveFlashes[i];
+      fl.age += dtSec;
+      if (fl.age >= fl.ttl) liveFlashes.splice(i, 1);
+    }
+  }
+
+  function simulateTrueEventDetailed() {
+    state.trueGenerated += 1;
+
+    const p = sampleSourcePoint();
+    const theta = Math.random() * Math.PI;
+    const ux = Math.cos(theta), uy = Math.sin(theta);
+
+    const pu = p.x * ux + p.y * uy;
+    const pp = p.x * p.x + p.y * p.y;
+    const disc = pu * pu + (RING_RADIUS_CM * RING_RADIUS_CM - pp);
+    if (disc <= 0) {
+      state.trueRejected += 1;
+      return null;
+    }
+
+    const s = Math.sqrt(disc);
+    const tA = -pu + s;
+    const tB = -pu - s;
+
+    const qA = { x: p.x + tA * ux, y: p.y + tA * uy };
+    const qB = { x: p.x + tB * ux, y: p.y + tB * uy };
+
+    const i = nearestDetector(qA.x, qA.y);
+    const j = nearestDetector(qB.x, qB.y);
+
+    const evt = { p, qA, qB, i, j, accepted: false };
+
+    if (i === j) {
+      state.trueRejected += 1;
+      return evt;
+    }
+
+    const d1 = detectorPos[i];
+    const d2 = detectorPos[j];
+    const l1 = Math.hypot(p.x - d1.x, p.y - d1.y);
+    const l2 = Math.hypot(p.x - d2.x, p.y - d2.y);
+
+    const dt = (l1 - l2) / C_CM_PER_NS + randn() * Math.SQRT2 * state.jitterNs;
+    evt.dt = dt;
+
+    if (Math.abs(dt) <= state.timingWindowNs) {
+      evt.accepted = true;
+      state.trueAccepted += 1;
+      addCoincidence(i, j, true, dt);
+    } else {
+      state.trueRejected += 1;
+    }
+
+    return evt;
+  }
+
+  function simulateTrueEvent() {
+    simulateTrueEventDetailed();
+  }
+
+  function simulateRandomSingle() {
+    const i = Math.floor(Math.random() * state.detectors);
+    let j = Math.floor(Math.random() * state.detectors);
+    if (j === i) j = (j + Math.floor(state.detectors / 2)) % state.detectors;
+
+    const dt = (Math.random() * 2 - 1) * 8 + randn() * Math.SQRT2 * state.jitterNs;
+    if (Math.abs(dt) <= state.timingWindowNs) {
+      state.randAccepted += 1;
+      addCoincidence(i, j, false, dt);
+      pushRandomFlash(detectorPos[i], detectorPos[j]);
+      return true;
+    } else {
+      state.randRejected += 1;
+      return false;
+    }
+  }
+
+  function simulateRandomAccidentals(nTrue) {
+    const nRand = Math.max(0, Math.round(nTrue * state.randomFrac * (0.75 + 0.5 * Math.random())));
+    for (let k = 0; k < nRand; k++) simulateRandomSingle();
+  }
+
+  function simulateBatch() {
+    const n = state.batchSize;
+    for (let k = 0; k < n; k++) simulateTrueEvent();
+    simulateRandomAccidentals(n);
+    drawAll();
+  }
+
+  function simulateLiveEvent() {
+    const evt = simulateTrueEventDetailed();
+    pushLiveTrack(evt);
+
+    if (Math.random() < state.randomFrac) simulateRandomSingle();
+  }
+
+  function clearAllData() {
+    recon.fill(0);
+    sino.fill(0);
+    recentLORs = [];
+    liveTracks = [];
+    liveFlashes = [];
+
+    state.trueGenerated = 0;
+    state.trueAccepted = 0;
+    state.trueRejected = 0;
+    state.randAccepted = 0;
+    state.randRejected = 0;
+  }
+
+  function gaussian2D(x, y, cx, cy, sigma, weight) {
+    const dx = x - cx, dy = y - cy;
+    return weight * Math.exp(-(dx * dx + dy * dy) / (2 * sigma * sigma));
+  }
+
+  function rebuildTruth() {
+    const sigma = state.source1.sigma;
+    for (let iy = 0; iy < N; iy++) {
+      const y = ((iy + 0.5) / N) * 2 * FOV_RADIUS_CM - FOV_RADIUS_CM;
+      for (let ix = 0; ix < N; ix++) {
+        const x = ((ix + 0.5) / N) * 2 * FOV_RADIUS_CM - FOV_RADIUS_CM;
+        let val = 0;
+        if ((x * x + y * y) <= FOV_RADIUS_CM * FOV_RADIUS_CM) {
+          val += gaussian2D(x, y, state.source1.x, state.source1.y, sigma, state.source1.weight);
+          if (state.source2.enabled) {
+            val += gaussian2D(x, y, state.source2.x, state.source2.y, sigma, state.source2.weight);
+          }
+        }
+        truth[index2D(ix, iy, N)] = val;
+      }
+    }
+  }
+
+  function colorMap(t) {
+    t = clamp(t, 0, 1);
+    let r=0, g=0, b=0;
+    if (t < 0.25) {
+      r = 0;
+      g = Math.round(4 * t * 255);
+      b = 255;
+    } else if (t < 0.5) {
+      r = 0;
+      g = 255;
+      b = Math.round((1 - 4 * (t - 0.25)) * 255);
+    } else if (t < 0.75) {
+      r = Math.round(4 * (t - 0.5) * 255);
+      g = 255;
+      b = 0;
+    } else {
+      r = 255;
+      g = Math.round((1 - 4 * (t - 0.75)) * 255);
+      b = 0;
+    }
+    return [r, g, b];
+  }
+
+  function drawHeatmap(canvas, grid, w, h, opts = {}) {
+    const ctx = canvas.getContext("2d");
+    const off = document.createElement("canvas");
+    off.width = w;
+    off.height = h;
+    const octx = off.getContext("2d");
+    const img = octx.createImageData(w, h);
+
+    let vmax = 0;
+    for (let i = 0; i < grid.length; i++) if (grid[i] > vmax) vmax = grid[i];
+    if (vmax <= 0) vmax = 1;
+
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const v = grid[index2D(x, y, w)];
+        const t = Math.sqrt(v / vmax);
+        const [r, g, b] = colorMap(t);
+        const p = 4 * index2D(x, y, w);
+        img.data[p] = r;
+        img.data[p + 1] = g;
+        img.data[p + 2] = b;
+        img.data[p + 3] = 255;
+      }
+    }
+    octx.putImageData(img, 0, 0);
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.save();
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(off, 0, 0, canvas.width, canvas.height);
+
+    if (opts.circleMask) {
+      const cx = canvas.width / 2;
+      const cy = canvas.height / 2;
+      const r = canvas.width * 0.48;
+      ctx.fillStyle = "rgba(5, 9, 17, 0.62)";
+      ctx.beginPath();
+      ctx.rect(0,0,canvas.width,canvas.height);
+      ctx.arc(cx, cy, r, 0, Math.PI*2, true);
+      ctx.fill("evenodd");
+      ctx.strokeStyle = "rgba(220,230,245,0.25)";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI*2);
+      ctx.stroke();
+    }
+
+    if (opts.label) {
+      ctx.fillStyle = "rgba(220,230,245,.8)";
+      ctx.font = "12px system-ui, sans-serif";
+      ctx.fillText(opts.label, 10, 18);
+    }
+
+    ctx.restore();
+  }
+
+  function drawRing() {
+    const ctx = ringCanvas.getContext("2d");
+    const W = ringCanvas.width, H = ringCanvas.height;
+    const cx = W / 2, cy = H / 2;
+    const scale = (W * 0.45) / RING_RADIUS_CM;
+
+    function xp(x) { return cx + x * scale; }
+    function yp(y) { return cy + y * scale; }
+
+    ctx.clearRect(0, 0, W, H);
+
+    const grd = ctx.createRadialGradient(cx, cy, 8, cx, cy, W*0.48);
+    grd.addColorStop(0, "rgba(20,38,72,0.35)");
+    grd.addColorStop(1, "rgba(2,8,18,0)");
+    ctx.fillStyle = grd;
+    ctx.fillRect(0,0,W,H);
+
+    ctx.strokeStyle = "rgba(226,232,240,.75)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(cx, cy, RING_RADIUS_CM * scale, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.strokeStyle = "rgba(148,163,184,.28)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(cx, cy, FOV_RADIUS_CM * scale, 0, Math.PI * 2);
+    ctx.stroke();
+
+    const s = state.source1;
+    ctx.fillStyle = "rgba(56,189,248,.92)";
+    ctx.beginPath();
+    ctx.arc(xp(s.x), yp(s.y), 5, 0, Math.PI*2);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(56,189,248,.6)";
+    ctx.beginPath();
+    ctx.arc(xp(s.x), yp(s.y), state.source1.sigma * scale, 0, Math.PI*2);
+    ctx.stroke();
+
+    if (state.source2.enabled) {
+      const t = state.source2;
+      ctx.fillStyle = "rgba(167,139,250,.95)";
+      ctx.beginPath();
+      ctx.arc(xp(t.x), yp(t.y), 5, 0, Math.PI*2);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(167,139,250,.6)";
+      ctx.beginPath();
+      ctx.arc(xp(t.x), yp(t.y), state.source1.sigma * scale, 0, Math.PI*2);
+      ctx.stroke();
+    }
+
+    for (const lor of recentLORs) {
+      ctx.strokeStyle = lor.isTrue ? "rgba(34,197,94,.28)" : "rgba(239,68,68,.28)";
+      ctx.lineWidth = 1.0;
+      ctx.beginPath();
+      ctx.moveTo(xp(lor.d1.x), yp(lor.d1.y));
+      ctx.lineTo(xp(lor.d2.x), yp(lor.d2.y));
+      ctx.stroke();
+    }
+
+    for (const fl of liveFlashes) {
+      const a = 1 - (fl.age / fl.ttl);
+      ctx.strokeStyle = `rgba(239,68,68,${0.9 * a})`;
+      ctx.lineWidth = 2.4;
+      ctx.beginPath();
+      ctx.moveTo(xp(fl.d1.x), yp(fl.d1.y));
+      ctx.lineTo(xp(fl.d2.x), yp(fl.d2.y));
+      ctx.stroke();
+    }
+
+    for (const tr of liveTracks) {
+      const a = 1 - (tr.age / tr.ttl);
+      const prog = clamp(tr.t, 0, 1);
+      const x1 = tr.p.x + (tr.q1.x - tr.p.x) * prog;
+      const y1 = tr.p.y + (tr.q1.y - tr.p.y) * prog;
+      const x2 = tr.p.x + (tr.q2.x - tr.p.x) * prog;
+      const y2 = tr.p.y + (tr.q2.y - tr.p.y) * prog;
+
+      const col = tr.accepted
+        ? `rgba(56,189,248,${0.85 * a})`
+        : `rgba(251,146,60,${0.75 * a})`;
+
+      ctx.strokeStyle = col;
+      ctx.lineWidth = 2.0;
+      ctx.beginPath();
+      ctx.moveTo(xp(tr.p.x), yp(tr.p.y));
+      ctx.lineTo(xp(x1), yp(y1));
+      ctx.moveTo(xp(tr.p.x), yp(tr.p.y));
+      ctx.lineTo(xp(x2), yp(y2));
+      ctx.stroke();
+
+      ctx.fillStyle = col;
+      ctx.beginPath();
+      ctx.arc(xp(x1), yp(y1), 2.3, 0, Math.PI * 2);
+      ctx.arc(xp(x2), yp(y2), 2.3, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = `rgba(248,250,252,${0.55 * a})`;
+      ctx.beginPath();
+      ctx.arc(xp(tr.p.x), yp(tr.p.y), 2.0 + 2.0 * (1 - prog), 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    for (const d of detectorPos) {
+      ctx.fillStyle = "rgba(229,231,235,.95)";
+      ctx.beginPath();
+      ctx.arc(xp(d.x), yp(d.y), 1.8, 0, Math.PI*2);
+      ctx.fill();
+    }
+
+    ctx.strokeStyle = "rgba(148,163,184,.35)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(cx - 8, cy); ctx.lineTo(cx + 8, cy);
+    ctx.moveTo(cx, cy - 8); ctx.lineTo(cx, cy + 8);
+    ctx.stroke();
+  }
+
+  function drawRecon() {
+    drawHeatmap(reconCanvas, recon, N, N, { circleMask: true, label: "Accepted prompt coincidences backprojected" });
+  }
+
+  function drawTruth() {
+    drawHeatmap(truthCanvas, truth, N, N, { circleMask: true, label: "Underlying source activity" });
+  }
+
+  function drawSinogram() {
+    drawHeatmap(sinoCanvas, sino, N_S, N_THETA, { circleMask: false, label: "θ (vertical) vs s (horizontal)" });
+  }
+
+  function updateStats() {
+    const tg = state.trueGenerated;
+    const ta = state.trueAccepted;
+    const tr = state.trueRejected;
+    const ra = state.randAccepted;
+    const rr = state.randRejected;
+    const prompt = ta + ra;
+
+    const eff = tg > 0 ? (100 * ta / tg) : 0;
+    const randFrac = prompt > 0 ? (100 * ra / prompt) : 0;
+    const snr = ra > 0 ? (ta / ra) : Infinity;
+
+    vals.stats.innerHTML = `
+      <div><strong>Mode:</strong> ${state.liveMode ? `Live @ ${state.liveRate.toFixed(0)} true events/s` : `Batch (${state.batchSize.toLocaleString()} true events per batch)`}</div>
+      <div><strong>Reconstruction:</strong> ${state.reconUseTOF ? "TOF-corrected (reduced trails)" : "LOR backprojection (with trails)"}</div>
+      <div><strong>True generated:</strong> ${tg.toLocaleString()}</div>
+      <div><strong>Accepted true coincidences:</strong> ${ta.toLocaleString()} &nbsp;|&nbsp; <strong>Rejected true:</strong> ${tr.toLocaleString()}</div>
+      <div><strong>Accepted random coincidences:</strong> ${ra.toLocaleString()} &nbsp;|&nbsp; <strong>Rejected random:</strong> ${rr.toLocaleString()}</div>
+      <div><strong>Prompt coincidences used for image:</strong> ${prompt.toLocaleString()}</div>
+      <div><strong>True coincidence efficiency:</strong> ${eff.toFixed(1)}%</div>
+      <div><strong>Random contamination in prompts:</strong> ${randFrac.toFixed(1)}%</div>
+      <div><strong>True:Random ratio:</strong> ${Number.isFinite(snr) ? snr.toFixed(2) + ":1" : "∞"}</div>
+    `;
+  }
+
+  function drawAll() {
+    drawRing();
+    drawRecon();
+    drawTruth();
+    drawSinogram();
+    updateStats();
+  }
+
+  function syncControlValues() {
+    vals.sx.textContent = Number(controls.sx.value).toFixed(1);
+    vals.sy.textContent = Number(controls.sy.value).toFixed(1);
+    vals.sigma.textContent = Number(controls.sigma.value).toFixed(1);
+    vals.s2x.textContent = Number(controls.s2x.value).toFixed(1);
+    vals.s2y.textContent = Number(controls.s2y.value).toFixed(1);
+    vals.s2w.textContent = Number(controls.s2w.value).toFixed(1);
+    vals.det.textContent = Number(controls.detectors.value).toFixed(0);
+    vals.win.textContent = Number(controls.window.value).toFixed(1);
+    vals.jit.textContent = Number(controls.jitter.value).toFixed(2);
+    vals.rand.textContent = Number(controls.randomFrac.value).toFixed(2);
+    vals.batch.textContent = Number(controls.batch.value).toFixed(0);
+    vals.liveRate.textContent = Number(controls.liveRate.value).toFixed(0);
+  }
+
+  function applyControls() {
+    state.source1.x = Number(controls.sx.value);
+    state.source1.y = Number(controls.sy.value);
+    state.source1.sigma = Number(controls.sigma.value);
+    state.source2.enabled = controls.source2enabled.checked;
+    state.source2.x = Number(controls.s2x.value);
+    state.source2.y = Number(controls.s2y.value);
+    state.source2.weight = Number(controls.s2w.value);
+
+    state.detectors = Number(controls.detectors.value);
+    state.timingWindowNs = Number(controls.window.value);
+    state.jitterNs = Number(controls.jitter.value);
+    state.randomFrac = Number(controls.randomFrac.value);
+    state.batchSize = Number(controls.batch.value);
+    state.liveMode = controls.liveMode.checked;
+    state.liveRate = Number(controls.liveRate.value);
+    state.reconUseTOF = controls.tofRecon.checked;
+
+    source2Controls.style.display = state.source2.enabled ? "block" : "none";
+  }
+
+  function refreshButtonLabels() {
+    controls.run.textContent = state.liveMode ? "Run 1s Burst" : "Run Batch";
+    if (state.running) {
+      controls.play.textContent = "Pause";
+    } else {
+      controls.play.textContent = state.liveMode ? "Start Live" : "Play";
+    }
+  }
+
+  function refreshModel(rebuildDet = false) {
+    syncControlValues();
+    applyControls();
+    if (rebuildDet) buildDetectors();
+    rebuildTruth();
+    refreshButtonLabels();
+    drawAll();
+  }
+
+  let lastTs = 0;
+  let batchTimerMs = 0;
+  let eventAccumulator = 0;
+
+  function tick(ts) {
+    if (!state.running) {
+      lastTs = 0;
+      return;
+    }
+
+    if (!lastTs) lastTs = ts;
+    const dtMs = ts - lastTs;
+    lastTs = ts;
+
+    if (state.liveMode) {
+      eventAccumulator += (dtMs * state.liveRate / 1000);
+      let guard = 0;
+      while (eventAccumulator >= 1 && guard < 5000) {
+        simulateLiveEvent();
+        eventAccumulator -= 1;
+        guard++;
+      }
+      updateLiveVisuals(dtMs / 1000);
+      drawAll();
+    } else {
+      batchTimerMs += dtMs;
+      if (batchTimerMs >= 75) {
+        simulateBatch();
+        batchTimerMs = 0;
+      }
+      if (liveTracks.length || liveFlashes.length) {
+        updateLiveVisuals(dtMs / 1000);
+        drawRing();
+      }
+    }
+
+    requestAnimationFrame(tick);
+  }
+
+  const rerenderInputs = [
+    controls.sx, controls.sy, controls.sigma,
+    controls.source2enabled, controls.s2x, controls.s2y, controls.s2w,
+    controls.window, controls.jitter, controls.randomFrac, controls.batch,
+    controls.liveMode, controls.liveRate, controls.tofRecon
+  ];
+
+  rerenderInputs.forEach(el => {
+    el.addEventListener("input", () => refreshModel(false));
+    el.addEventListener("change", () => refreshModel(false));
+  });
+
+  controls.detectors.addEventListener("input", () => refreshModel(true));
+  controls.detectors.addEventListener("change", () => refreshModel(true));
+
+  controls.tofRecon.addEventListener("change", () => {
+    clearAllData();
+    rebuildTruth();
+    drawAll();
+  });
+
+  controls.run.addEventListener("click", () => {
+    if (state.liveMode) {
+      const n = Math.max(1, Math.round(state.liveRate));
+      for (let i = 0; i < n; i++) simulateLiveEvent();
+      drawAll();
+    } else {
+      simulateBatch();
+    }
+  });
+
+  controls.reset.addEventListener("click", () => {
+    clearAllData();
+    rebuildTruth();
+    drawAll();
+  });
+
+  controls.play.addEventListener("click", () => {
+    state.running = !state.running;
+    refreshButtonLabels();
+    if (state.running) requestAnimationFrame(tick);
+  });
+
+  syncControlValues();
+  applyControls();
+  buildDetectors();
+  rebuildTruth();
+  refreshButtonLabels();
+  drawAll();
+
+})();
+</script>
+</body>
+</html>
