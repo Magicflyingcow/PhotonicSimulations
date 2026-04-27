@@ -14,7 +14,7 @@ export default function PetCoincidence() {
           onClick={() => navigate("/")}
           variant="outline"
           size="sm"
-          className="w-fit rounded-full border-white/30 bg-white/10 text-white hover:bg-white/20"
+          className="w-fit rounded-full border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
         >
           ← Back to library
         </Button>

@@ -120,13 +120,13 @@ export default function FourierConcepts() {
         <div className="mx-auto max-w-6xl space-y-6">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-300">
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-600">
                 FTIR learning station
               </p>
-              <h1 className="text-3xl font-semibold tracking-tight text-white">
+              <h1 className="text-3xl font-semibold tracking-tight text-slate-900">
                 Superposition & Fourier Transform intuition
               </h1>
-              <p className="text-base text-slate-200">
+              <p className="text-base text-slate-700">
                 Every FTIR engine relies on a simple idea: the interferogram that we scan in time is just a superposition of many
                 sine waves. The Fourier transform teases those waves apart and reveals the spectrum—in this case, familiar red,
                 green, and blue wavelengths from the visible band.

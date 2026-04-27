@@ -565,7 +565,7 @@ export default function FTIR_Michelson_VCSEL_Sim() {
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div className="flex flex-col gap-2">
               <h1 className="text-2xl font-semibold tracking-tight">FTIR Engine — Michelson Interferometer with VCSEL Metrology</h1>
-              <p className="text-sm text-slate-200">
+              <p className="text-sm text-slate-700">
                 Real-time simulation of a compact FT-NIR engine: beamsplitter, fixed & movable mirrors (MEMS), VCSEL metrology, interferogram acquisition, and FFT-based spectrum.
               </p>
             </div>
@@ -573,7 +573,7 @@ export default function FTIR_Michelson_VCSEL_Sim() {
               onClick={() => navigate("/")}
               variant="outline"
               size="sm"
-              className="self-start whitespace-nowrap border-white/30 bg-white/10 text-white hover:bg-white/20"
+              className="self-start whitespace-nowrap border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
             >
               ← Back to simulations
             </Button>

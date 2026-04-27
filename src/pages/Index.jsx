@@ -47,15 +47,15 @@ export default function IndexPage() {
     <div className="sim-app-bg">
       <main className="sim-page-wrap flex min-h-screen max-w-4xl flex-col gap-10">
         <header className="space-y-4">
-          <p className="text-sm font-medium uppercase tracking-[0.3em] text-slate-300">Photonic Simulations</p>
-          <h1 className="text-3xl font-semibold tracking-tight text-white">Simulation Library</h1>
-          <p className="max-w-xl text-sm text-slate-600">
+          <p className="text-sm font-medium uppercase tracking-[0.3em] text-slate-600">Photonic Simulations</p>
+          <h1 className="text-3xl font-semibold tracking-tight text-slate-900">Simulation Library</h1>
+          <p className="max-w-xl text-sm text-slate-700">
             Simulations for visual explanation of photonics products
           </p>
         </header>
 
         <section className="space-y-4">
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-300">Available demos</h2>
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-600">Available demos</h2>
           <div className="space-y-3">
             {simulations.map(({ title, description, path }) => (
               <article
@@ -82,7 +82,7 @@ export default function IndexPage() {
           </div>
         </section>
 
-        <footer className="mt-auto text-xs text-slate-300">
+        <footer className="mt-auto text-xs text-slate-600">
           These prototypes are maintained for internal demonstrations. Reach out to the photonics team for access or
           feedback.
         </footer>

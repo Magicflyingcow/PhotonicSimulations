@@ -78,11 +78,11 @@ export default function CommonEquations() {
           >
             ← Back to library
           </button>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-300">Common Equations</p>
-          <h1 className="text-2xl font-semibold tracking-tight text-white">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-600">Common Equations</p>
+          <h1 className="text-2xl font-semibold tracking-tight text-slate-900">
             QE ↔ Count Sensitivity ↔ Cathode Radiant Sensitivity Converter
           </h1>
-          <p className="max-w-2xl text-sm text-slate-200">
+          <p className="max-w-2xl text-sm text-slate-700">
             Convert between detector quantum efficiency, count sensitivity (counts/s/pW), and cathode radiant sensitivity
             (mA/W) at a selected wavelength.
           </p>
