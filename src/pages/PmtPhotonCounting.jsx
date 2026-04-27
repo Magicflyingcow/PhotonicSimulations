@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 
 export default function PmtPhotonCounting() {
   const navigate = useNavigate();
+  const simulationPath = `${import.meta.env.BASE_URL}pmt_photon_counting_sim.html`;
 
   return (
     <div className="sim-app-bg flex min-h-screen flex-col">
@@ -19,11 +20,11 @@ export default function PmtPhotonCounting() {
         </Button>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-hidden">
+      <div className="flex-1">
         <iframe
           title="PMT photon counting simulation"
-          src="/pmt_photon_counting_sim.html"
-          className="h-full w-full border-0 bg-transparent"
+          src={simulationPath}
+          className="min-h-[calc(100vh-5.5rem)] w-full border-0 bg-transparent"
         />
       </div>
     </div>
