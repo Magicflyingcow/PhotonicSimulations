@@ -1,0 +1,484 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>X-ray CT Simulator</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f8fafc;
+      --panel: #ffffff;
+      --ink: #0f172a;
+      --muted: #475569;
+      --border: #dbe4ee;
+      --accent: #0369a1;
+    }
+
+    body {
+      margin: 0;
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      background: radial-gradient(circle at top, #f4fbff 0%, var(--bg) 65%);
+      color: var(--ink);
+      min-height: 100vh;
+    }
+
+    .wrap {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 18px;
+      display: grid;
+      gap: 14px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 1.35rem;
+      letter-spacing: -0.01em;
+    }
+
+    .subtitle {
+      margin: 6px 0 0;
+      color: var(--muted);
+      font-size: 0.92rem;
+      line-height: 1.45;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
+      padding: 14px;
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 10px 16px;
+    }
+
+    .field {
+      display: grid;
+      gap: 6px;
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+
+    .field label {
+      display: flex;
+      justify-content: space-between;
+      gap: 6px;
+    }
+
+    input[type='range'] { width: 100%; }
+
+    .viz-grid {
+      display: grid;
+      gap: 14px;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    }
+
+    figure { margin: 0; }
+
+    figcaption {
+      margin-top: 8px;
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
+
+    canvas {
+      width: 100%;
+      aspect-ratio: 1;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: #fff;
+      image-rendering: pixelated;
+    }
+
+    #sinogramCanvas { aspect-ratio: 1.3; }
+
+    .metrics {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      font-size: 0.82rem;
+    }
+
+    .pill {
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 5px 10px;
+      background: #f8fbff;
+    }
+
+    .note {
+      font-size: 0.8rem;
+      color: var(--muted);
+      line-height: 1.45;
+      margin: 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="panel">
+      <h1>Interactive X-ray CT physics simulator</h1>
+      <p class="subtitle">
+        Forward model: Beer–Lambert attenuation \(I = I_0 e^{-\int \mu ds}\), Poisson counting noise, logarithmic line-integral recovery,
+        then filtered backprojection (ramp filter) to reconstruct attenuation \(\mu\).
+      </p>
+    </section>
+
+    <section class="panel controls">
+      <div class="field">
+        <label for="angles">Projection angles <strong id="anglesVal"></strong></label>
+        <input id="angles" type="range" min="45" max="360" step="15" value="180" />
+      </div>
+      <div class="field">
+        <label for="detectors">Detector channels <strong id="detectorsVal"></strong></label>
+        <input id="detectors" type="range" min="64" max="320" step="16" value="160" />
+      </div>
+      <div class="field">
+        <label for="photons">Incident photons / ray (I₀) <strong id="photonsVal"></strong></label>
+        <input id="photons" type="range" min="300" max="50000" step="100" value="8000" />
+      </div>
+      <div class="field">
+        <label for="pixelPitch">Phantom pixel size (mm) <strong id="pixelPitchVal"></strong></label>
+        <input id="pixelPitch" type="range" min="0.4" max="2.0" step="0.1" value="1.0" />
+      </div>
+      <div class="field">
+        <label for="smooth">Post-filter Gaussian σ (pixels) <strong id="smoothVal"></strong></label>
+        <input id="smooth" type="range" min="0" max="2" step="0.1" value="0.3" />
+      </div>
+      <div class="field" style="align-self:end;">
+        <button id="rerun" style="padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:#e0f2fe;color:#0c4a6e;font-weight:600;cursor:pointer;">
+          Re-simulate noise
+        </button>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="metrics" id="metrics"></div>
+      <p class="note">Attenuation map units are linear attenuation coefficient \(\mu\) in mm⁻¹. Values are representative: soft tissue ~0.020 mm⁻¹, bone ~0.038 mm⁻¹ at diagnostic X-ray energies.</p>
+    </section>
+
+    <section class="panel viz-grid">
+      <figure>
+        <canvas id="phantomCanvas" width="256" height="256"></canvas>
+        <figcaption>Ground-truth attenuation phantom (μ map)</figcaption>
+      </figure>
+      <figure>
+        <canvas id="sinogramCanvas" width="320" height="240"></canvas>
+        <figcaption>Measured sinogram after Poisson noise and log transform</figcaption>
+      </figure>
+      <figure>
+        <canvas id="reconCanvas" width="256" height="256"></canvas>
+        <figcaption>Filtered backprojection reconstruction</figcaption>
+      </figure>
+    </section>
+  </div>
+
+  <script>
+    const N = 256;
+    const phantomCanvas = document.getElementById('phantomCanvas');
+    const sinogramCanvas = document.getElementById('sinogramCanvas');
+    const reconCanvas = document.getElementById('reconCanvas');
+    const metricsEl = document.getElementById('metrics');
+
+    const controls = {
+      angles: document.getElementById('angles'),
+      detectors: document.getElementById('detectors'),
+      photons: document.getElementById('photons'),
+      pixelPitch: document.getElementById('pixelPitch'),
+      smooth: document.getElementById('smooth'),
+      rerun: document.getElementById('rerun'),
+    };
+
+    const labels = {
+      angles: document.getElementById('anglesVal'),
+      detectors: document.getElementById('detectorsVal'),
+      photons: document.getElementById('photonsVal'),
+      pixelPitch: document.getElementById('pixelPitchVal'),
+      smooth: document.getElementById('smoothVal'),
+    };
+
+    function seededRng(seed = 123456789) {
+      let x = seed >>> 0;
+      return () => {
+        x ^= x << 13; x ^= x >>> 17; x ^= x << 5;
+        return ((x >>> 0) / 4294967296);
+      };
+    }
+
+    let rng = seededRng(7);
+
+    function poisson(lambda) {
+      if (lambda <= 0) return 0;
+      if (lambda < 30) {
+        const L = Math.exp(-lambda);
+        let k = 0;
+        let p = 1;
+        do {
+          k++;
+          p *= rng();
+        } while (p > L);
+        return k - 1;
+      }
+      const g = Math.sqrt(-2 * Math.log(Math.max(1e-12, rng()))) * Math.cos(2 * Math.PI * rng());
+      return Math.max(0, Math.round(lambda + Math.sqrt(lambda) * g));
+    }
+
+    function buildPhantom() {
+      const mu = new Float32Array(N * N);
+      const norm = (i) => (2 * i / (N - 1)) - 1;
+
+      const ellipses = [
+        { x0: 0, y0: 0, a: 0.82, b: 0.92, phi: 0, dMu: 0.020 },
+        { x0: 0, y0: -0.06, a: 0.78, b: 0.86, phi: 0, dMu: -0.002 },
+        { x0: -0.22, y0: 0, a: 0.15, b: 0.27, phi: -18, dMu: 0.010 },
+        { x0: 0.22, y0: 0, a: 0.15, b: 0.27, phi: 18, dMu: 0.010 },
+        { x0: 0, y0: 0.33, a: 0.24, b: 0.12, phi: 0, dMu: 0.016 },
+        { x0: 0, y0: -0.36, a: 0.30, b: 0.10, phi: 0, dMu: -0.004 },
+      ];
+
+      for (let y = 0; y < N; y++) {
+        const yy = norm(y);
+        for (let x = 0; x < N; x++) {
+          const xx = norm(x);
+          let value = 0;
+          for (const e of ellipses) {
+            const ph = e.phi * Math.PI / 180;
+            const c = Math.cos(ph), s = Math.sin(ph);
+            const xr = (xx - e.x0) * c + (yy - e.y0) * s;
+            const yr = -(xx - e.x0) * s + (yy - e.y0) * c;
+            if ((xr * xr) / (e.a * e.a) + (yr * yr) / (e.b * e.b) <= 1) {
+              value += e.dMu;
+            }
+          }
+          mu[y * N + x] = Math.max(0, value);
+        }
+      }
+      return mu;
+    }
+
+    const phantom = buildPhantom();
+
+    function sampleMuBilinear(mu, x, y) {
+      if (x < 0 || y < 0 || x >= N - 1 || y >= N - 1) return 0;
+      const x0 = Math.floor(x), y0 = Math.floor(y);
+      const dx = x - x0, dy = y - y0;
+      const i00 = y0 * N + x0;
+      const i10 = i00 + 1;
+      const i01 = i00 + N;
+      const i11 = i01 + 1;
+      const v0 = mu[i00] * (1 - dx) + mu[i10] * dx;
+      const v1 = mu[i01] * (1 - dx) + mu[i11] * dx;
+      return v0 * (1 - dy) + v1 * dy;
+    }
+
+    function simulateSinogram(mu, cfg) {
+      const { angles, detectors, I0, pitchMm } = cfg;
+      const sino = new Float32Array(angles * detectors);
+      const raySteps = Math.floor(N * 1.35);
+      const center = (N - 1) / 2;
+      const detStepPx = N / detectors;
+      const pixelMm = pitchMm;
+      const dsMm = (N * 1.45 * pixelMm) / raySteps;
+
+      for (let a = 0; a < angles; a++) {
+        const theta = (a / angles) * Math.PI;
+        const nx = Math.cos(theta), ny = Math.sin(theta);
+        const tx = -ny, ty = nx;
+
+        for (let d = 0; d < detectors; d++) {
+          const s = (d - (detectors - 1) / 2) * detStepPx;
+          const x0 = center + s * nx - tx * (N * 0.75);
+          const y0 = center + s * ny - ty * (N * 0.75);
+
+          let lineIntegral = 0;
+          for (let k = 0; k < raySteps; k++) {
+            const t = k / (raySteps - 1);
+            const x = x0 + tx * t * (N * 1.5);
+            const y = y0 + ty * t * (N * 1.5);
+            const muVal = sampleMuBilinear(mu, x, y);
+            lineIntegral += muVal * dsMm;
+          }
+
+          const Imean = I0 * Math.exp(-lineIntegral);
+          const measured = poisson(Imean);
+          const corrected = -Math.log(Math.max(1, measured) / I0);
+          sino[a * detectors + d] = Math.max(0, corrected);
+        }
+      }
+      return sino;
+    }
+
+    function rampFilter(projection) {
+      const n = projection.length;
+      const out = new Float32Array(n);
+      for (let i = 1; i < n - 1; i++) {
+        out[i] = -0.5 * projection[i - 1] + projection[i] - 0.5 * projection[i + 1];
+      }
+      out[0] = out[1];
+      out[n - 1] = out[n - 2];
+      return out;
+    }
+
+    function reconstructFBP(sino, cfg) {
+      const { angles, detectors } = cfg;
+      const recon = new Float32Array(N * N);
+      const center = (N - 1) / 2;
+
+      const filtered = new Float32Array(sino.length);
+      for (let a = 0; a < angles; a++) {
+        const row = sino.subarray(a * detectors, (a + 1) * detectors);
+        filtered.set(rampFilter(row), a * detectors);
+      }
+
+      for (let y = 0; y < N; y++) {
+        const yy = y - center;
+        for (let x = 0; x < N; x++) {
+          const xx = x - center;
+          let sum = 0;
+          for (let a = 0; a < angles; a++) {
+            const theta = (a / angles) * Math.PI;
+            const s = xx * Math.cos(theta) + yy * Math.sin(theta);
+            const u = s * (detectors / N) + (detectors - 1) / 2;
+            const u0 = Math.floor(u);
+            if (u0 < 0 || u0 >= detectors - 1) continue;
+            const du = u - u0;
+            const p0 = filtered[a * detectors + u0];
+            const p1 = filtered[a * detectors + u0 + 1];
+            sum += p0 * (1 - du) + p1 * du;
+          }
+          recon[y * N + x] = Math.max(0, (Math.PI / angles) * sum);
+        }
+      }
+      return recon;
+    }
+
+    function gaussianBlur(src, sigma) {
+      if (sigma <= 0.05) return src;
+      const radius = Math.max(1, Math.ceil(3 * sigma));
+      const k = [];
+      let norm = 0;
+      for (let i = -radius; i <= radius; i++) {
+        const w = Math.exp(-(i * i) / (2 * sigma * sigma));
+        k.push(w);
+        norm += w;
+      }
+      for (let i = 0; i < k.length; i++) k[i] /= norm;
+
+      const tmp = new Float32Array(src.length);
+      const out = new Float32Array(src.length);
+
+      for (let y = 0; y < N; y++) {
+        for (let x = 0; x < N; x++) {
+          let v = 0;
+          for (let j = -radius; j <= radius; j++) {
+            const xx = Math.min(N - 1, Math.max(0, x + j));
+            v += src[y * N + xx] * k[j + radius];
+          }
+          tmp[y * N + x] = v;
+        }
+      }
+
+      for (let y = 0; y < N; y++) {
+        for (let x = 0; x < N; x++) {
+          let v = 0;
+          for (let j = -radius; j <= radius; j++) {
+            const yy = Math.min(N - 1, Math.max(0, y + j));
+            v += tmp[yy * N + x] * k[j + radius];
+          }
+          out[y * N + x] = v;
+        }
+      }
+      return out;
+    }
+
+    function drawMap(canvas, data, width, height, maxValue = null) {
+      const ctx = canvas.getContext('2d');
+      const img = ctx.createImageData(width, height);
+      let max = maxValue ?? 0;
+      if (maxValue == null) {
+        for (let i = 0; i < data.length; i++) max = Math.max(max, data[i]);
+      }
+      max = Math.max(1e-6, max);
+      for (let i = 0; i < data.length; i++) {
+        const t = Math.min(1, data[i] / max);
+        const r = Math.round(15 + 240 * t);
+        const g = Math.round(20 + 210 * t);
+        const b = Math.round(35 + 110 * (1 - t));
+        const p = i * 4;
+        img.data[p] = r;
+        img.data[p + 1] = g;
+        img.data[p + 2] = b;
+        img.data[p + 3] = 255;
+      }
+      ctx.putImageData(img, 0, 0);
+    }
+
+    function rmse(a, b) {
+      let e = 0;
+      for (let i = 0; i < a.length; i++) {
+        const d = a[i] - b[i];
+        e += d * d;
+      }
+      return Math.sqrt(e / a.length);
+    }
+
+    let lastCfg = null;
+
+    function runSimulation(forceNoiseReseed = false) {
+      const cfg = {
+        angles: Number(controls.angles.value),
+        detectors: Number(controls.detectors.value),
+        I0: Number(controls.photons.value),
+        pitchMm: Number(controls.pixelPitch.value),
+        smooth: Number(controls.smooth.value),
+      };
+
+      labels.angles.textContent = cfg.angles;
+      labels.detectors.textContent = cfg.detectors;
+      labels.photons.textContent = cfg.I0.toLocaleString();
+      labels.pixelPitch.textContent = cfg.pitchMm.toFixed(1);
+      labels.smooth.textContent = cfg.smooth.toFixed(1);
+
+      if (forceNoiseReseed || !lastCfg || cfg.I0 !== lastCfg.I0 || cfg.angles !== lastCfg.angles || cfg.detectors !== lastCfg.detectors || cfg.pitchMm !== lastCfg.pitchMm) {
+        rng = seededRng((Date.now() ^ (cfg.I0 * 31 + cfg.angles * 131 + cfg.detectors * 17)) >>> 0);
+      }
+
+      const sino = simulateSinogram(phantom, cfg);
+      let recon = reconstructFBP(sino, cfg);
+      recon = gaussianBlur(recon, cfg.smooth);
+
+      const m = rmse(phantom, recon);
+      let truthMean = 0;
+      for (let i = 0; i < phantom.length; i++) truthMean += phantom[i];
+      truthMean /= phantom.length;
+      const nrmse = m / Math.max(1e-6, truthMean);
+
+      metricsEl.innerHTML = `
+        <span class="pill">RMSE: ${m.toFixed(4)} mm⁻¹</span>
+        <span class="pill">nRMSE: ${(100 * nrmse).toFixed(1)}%</span>
+        <span class="pill">Dose proxy (I₀ × views): ${(cfg.I0 * cfg.angles).toLocaleString()}</span>
+      `;
+
+      drawMap(phantomCanvas, phantom, N, N, 0.04);
+      drawMap(sinogramCanvas, sino, cfg.detectors, cfg.angles);
+      drawMap(reconCanvas, recon, N, N, 0.04);
+
+      lastCfg = cfg;
+    }
+
+    Object.values(controls).forEach((el) => {
+      if (el === controls.rerun) return;
+      el.addEventListener('input', () => runSimulation(false));
+    });
+
+    controls.rerun.addEventListener('click', () => runSimulation(true));
+    runSimulation(true);
+  </script>
+</body>
+</html>

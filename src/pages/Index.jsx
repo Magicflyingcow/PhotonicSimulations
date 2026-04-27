@@ -34,8 +34,8 @@ const simulations = [
     path: "/lcos-slm",
   },
   {
-    title: "Medical Imaging (PET + SPECT)",
-    description: "Multi-modality page with PET coincidence imaging and quantitative SPECT reconstruction physics.",
+    title: "Medical Imaging (PET + SPECT + CT)",
+    description: "Multi-modality page with PET coincidence imaging, quantitative SPECT reconstruction physics, and physically grounded X-ray CT simulation.",
     path: "/medical-imaging",
   },
 ];

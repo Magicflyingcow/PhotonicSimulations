@@ -15,6 +15,12 @@ const tabs = [
     title: "SPECT gamma-camera simulation",
     page: "spect_imaging_sim.html",
   },
+  {
+    id: "ct",
+    label: "X-ray CT",
+    title: "X-ray CT attenuation and filtered backprojection simulation",
+    page: "xray_ct_sim.html",
+  },
 ];
 
 export default function PetCoincidence() {
