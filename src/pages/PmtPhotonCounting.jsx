@@ -19,11 +19,11 @@ export default function PmtPhotonCounting() {
         </Button>
       </div>
 
-      <div className="sim-page-wrap min-h-0 flex-1 overflow-hidden">
+      <div className="min-h-0 flex-1 overflow-hidden">
         <iframe
           title="PMT photon counting simulation"
           src="/pmt_photon_counting_sim.html"
-          className="sim-surface h-full w-full"
+          className="sim-surface-plain h-full w-full"
         />
       </div>
     </div>
