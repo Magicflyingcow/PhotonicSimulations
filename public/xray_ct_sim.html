@@ -292,6 +292,7 @@
   }
 
   let lastCfg = null;
+  let isAnimating = false;
 
   function updateLabels(cfg) {
     labels.angles.textContent = cfg.angles;
@@ -301,7 +302,8 @@
     labels.smooth.textContent = cfg.smooth.toFixed(1);
   }
 
-  function runSimulation(forceNoiseReseed = false) {
+  async function runSimulation(forceNoiseReseed = false, animate = false) {
+    if (isAnimating) return;
     const cfg = {
       angles: Number(controls.angles.value),
       detectors: Number(controls.detectors.value),
@@ -316,18 +318,33 @@
       rng = seededRng((Date.now() ^ (cfg.I0 * 31 + cfg.angles * 131 + cfg.detectors * 17)) >>> 0);
     }
 
-    const sino = simulateSinogram(phantom, cfg);
+    isAnimating = animate;
+    controls.runScan.disabled = true;
+    controls.rerun.disabled = true;
+    controls.reset.disabled = true;
+
+    let sino = null;
+    if (!animate) {
+      sino = simulateSinogram(phantom, cfg);
+    } else {
+      sino = new Float32Array(cfg.angles * cfg.detectors);
+      for (let a = 0; a < cfg.angles; a++) {
+        const theta = (a / cfg.angles) * Math.PI;
+        const row = simulateSinogramAngle(phantom, cfg, theta);
+        sino.set(row, a * cfg.detectors);
+        if (a % 3 === 0 || a === cfg.angles - 1) {
+          drawMap(phantomCanvas, phantom, N, N, 0.04);
+          drawMap(sinogramCanvas, sino, cfg.detectors, cfg.angles);
+          drawMap(reconCanvas, gaussianBlur(reconstructFBP(sino, cfg), cfg.smooth), N, N, 0.04);
+          await new Promise((r) => setTimeout(r, 12));
+        }
+      }
+    }
     const recon = gaussianBlur(reconstructFBP(sino, cfg), cfg.smooth);
 
-    const m = rmse(phantom, recon);
-    let truthMean = 0;
-    for (let i = 0; i < phantom.length; i++) truthMean += phantom[i];
-    truthMean /= phantom.length;
-    const nrmse = m / Math.max(1e-6, truthMean);
-
     metricsEl.innerHTML = `
-      <span class="pill">RMSE: ${m.toFixed(4)} mm⁻¹</span>
-      <span class="pill">nRMSE: ${(100 * nrmse).toFixed(1)}%</span>
+      <span class="pill">RMSE: ${computeRmse(phantom, recon).toFixed(4)} mm⁻¹</span>
+      <span class="pill">nRMSE: ${(100 * computeNrmse(phantom, recon)).toFixed(1)}%</span>
       <span class="pill">Dose proxy (I₀ × views): ${(cfg.I0 * cfg.angles).toLocaleString()}</span>
     `;
 
@@ -336,6 +353,49 @@
     drawMap(reconCanvas, recon, N, N, 0.04);
 
     lastCfg = cfg;
+    isAnimating = false;
+    controls.rerun.disabled = false;
+    controls.reset.disabled = false;
+  }
+
+  function simulateSinogramAngle(mu, cfg, theta) {
+    const { detectors, I0, pitchMm } = cfg;
+    const row = new Float32Array(detectors);
+    const raySteps = Math.floor(N * 1.35);
+    const center = (N - 1) / 2;
+    const detStepPx = N / detectors;
+    const dsMm = (N * 1.45 * pitchMm) / raySteps;
+    const nx = Math.cos(theta), ny = Math.sin(theta);
+    const tx = -ny, ty = nx;
+
+    for (let d = 0; d < detectors; d++) {
+      const s = (d - (detectors - 1) / 2) * detStepPx;
+      const x0 = center + s * nx - tx * (N * 0.75);
+      const y0 = center + s * ny - ty * (N * 0.75);
+      let lineIntegral = 0;
+      for (let k = 0; k < raySteps; k++) {
+        const t = k / (raySteps - 1);
+        const x = x0 + tx * t * (N * 1.5);
+        const y = y0 + ty * t * (N * 1.5);
+        lineIntegral += sampleMuBilinear(mu, x, y) * dsMm;
+      }
+      const Imean = I0 * Math.exp(-lineIntegral);
+      const measured = poisson(Imean);
+      row[d] = Math.max(0, -Math.log(Math.max(1, measured) / I0));
+    }
+    return row;
+  }
+
+  function computeRmse(reference, estimate) {
+    return rmse(reference, estimate);
+  }
+
+  function computeNrmse(reference, estimate) {
+    const m = computeRmse(reference, estimate);
+    let referenceMean = 0;
+    for (let i = 0; i < reference.length; i++) referenceMean += reference[i];
+    referenceMean /= reference.length;
+    return m / Math.max(1e-6, referenceMean);
   }
 
   function hasPendingChanges() {
@@ -348,6 +408,10 @@
   }
 
   function refreshRunButton() {
+    if (isAnimating) {
+      controls.runScan.disabled = true;
+      return;
+    }
     controls.runScan.disabled = !hasPendingChanges();
   }
 
@@ -367,23 +431,26 @@
   });
 
   controls.runScan.addEventListener('click', () => {
-    runSimulation(false);
-    refreshRunButton();
+    runSimulation(false, true).then(() => refreshRunButton());
   });
 
-  controls.rerun.addEventListener('click', () => runSimulation(true));
+  controls.rerun.addEventListener('click', () => {
+    runSimulation(true, true).then(() => refreshRunButton());
+  });
+
   controls.reset.addEventListener('click', () => {
+    if (isAnimating) return;
     controls.angles.value = defaults.angles;
     controls.detectors.value = defaults.detectors;
     controls.photons.value = defaults.photons;
     controls.pixelPitch.value = defaults.pixelPitch;
     controls.smooth.value = defaults.smooth;
-    runSimulation(true);
-    refreshRunButton();
+    runSimulation(true, false).then(() => refreshRunButton());
   });
 
-  runSimulation(true);
-  refreshRunButton();
+  runSimulation(true, false).then(() => {
+    refreshRunButton();
+  });
 </script>
 </body>
 </html>
