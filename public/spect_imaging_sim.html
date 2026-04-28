@@ -71,7 +71,7 @@
 
     <div class="viz">
       <div class="vgrid">
-        <div class="card"><h3>Phantom + camera angle</h3><canvas id="phantom" width="360" height="360"></canvas><div class="legend">Hot lesions, cold defect, attenuating torso. Cyan line = current projection angle.</div></div>
+        <div class="card"><h3>Phantom + camera angle</h3><canvas id="phantom" width="360" height="360"></canvas><div class="legend">Hot lesions, cold defect, attenuating torso. Cyan line = current projection angle. Yellow/red tracks = randomly emitted gamma photons.</div></div>
         <div class="card"><h3>Reconstruction (FBP)</h3><canvas id="recon" width="360" height="360"></canvas><div class="legend">Ram-Lak filtered backprojection reconstructed from acquired views.</div></div>
       </div>
       <div class="card full"><h3>Sinogram (angles × bins)</h3><canvas id="sino" width="780" height="300"></canvas><div class="legend">Each row is one projection view. Brighter = more detected counts.</div></div>
@@ -119,22 +119,22 @@
 
   function spawnPhotonTracks(theta){
     if(!ui.animatePhotons.checked) return;
-    const c=Math.cos(theta), s=Math.sin(theta);
-    for(let i=0;i<12;i++){
-      const startR = (0.05 + Math.random()*0.35) * N;
-      const randA = Math.random()*Math.PI*2;
-      const x = N/2 + Math.cos(randA)*startR;
-      const y = N/2 + Math.sin(randA)*startR;
-      const proj = ((x-N/2)*c + (y-N/2)*s)/(N*1.2) + 0.5;
-      if(proj < 0 || proj > 1) continue;
-      const dist = phantomCanvas.width*0.42;
+    for(let i=0;i<18;i++){
+      let x=0, y=0, tries=0;
+      do{
+        x = Math.random()*N;
+        y = Math.random()*N;
+        tries++;
+      } while(tries < 20 && sampleBilinear(atten,x,y) < 0.5);
+      if(sampleBilinear(atten,x,y) < 0.5) continue;
+      const emitAngle = Math.random()*Math.PI*2;
+      const speed = 1.6 + Math.random()*2.2;
       photonTracks.push({
         x: (x/N)*phantomCanvas.width,
         y: (y/N)*phantomCanvas.height,
-        vx: c * (2.4 + Math.random()*1.8),
-        vy: s * (2.4 + Math.random()*1.8),
-        life: 14 + Math.random()*10,
-        distLimit: dist
+        vx: Math.cos(emitAngle) * speed,
+        vy: Math.sin(emitAngle) * speed,
+        life: 24 + Math.random()*20
       });
     }
   }
@@ -144,7 +144,7 @@
     const radius=phantomCanvas.width*0.48;
     const c=Math.cos(theta), s=Math.sin(theta);
     const nx=-s, ny=c;
-    const detW=24, detH=86;
+    const detW=126, detH=26;
     const px = cx + c*radius, py = cy + s*radius;
     pctx.save();
     pctx.translate(px,py);
@@ -172,10 +172,16 @@
     for(let i=photonTracks.length-1;i>=0;i--){
       const p=photonTracks[i];
       p.x += p.vx; p.y += p.vy; p.life -= 1;
-      const dist = (p.x-cx)*c + (p.y-cy)*s;
-      if(p.life<=0 || dist > p.distLimit){ photonTracks.splice(i,1); continue; }
+      const radial = (p.x-cx)*c + (p.y-cy)*s;
+      if(
+        p.life<=0 ||
+        p.x<0 || p.x>phantomCanvas.width ||
+        p.y<0 || p.y>phantomCanvas.height ||
+        radial > phantomCanvas.width*0.49
+      ){ photonTracks.splice(i,1); continue; }
       const alpha = Math.max(0.15,Math.min(1,p.life/18));
-      pctx.strokeStyle=`rgba(250,204,21,${alpha})`;
+      const towardDetector = (p.vx*c + p.vy*s) > 0;
+      pctx.strokeStyle = towardDetector ? `rgba(250,204,21,${alpha})` : `rgba(248,113,113,${alpha*0.8})`;
       pctx.lineWidth=1.4;
       pctx.beginPath();
       pctx.moveTo(p.x - p.vx*1.4,p.y - p.vy*1.4);
