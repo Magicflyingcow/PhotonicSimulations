@@ -161,6 +161,17 @@
 
     /* Plots */
     .plots { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .tabs{display:flex;gap:8px;margin:8px 0 12px;}
+    .tabbtn{padding:8px 12px;border-radius:999px;border:1px solid rgba(127,127,127,.3);background:#fff;font-weight:600;}
+    .tabbtn.active{background:#111827;color:#fff;}
+    .tabcontent.hidden{display:none;}
+    .compare-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px;}
+    .compare-card{border:1px solid rgba(127,127,127,.22);border-radius:12px;padding:10px;background:#f8fafc;}
+    .compare-card h4{margin:0 0 8px;font-size:.92rem;}
+    .compare-card .mini{display:grid;grid-template-columns:1fr 110px;gap:8px;align-items:center;margin-bottom:6px;}
+    .compare-card input,.compare-card select{padding:4px 6px;border-radius:8px;border:1px solid rgba(127,127,127,.28);}
+    #compareResults table{width:100%;border-collapse:collapse;font-size:.92rem;}
+    #compareResults th,#compareResults td{border-bottom:1px solid rgba(127,127,127,.2);padding:6px;text-align:left;}
 
     @media (max-width: 1200px) {
       .topgrid { grid-template-columns: 1fr; }
@@ -191,6 +202,12 @@
     Reference: <a href="https://www.hamamatsu.com/content/dam/hamamatsu-photonics/sites/documents/99_SALES_LIBRARY/etd/PMT_handbook_v4E.pdf" target="_blank" rel="noopener noreferrer">Hamamatsu PMT Handbook</a>.
   </div>
 
+  <div class="tabs">
+    <button id="tabStandard" class="tabbtn active" type="button">Standard simulation</button>
+    <button id="tabCompare" class="tabbtn" type="button">Compare multiple PMTs</button>
+  </div>
+
+  <div id="standardTab" class="tabcontent">
   <div class="wrap">
   <div class="panel">
       <div class="topgrid">
@@ -288,6 +305,19 @@
       </div>
     </div>
 </div>
+  </div>
+
+  <div id="compareTab" class="tabcontent hidden">
+    <div class="panel">
+      <div class="sectionTitle">Compare photon-counting SNR across PMTs</div>
+      <div class="note">Choose up to three PMT configurations using the same presets as the standard tab. Results use Eq. 6-6 with T = 1 s.</div>
+      <div id="compareControls" class="compare-grid"></div>
+      <div style="margin-top:10px" id="compareResults"></div>
+    </div>
+    <div class="panel" style="margin-top:12px;">
+      <div id="comparePlot" style="height:520px;"></div>
+    </div>
+  </div>
 
 <script>
 (function(){
@@ -670,6 +700,89 @@
     if (c0 <= 0) signal.value = 0;
     else signal.value = Math.min(SIGNAL_MAX_LOG10, Math.max(0, countsToSignalSlider(c0)));
   }
+
+
+  const presets = [
+    {name:"H11870-64 (current)", qe:25.10, dark:60},
+    {name:"R1924P-700", qe:30.67, dark:75},
+    {name:"R3550P-600", qe:25.91, dark:30},
+    {name:"Ideal detector", qe:100, dark:0},
+    {name:"SiPM array (≈22 mm equiv., S14161-6050HS-04)", qe:50, dark:99750000}
+  ];
+
+  const tabStandard = el("tabStandard");
+  const tabCompare = el("tabCompare");
+  const standardTab = el("standardTab");
+  const compareTab = el("compareTab");
+  function setTab(mode){
+    const std = mode === "standard";
+    standardTab.classList.toggle("hidden", !std);
+    compareTab.classList.toggle("hidden", std);
+    tabStandard.classList.toggle("active", std);
+    tabCompare.classList.toggle("active", !std);
+    if(!std) updateCompare();
+  }
+  tabStandard.addEventListener("click",()=>setTab("standard"));
+  tabCompare.addEventListener("click",()=>setTab("compare"));
+
+  const compareSelections = [0,1,2].map(i=>({
+    name:`Selection ${i+1}`, preset:i, photons:5000, qe:presets[i]?.qe ?? 25, dark:presets[i]?.dark ?? 60, bkg:0
+  }));
+
+  function makeCompareControls(){
+    const host = el("compareControls");
+    host.innerHTML = compareSelections.map((cfg,i)=>`
+      <div class="compare-card" data-idx="${i}">
+        <h4>${cfg.name}</h4>
+        <div class="mini"><label>PMT preset</label><select class="cmp-preset">${presets.map((p,pi)=>`<option value="${pi}" ${cfg.preset===pi?'selected':''}>${p.name}</option>`).join('')}</select></div>
+        <div class="mini"><label>Input photons (1 s)</label><input class="cmp-photons" type="number" min="0" max="20000000" step="10" value="${cfg.photons}"></div>
+        <div class="mini"><label>QE (%)</label><input class="cmp-qe" type="number" min="0" max="100" step="0.1" value="${cfg.qe}"></div>
+        <div class="mini"><label>Dark count (1 s)</label><input class="cmp-dark" type="number" min="0" max="200000000" step="1" value="${cfg.dark}"></div>
+        <div class="mini"><label>Background count (1 s)</label><input class="cmp-bkg" type="number" min="0" max="200000000" step="1" value="${cfg.bkg}"></div>
+      </div>`).join('');
+
+    host.querySelectorAll('.compare-card').forEach(card=>{
+      const i = Number(card.dataset.idx);
+      card.querySelector('.cmp-preset').addEventListener('change',e=>{
+        const pi=Number(e.target.value); compareSelections[i].preset=pi; compareSelections[i].qe=presets[pi].qe; compareSelections[i].dark=presets[pi].dark; makeCompareControls(); updateCompare();
+      });
+      ['photons','qe','dark','bkg'].forEach(k=>{
+        card.querySelector(`.cmp-${k}`).addEventListener('input',e=>{compareSelections[i][k]=Number(e.target.value)||0; updateCompare();});
+      });
+    });
+  }
+
+  function computePcSnr(ns, nb, nd){
+    const denom = ns + 2*(nb+nd);
+    return denom>0 ? ns/Math.sqrt(denom) : 0;
+  }
+
+  function updateCompare(){
+    const rows = compareSelections.map((c,idx)=>{
+      const ns = c.photons*(Math.max(0,Math.min(100,c.qe))/100);
+      const nb = c.bkg;
+      const nd = c.dark;
+      return {idx, name: presets[c.preset]?.name || c.name, photons:c.photons, qe:c.qe, nb, nd, ns, snr:computePcSnr(ns,nb,nd)};
+    });
+    el('compareResults').innerHTML = `<table><thead><tr><th>Selection</th><th>Preset</th><th>Photons</th><th>QE (%)</th><th>Dark</th><th>Background</th><th>Detected signal</th><th>SNR (Eq. 6-6)</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${r.idx+1}</td><td>${r.name}</td><td>${formatInt(r.photons)}</td><td>${formatFloat(r.qe,2)}</td><td>${formatInt(r.nd)}</td><td>${formatInt(r.nb)}</td><td>${formatInt(r.ns)}</td><td><strong>${formatFloat(r.snr,3)}</strong></td></tr>`).join('')}</tbody></table>`;
+
+    const x = []; for(let p=1;p<=7.3;p+=0.08){x.push(Math.round(10**p));}
+    const traces = rows.map(r=>({
+      x,
+      y:x.map(ph=>computePcSnr(ph*(Math.max(0,Math.min(100,r.qe))/100), r.nb, r.nd)),
+      type:'scatter', mode:'lines', name:`Sel ${r.idx+1}: ${r.name}`
+    }));
+    Plotly.react('comparePlot', traces, {
+      title:{text:'SNR vs input photon count (log-scale x-axis)'},
+      xaxis:{title:'Input photons over 1 s', type:'log'},
+      yaxis:{title:'Photon-counting SNR (Eq. 6-6)'},
+      margin:{l:60,r:20,t:45,b:55}, legend:{orientation:'h'}
+    }, {displayModeBar:false, responsive:true});
+  }
+
+  makeCompareControls();
+  updateCompare();
+
   update(true);
 })();
 </script>
