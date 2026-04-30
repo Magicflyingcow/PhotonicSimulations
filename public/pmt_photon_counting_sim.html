@@ -31,6 +31,15 @@
       background: #ffffff;
       box-shadow: 0 1px 0 rgba(127,127,127,.08);
     }
+    .tabbar{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+    .tabbtn{padding:8px 12px;border-radius:10px;border:1px solid rgba(127,127,127,.28);background:#eef2ff}
+    .tabbtn.active{background:#111827;color:#fff}
+    .tabcontent[hidden]{display:none}
+    .compare-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
+    .compare-card{border:1px solid rgba(127,127,127,.22);border-radius:12px;padding:10px;background:#f8fafc}
+    .compare-results{margin-top:12px;border:1px solid rgba(127,127,127,.22);border-radius:12px;padding:10px;background:#fff}
+    table{width:100%;border-collapse:collapse}
+    th,td{padding:6px 8px;border-bottom:1px solid rgba(127,127,127,.2);text-align:left;font-size:.9rem}
 
     /* Top area */
     .topgrid { display: grid; grid-template-columns: minmax(0, 1.9fr) minmax(360px, 1fr); gap: 14px; align-items: start; }
@@ -204,16 +213,16 @@
   </div>
 
   <div class="wrap">
-  <div class="panel">
-      <div class="tabs">
-        <button type="button" class="tab-btn active" data-tab="standardTab">Standard simulation</button>
-        <button type="button" class="tab-btn" data-tab="compareTab">Compare multiple PMTs</button>
-      </div>
-      <div id="standardTab" class="tab-panel active">
-      <div class="topgrid">
-        <div class="controlsWrap">
-          <div class="sectionTitle">Parameters</div>
-          <div class="controls">
+    <div class="tabbar">
+      <button type="button" id="tabStandard" class="tabbtn active">Standard simulator</button>
+      <button type="button" id="tabCompare" class="tabbtn">Compare multiple PMTs</button>
+    </div>
+    <div id="standardTab" class="tabcontent">
+      <div class="panel">
+        <div class="topgrid">
+          <div class="controlsWrap">
+            <div class="sectionTitle">Parameters</div>
+            <div class="controls">
 
         <div class="param">
           <div class="row">
@@ -277,40 +286,59 @@
             <label class="check small"><input id="auto" type="checkbox" checked/>auto-resimulate</label>
             <label class="check small"><input id="subDark" type="checkbox" checked/>subtract expected dark + background</label>
             <label class="check small"><input id="sat" type="checkbox"/>apply selected saturation model</label>
-          </div>
-        </div>
-</div>
-        </div>
-
-        <div class="readoutWrap">
-          <div class="sectionTitle">SNR & readout</div>
-        <div class="readout">
-<div class="note">
-        Tip: Increase dark/background or lower QE to see how they inflate the shot-noise floor (≈ √N) and reduce SNR.
-      </div>
-
-          <div class="metrics" id="metrics"></div>
-        </div>
-        </div>
-      </div>
-      </div>
-      <div id="compareTab" class="tab-panel">
-        <div class="sectionTitle">Compare PMTs (photon-counting SNR)</div>
-        <div class="compare-grid" id="compareGrid"></div>
-        <div class="compare-results" id="compareResults"></div>
-      </div>
-
-  </div>
-
-  <div class="plots">
-      <div class="panel">
-        <div id="plot1" style="height: 520px;"></div>
-      </div>
-      <div class="panel">
-        <div id="plot2" style="height: 520px;"></div>
-      </div>
     </div>
 </div>
+  </div>
+
+  <div id="compareTab" class="tabcontent" hidden>
+    <div class="panel">
+      <div class="sectionTitle">Compare PMT photon-counting SNR (Eq. 6-6)</div>
+      <div class="note">Configure up to 4 PMTs. Use a preset button to copy QE and dark count values.</div>
+      <div class="compare-grid" id="compareGrid"></div>
+      <div class="compare-results">
+        <div id="compareResults"></div>
+      </div>
+    </div>
+    <div class="panel">
+      <div id="comparePlot" style="height: 560px;"></div>
+    </div>
+          </div>
+        </div>
+          </div>
+          <div class="readoutWrap">
+            <div class="sectionTitle">SNR & readout</div>
+            <div class="readout">
+              <div class="note">
+        Tip: Increase dark/background or lower QE to see how they inflate the shot-noise floor (≈ √N) and reduce SNR.
+      </div>
+              <div class="metrics" id="metrics"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="plots">
+        <div class="panel">
+          <div id="plot1" style="height: 520px;"></div>
+        </div>
+        <div class="panel">
+          <div id="plot2" style="height: 520px;"></div>
+        </div>
+      </div>
+    </div>
+    <div id="compareTab" class="tabcontent" hidden>
+      <div class="panel">
+        <div class="sectionTitle">Compare PMT photon-counting SNR (Eq. 6-6)</div>
+        <div class="note">Configure up to 4 PMTs. Use a preset button to copy QE and dark count values.</div>
+        <div class="compare-grid" id="compareGrid"></div>
+        <div class="compare-results">
+          <div id="compareResults"></div>
+        </div>
+      </div>
+      <div class="panel">
+        <div id="comparePlot" style="height: 560px;"></div>
+      </div>
+    </div>
+  </div>
 
 <script>
 (function(){
@@ -375,15 +403,16 @@
   const sat = el("sat");
   const metrics = el("metrics");
   const presetButtons = Array.from(document.querySelectorAll(".preset"));
-  const tabButtons = Array.from(document.querySelectorAll(".tab-btn"));
-  const tabPanels = Array.from(document.querySelectorAll(".tab-panel"));
+  const tabStandard = el("tabStandard");
+  const tabCompare = el("tabCompare");
+  const standardTab = el("standardTab");
+  const compareTab = el("compareTab");
   const compareGrid = el("compareGrid");
   const compareResults = el("compareResults");
-  const PMT_PRESETS = presetButtons.map((btn, i)=>({
-    key: `preset${i}`,
-    name: btn.textContent.trim(),
-    qe: Number(btn.dataset.qe),
-    dark: Number(btn.dataset.dark)
+  const comparePlot = el("comparePlot");
+
+  const compareConfigs = Array.from({length:4}, (_,i)=>({
+    name:`PMT ${i+1}`, photons:5000, qe:30, dark:60, bkg:0
   }));
 
   // H11870 reference: 10% pulse loss at 6×10^6 counts/s.
@@ -479,6 +508,94 @@
       else update(false, true);
     });
   });
+
+  function renderCompareInputs(){
+    compareGrid.innerHTML = compareConfigs.map((c, idx)=>`
+      <div class="compare-card">
+        <div class="row"><label>Name</label><input data-k="name" data-i="${idx}" type="text" value="${c.name}"/></div>
+        <div class="row"><label>Input photons</label><input data-k="photons" data-i="${idx}" type="number" min="0" step="1" value="${c.photons}"/></div>
+        <div class="row"><label>QE (%)</label><input data-k="qe" data-i="${idx}" type="number" min="0" max="100" step="0.1" value="${c.qe}"/></div>
+        <div class="row"><label>Dark count (1 s)</label><input data-k="dark" data-i="${idx}" type="number" min="0" step="1" value="${c.dark}"/></div>
+        <div class="row"><label>Background count (incident photons)</label><input data-k="bkg" data-i="${idx}" type="number" min="0" step="1" value="${c.bkg}"/></div>
+        <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;">
+          <button type="button" class="apply-main" data-i="${idx}">Use main settings</button>
+          <button type="button" class="preset-copy" data-i="${idx}">Apply preset</button>
+        </div>
+      </div>
+    `).join("");
+
+    compareGrid.querySelectorAll("input[data-k]").forEach((inp)=>{
+      inp.addEventListener("input", ()=>{
+        const i = Number(inp.dataset.i), k = inp.dataset.k;
+        compareConfigs[i][k] = (k === "name") ? inp.value : Number(inp.value);
+        updateCompare();
+      });
+    });
+    compareGrid.querySelectorAll(".apply-main").forEach((btn)=>{
+      btn.addEventListener("click", ()=>{
+        const i = Number(btn.dataset.i);
+        compareConfigs[i].photons = Number(signalN.value);
+        compareConfigs[i].qe = Number(qeN.value);
+        compareConfigs[i].dark = Number(darkN.value);
+        compareConfigs[i].bkg = Number(bkgN.value);
+        renderCompareInputs(); updateCompare();
+      });
+    });
+    compareGrid.querySelectorAll(".preset-copy").forEach((btn)=>{
+      btn.addEventListener("click", ()=>{
+        const i = Number(btn.dataset.i);
+        const p = presetButtons[(i)%presetButtons.length];
+        compareConfigs[i].qe = Number(p.dataset.qe);
+        compareConfigs[i].dark = Number(p.dataset.dark);
+        renderCompareInputs(); updateCompare();
+      });
+    });
+  }
+
+  function snrPC(s,b,d){
+    const qeFrac = Math.max(0, Math.min(1, Number(s.qe||0)/100));
+    const Ns = Number(s.photons||0)*qeFrac;
+    const Nb = Number(s.bkg||0)*qeFrac;
+    const Nd = Number(s.dark||0);
+    const denom = Ns + 2*(Nb+Nd);
+    return denom>0 ? (Ns*Math.sqrt(T)/Math.sqrt(denom)) : 0;
+  }
+
+  function updateCompare(){
+    const rows = compareConfigs.map((c)=> {
+      const qeFrac = Math.max(0, Math.min(1, c.qe/100));
+      const Ns = c.photons*qeFrac, Nb = c.bkg*qeFrac, Nd = c.dark;
+      return {...c, Ns, Nb, Nd, snr: snrPC(c)};
+    });
+    compareResults.innerHTML = `
+      <table><thead><tr><th>Selection</th><th>Input photons</th><th>QE</th><th>Dark</th><th>Background</th><th>Detected signal</th><th>SNR</th></tr></thead>
+      <tbody>${rows.map(r=>`<tr><td>${r.name}</td><td>${formatInt(r.photons)}</td><td>${formatFloat(r.qe,1)}%</td><td>${formatInt(r.dark)}</td><td>${formatInt(r.bkg)}</td><td>${formatInt(r.Ns)}</td><td><strong>${formatFloat(r.snr,2)}</strong></td></tr>`).join("")}</tbody></table>`;
+
+    const xs = Array.from({length:140}, (_,i)=>Math.round(Math.pow(10, i*(Math.log10(SIGNAL_MAX_COUNTS)/139))));
+    const traces = rows.map((r)=>({
+      x: xs,
+      y: xs.map((p)=>snrPC({...r, photons:p})),
+      type: "scatter",
+      mode: "lines",
+      name: r.name
+    }));
+    Plotly.react(comparePlot, traces, {
+      title:{text:"SNR vs input photon count (logarithmic x-axis)"},
+      xaxis:{title:"Input photons (incident over 1 s)", type:"log"},
+      yaxis:{title:"Photon-counting SNR (Eq. 6-6)"},
+      margin:{l:60,r:20,t:50,b:60},
+      legend:{orientation:"h"}
+    }, {displayModeBar:false, responsive:true});
+  }
+
+  function setTab(isCompare){
+    standardTab.hidden = isCompare;
+    compareTab.hidden = !isCompare;
+    tabStandard.classList.toggle("active", !isCompare);
+    tabCompare.classList.toggle("active", isCompare);
+  }
+  tabStandard.addEventListener("click", ()=>setTab(false));
+  tabCompare.addEventListener("click", ()=>setTab(true));
 
   el("resim").addEventListener("click", ()=>update(true));
   el("newseed").addEventListener("click", ()=>{
@@ -791,6 +908,8 @@
   renderCompareControls();
   updateCompare();
   update(true);
+  renderCompareInputs();
+  updateCompare();
 })();
 </script>
   </div>
