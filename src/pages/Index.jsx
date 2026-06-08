@@ -40,6 +40,15 @@ const simulations = [
   },
 ];
 
+const liveDemos = [
+  {
+    title: "LW20 Rangefinder Scene Mapper",
+    description: "Connect an LW20 over Web Serial to map live distance and servo-angle measurements in the browser.",
+    path: "/rangefinder",
+    requirement: "Chrome or Edge · HTTPS or localhost · USB serial access",
+  },
+];
+
 export default function IndexPage() {
   const navigate = useNavigate();
 
@@ -75,6 +84,42 @@ export default function IndexPage() {
                     className="self-start rounded-full"
                   >
                     Open
+                  </Button>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="space-y-4">
+          <div className="space-y-1">
+            <h2 className="text-xs font-semibold uppercase tracking-wide text-sky-700">Live demos</h2>
+            <p className="text-sm text-slate-600">Hardware-connected tools for use during live product demonstrations.</p>
+          </div>
+          <div className="space-y-3">
+            {liveDemos.map(({ title, description, path, requirement }) => (
+              <article
+                key={path}
+                className="overflow-hidden rounded-2xl border border-sky-200 bg-gradient-to-r from-sky-50 to-cyan-50 shadow-lg shadow-sky-950/10 transition hover:border-sky-400"
+              >
+                <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="space-y-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="text-lg font-medium text-slate-900">{title}</h3>
+                      <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide text-emerald-700">
+                        Live hardware
+                      </span>
+                    </div>
+                    <p className="text-sm text-slate-700">{description}</p>
+                    <p className="text-xs text-slate-500">{requirement}</p>
+                  </div>
+                  <Button
+                    type="button"
+                    onClick={() => navigate(path)}
+                    size="sm"
+                    className="self-start rounded-full bg-sky-700 text-white hover:bg-sky-800"
+                  >
+                    Launch live demo
                   </Button>
                 </div>
               </article>
