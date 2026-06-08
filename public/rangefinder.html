@@ -67,6 +67,12 @@
       overflow: hidden;
     }
     aside { overflow-y: auto; }
+    main.sidebar-hidden {
+      grid-template-columns: 1fr;
+    }
+    main.sidebar-hidden aside {
+      display: none;
+    }
     .section {
       padding: 14px;
       border-bottom: 1px solid rgba(255,255,255,0.08);
@@ -110,6 +116,20 @@
     button:disabled { opacity: 0.45; cursor: not-allowed; }
     .checkline { display: flex; align-items: center; color: var(--text); font-size: 13px; margin: 8px 0; }
     .view { position: relative; min-height: 420px; }
+    .sidebar-toggle {
+      position: absolute;
+      right: 16px;
+      top: 16px;
+      z-index: 2;
+      width: auto;
+      padding: 8px 12px;
+      border-color: rgba(255,255,255,0.18);
+      background: rgba(7,11,20,0.72);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.24);
+      backdrop-filter: blur(8px);
+      font-size: 13px;
+    }
+    .sidebar-toggle:hover { background: rgba(21,30,53,0.92); }
     canvas { width: 100%; height: 100%; display: block; }
     .overlay {
       position: absolute;
@@ -157,8 +177,8 @@
     <div class="status-pill"><span id="statusDot" class="dot"></span><span id="statusText">Disconnected</span></div>
   </header>
 
-  <main>
-    <aside>
+  <main id="mainLayout">
+    <aside id="controlsSidebar">
       <div class="section">
         <h2>Connection</h2>
         <div class="row">
@@ -300,6 +320,7 @@
     </aside>
 
     <section class="view">
+      <button id="sidebarToggle" class="sidebar-toggle secondary" type="button" aria-controls="controlsSidebar" aria-expanded="true">Hide controls</button>
       <canvas id="map"></canvas>
       <div class="overlay">
         <div class="metric">Distance: <b id="distanceMetric">--</b> m</div>
@@ -323,6 +344,7 @@
     angleOffset: $('angleOffset'), angleScale: $('angleScale'), invertAngle: $('invertAngle'), showRaw: $('showRaw'), showTrace: $('showTrace'),
     motorCycle: $('motorCycle'), waveform: $('waveform'), syncMinBtn: $('syncMinBtn'), syncMaxBtn: $('syncMaxBtn'),
     manualCmd: $('manualCmd'), sendCmdBtn: $('sendCmdBtn'), log: $('log'),
+    mainLayout: $('mainLayout'), controlsSidebar: $('controlsSidebar'), sidebarToggle: $('sidebarToggle'),
     canvas: $('map'), distanceMetric: $('distanceMetric'), angleMetric: $('angleMetric'), samplesMetric: $('samplesMetric')
   };
 
@@ -748,6 +770,15 @@
     URL.revokeObjectURL(url);
   }
 
+  function setSidebarVisible(visible) {
+    ui.mainLayout.classList.toggle('sidebar-hidden', !visible);
+    ui.controlsSidebar.setAttribute('aria-hidden', String(!visible));
+    ui.sidebarToggle.setAttribute('aria-expanded', String(visible));
+    ui.sidebarToggle.textContent = visible ? 'Hide controls' : 'Show controls';
+    ui.sidebarToggle.title = visible ? 'Expand the scene display' : 'Show rangefinder controls';
+    requestDraw();
+  }
+
   function resizeCanvas() {
     const rect = ui.canvas.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
@@ -887,6 +918,9 @@
     return { x: r * Math.sin(a), y: -r * Math.cos(a) };
   }
 
+  ui.sidebarToggle.addEventListener('click', () => {
+    setSidebarVisible(ui.mainLayout.classList.contains('sidebar-hidden'));
+  });
   ui.connectBtn.addEventListener('click', connect);
   ui.disconnectBtn.addEventListener('click', disconnect);
   ui.startBtn.addEventListener('click', start);
