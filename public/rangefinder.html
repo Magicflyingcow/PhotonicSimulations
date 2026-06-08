@@ -337,7 +337,9 @@
     lineBuffer: '',
     commandQueue: [],
     points: [],
+    pointStart: 0,
     csv: [['timestamp_iso','time_s','mode','angle_deg','distance_m','raw_line']],
+    csvTrimmed: false,
     latestDistance: null,
     latestAngle: null,
     latestLine: '',
@@ -345,14 +347,29 @@
     simStart: performance.now(),
     simPhaseOffset: 0,
     maxPoints: 2400,
+    maxCsvRows: 50000,
+    logLines: [],
+    logFlushTimer: null,
+    maxLogLines: 300,
     animationRequest: null
   };
+
+  function flushLog() {
+    state.logFlushTimer = null;
+    ui.log.textContent = `${state.logLines.join('\n')}\n`;
+    ui.log.scrollTop = ui.log.scrollHeight;
+  }
 
   function log(message, direction = '') {
     const now = new Date().toLocaleTimeString();
     const prefix = direction ? `${direction} ` : '';
-    ui.log.textContent += `[${now}] ${prefix}${message}\n`;
-    ui.log.scrollTop = ui.log.scrollHeight;
+    state.logLines.push(`[${now}] ${prefix}${message}`);
+    if (state.logLines.length > state.maxLogLines) {
+      state.logLines.splice(0, state.logLines.length - state.maxLogLines);
+    }
+    if (state.logFlushTimer === null) {
+      state.logFlushTimer = setTimeout(flushLog, 100);
+    }
   }
 
   function setStatus(connected, text) {
@@ -595,12 +612,24 @@
       rawLine: rawLine || ''
     };
     state.points.push(sample);
-    if (state.points.length > state.maxPoints) state.points.splice(0, state.points.length - state.maxPoints);
+    if (state.points.length - state.pointStart > state.maxPoints) state.pointStart += 1;
+    // Compact in batches instead of shifting thousands of entries on every sample.
+    if (state.pointStart >= 512) {
+      state.points = state.points.slice(state.pointStart);
+      state.pointStart = 0;
+    }
     state.latestDistance = distanceM;
     state.latestAngle = angle;
     state.sampleCount += 1;
     state.csv.push([sample.iso, (sample.t / 1000).toFixed(3), sample.mode, angle.toFixed(4), distanceM.toFixed(4), JSON.stringify(rawLine || '')]);
-    updateMetrics();
+    if (state.csv.length > state.maxCsvRows + 1) {
+      state.csv.splice(1, 5000);
+      if (!state.csvTrimmed) {
+        state.csvTrimmed = true;
+        log(`CSV history is limited to the most recent ${state.maxCsvRows.toLocaleString()} samples to keep the demo responsive.`);
+      }
+    }
+    requestDraw();
   }
 
   function updateMetrics() {
@@ -693,11 +722,14 @@
 
   function clearMap() {
     state.points = [];
+    state.pointStart = 0;
     state.sampleCount = 0;
     state.latestDistance = null;
     state.latestAngle = null;
     state.csv = [['timestamp_iso','time_s','mode','angle_deg','distance_m','raw_line']];
+    state.csvTrimmed = false;
     updateMetrics();
+    requestDraw();
     log('Map cleared.');
   }
 
@@ -727,7 +759,16 @@
     }
   }
 
+  function requestDraw() {
+    if (state.animationRequest !== null || document.hidden) return;
+    state.animationRequest = requestAnimationFrame(() => {
+      state.animationRequest = null;
+      draw();
+    });
+  }
+
   function draw() {
+    updateMetrics();
     resizeCanvas();
     const c = ui.canvas;
     const ctx = c.getContext('2d');
@@ -789,9 +830,11 @@
     // Raw points
     if (ui.showRaw.checked) {
       ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--point').trim();
-      for (const pt of state.points) {
+      const now = performance.now();
+      for (let i = state.pointStart; i < state.points.length; i++) {
+        const pt = state.points[i];
         const p = polarToXY(pt.angleDeg, pt.plotDistance, radius, maxRange);
-        const alpha = Math.max(0.12, Math.min(0.9, 1 - (performance.now() - pt.t) / 45000));
+        const alpha = Math.max(0.12, Math.min(0.9, 1 - (now - pt.t) / 45000));
         ctx.globalAlpha = alpha;
         ctx.beginPath();
         ctx.arc(p.x, p.y, pt.clipped ? 4.4 : 2.6, 0, Math.PI * 2);
@@ -801,10 +844,11 @@
     }
 
     // Clean trace: newest reading for each angular bucket
-    if (ui.showTrace.checked && state.points.length > 1) {
+    if (ui.showTrace.checked && state.points.length - state.pointStart > 1) {
       const buckets = new Map();
       const bucketSize = Math.max(0.5, Math.abs(maxA - minA) / 180);
-      for (const pt of state.points) {
+      for (let i = state.pointStart; i < state.points.length; i++) {
+        const pt = state.points[i];
         const key = Math.round(pt.angleDeg / bucketSize);
         const prev = buckets.get(key);
         if (!prev || pt.t > prev.t) buckets.set(key, pt);
@@ -832,7 +876,6 @@
     ctx.fill();
 
     ctx.restore();
-    state.animationRequest = requestAnimationFrame(draw);
   }
 
   function degToRad(deg) { return deg * Math.PI / 180; }
@@ -864,14 +907,27 @@
     if (ev.key === 'Enter') ui.sendCmdBtn.click();
   });
 
-  window.addEventListener('resize', resizeCanvas);
+  const redrawControls = [
+    ui.maxRange, ui.minAngle, ui.maxAngle, ui.angleOffset, ui.angleScale,
+    ui.invertAngle, ui.showRaw, ui.showTrace
+  ];
+  redrawControls.forEach(control => {
+    control.addEventListener('input', requestDraw);
+    control.addEventListener('change', requestDraw);
+  });
+  window.addEventListener('resize', requestDraw);
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) requestDraw();
+  });
   window.addEventListener('beforeunload', () => {
+    if (state.animationRequest !== null) cancelAnimationFrame(state.animationRequest);
+    if (state.logFlushTimer !== null) clearTimeout(state.logFlushTimer);
     if (state.connected) disconnect();
   });
 
   setStatus(false, 'Disconnected');
   log('Ready. Open in Chrome/Edge, then click Connect.');
-  draw();
+  requestDraw();
 })();
 </script>
 </body>
