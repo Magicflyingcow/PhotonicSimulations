@@ -283,6 +283,7 @@
           </div>
         </div>
         <label class="checkline"><input id="invertAngle" type="checkbox" />Invert angle direction</label>
+        <label class="checkline"><input id="plotUpsideDown" type="checkbox" />Plot graph upside down</label>
         <label class="checkline"><input id="logDistance" type="checkbox" />Logarithmic distance scale</label>
         <label class="checkline"><input id="showRaw" type="checkbox" checked />Show raw points</label>
         <label class="checkline"><input id="showTrace" type="checkbox" checked />Show clean trace</label>
@@ -342,8 +343,8 @@
     mode: $('mode'), hostHz: $('hostHz'), maxRange: $('maxRange'), startBtn: $('startBtn'), stopBtn: $('stopBtn'),
     clearBtn: $('clearBtn'), downloadCsvBtn: $('downloadCsvBtn'), servoStep: $('servoStep'), servoLag: $('servoLag'),
     applyServoBtn: $('applyServoBtn'), queryServoBtn: $('queryServoBtn'), minAngle: $('minAngle'), maxAngle: $('maxAngle'),
-    angleOffset: $('angleOffset'), angleScale: $('angleScale'), invertAngle: $('invertAngle'), logDistance: $('logDistance'),
-    showRaw: $('showRaw'), showTrace: $('showTrace'),
+    angleOffset: $('angleOffset'), angleScale: $('angleScale'), invertAngle: $('invertAngle'),
+    plotUpsideDown: $('plotUpsideDown'), logDistance: $('logDistance'), showRaw: $('showRaw'), showTrace: $('showTrace'),
     motorCycle: $('motorCycle'), waveform: $('waveform'), syncMinBtn: $('syncMinBtn'), syncMaxBtn: $('syncMaxBtn'),
     manualCmd: $('manualCmd'), sendCmdBtn: $('sendCmdBtn'), log: $('log'),
     mainLayout: $('mainLayout'), controlsSidebar: $('controlsSidebar'), sidebarToggle: $('sidebarToggle'),
@@ -809,7 +810,8 @@
     ctx.clearRect(0, 0, w, h);
 
     const cx = w / 2;
-    const cy = h * 0.82;
+    const upsideDown = ui.plotUpsideDown.checked;
+    const cy = h * (upsideDown ? 0.18 : 0.82);
     const radius = Math.min(w * 0.45, h * 0.72);
     const maxRange = Math.max(1, Number(ui.maxRange.value || 10));
     const minA = Number(ui.minAngle.value);
@@ -839,24 +841,24 @@
       const ringDistance = useLogDistance
         ? Math.expm1(Math.log1p(maxRange) * ringFraction)
         : maxRange * ringFraction;
-      ctx.beginPath();
-      ctx.arc(0, 0, rr, Math.PI + degToRad(minA), Math.PI + degToRad(maxA), false);
+      drawPolarArc(ctx, minA, maxA, ringDistance, radius, maxRange, useLogDistance, upsideDown);
       ctx.stroke();
-      ctx.fillText(`${formatGridDistance(ringDistance)}m`, 0, -rr - 5);
+      const labelDirection = upsideDown ? 1 : -1;
+      ctx.fillText(`${formatGridDistance(ringDistance)}m`, 0, labelDirection * (rr + 5));
     }
     for (let a = Math.ceil(minA / 15) * 15; a <= maxA; a += 15) {
-      const p = polarToXY(a, maxRange, radius, maxRange, useLogDistance);
+      const p = polarToXY(a, maxRange, radius, maxRange, useLogDistance, upsideDown);
       ctx.beginPath();
       ctx.moveTo(0, 0);
       ctx.lineTo(p.x, p.y);
       ctx.stroke();
-      const label = polarToXY(a, maxRange, radius * 1.04, maxRange, useLogDistance);
+      const label = polarToXY(a, maxRange, radius * 1.04, maxRange, useLogDistance, upsideDown);
       ctx.fillText(`${a}°`, label.x, label.y);
     }
 
     // Beam for latest sample
     if (state.latestAngle != null && state.latestDistance != null) {
-      const p = polarToXY(state.latestAngle, Math.min(state.latestDistance, maxRange), radius, maxRange, useLogDistance);
+      const p = polarToXY(state.latestAngle, Math.min(state.latestDistance, maxRange), radius, maxRange, useLogDistance, upsideDown);
       ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--beam').trim();
       ctx.lineWidth = Math.max(2, w / 420);
       ctx.beginPath();
@@ -871,7 +873,7 @@
       const now = performance.now();
       for (let i = state.pointStart; i < state.points.length; i++) {
         const pt = state.points[i];
-        const p = polarToXY(pt.angleDeg, pt.plotDistance, radius, maxRange, useLogDistance);
+        const p = polarToXY(pt.angleDeg, pt.plotDistance, radius, maxRange, useLogDistance, upsideDown);
         const alpha = Math.max(0.12, Math.min(0.9, 1 - (now - pt.t) / 45000));
         ctx.globalAlpha = alpha;
         ctx.beginPath();
@@ -899,7 +901,7 @@
         ctx.lineCap = 'round';
         ctx.beginPath();
         trace.forEach((pt, i) => {
-          const p = polarToXY(pt.angleDeg, pt.plotDistance, radius, maxRange, useLogDistance);
+          const p = polarToXY(pt.angleDeg, pt.plotDistance, radius, maxRange, useLogDistance, upsideDown);
           if (i === 0) ctx.moveTo(p.x, p.y);
           else ctx.lineTo(p.x, p.y);
         });
@@ -924,14 +926,27 @@
     return distance.toFixed(0);
   }
 
-  function polarToXY(angleDeg, distance, radiusPx, maxRange, useLogDistance = false) {
-    // 0° points forward/up. Positive angle goes right on the display.
+  function drawPolarArc(ctx, minAngle, maxAngle, distance, radiusPx, maxRange, useLogDistance, upsideDown) {
+    const span = Math.abs(maxAngle - minAngle);
+    const steps = Math.max(12, Math.ceil(span / 3));
+    ctx.beginPath();
+    for (let i = 0; i <= steps; i++) {
+      const angle = minAngle + (maxAngle - minAngle) * (i / steps);
+      const p = polarToXY(angle, distance, radiusPx, maxRange, useLogDistance, upsideDown);
+      if (i === 0) ctx.moveTo(p.x, p.y);
+      else ctx.lineTo(p.x, p.y);
+    }
+  }
+
+  function polarToXY(angleDeg, distance, radiusPx, maxRange, useLogDistance = false, upsideDown = false) {
+    // 0° points forward/up by default. Upside-down mode mirrors the plot vertically.
     const a = degToRad(angleDeg);
     const normalizedDistance = useLogDistance
       ? Math.log1p(Math.max(0, distance)) / Math.log1p(maxRange)
       : distance / maxRange;
     const r = radiusPx * normalizedDistance;
-    return { x: r * Math.sin(a), y: -r * Math.cos(a) };
+    const verticalDirection = upsideDown ? 1 : -1;
+    return { x: r * Math.sin(a), y: verticalDirection * r * Math.cos(a) };
   }
 
   ui.sidebarToggle.addEventListener('click', () => {
@@ -959,7 +974,7 @@
 
   const redrawControls = [
     ui.maxRange, ui.minAngle, ui.maxAngle, ui.angleOffset, ui.angleScale,
-    ui.invertAngle, ui.logDistance, ui.showRaw, ui.showTrace
+    ui.invertAngle, ui.plotUpsideDown, ui.logDistance, ui.showRaw, ui.showTrace
   ];
   redrawControls.forEach(control => {
     control.addEventListener('input', requestDraw);
