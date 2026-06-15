@@ -91,10 +91,7 @@
           <div><label>Pixel count</label><input id="pixelCount" type="number" min="16" max="4096" step="1" value="288"></div>
           <div><label>Average frames</label><input id="avgFrames" type="number" min="1" max="200" step="1" value="1"></div>
         </div>
-        <div class="row">
-          <div><label>Raw packet offset</label><input id="packetOffset" value="auto"></div>
-          <div><label>Averaging</label><button id="resetAvgBtn" class="secondary" type="button">Reset average</button></div>
-        </div>
+        <div><label>Averaging</label><button id="resetAvgBtn" class="secondary" type="button">Reset average</button></div>
         <div class="row">
           <div><label>Capture mode</label><select id="captureMode"><option value="0">Specified number</option><option value="2">Trigger</option></select></div>
           <div><label>Y scale</label><select id="yScale"><option value="linear">Linear</option><option value="log">Log</option></select></div>
@@ -143,23 +140,6 @@
       </div>
     </section>
 
-    <section>
-      <h2>Experimental WebUSB raw controls</h2>
-      <div class="body">
-        <div class="row">
-          <div><label>Bulk OUT endpoint</label><input id="bulkOutEp" value="auto"></div>
-          <div><label>Status Bulk IN endpoint</label><input id="bulkInEp" value="auto"></div>
-        </div>
-        <label>Image Bulk IN endpoint</label><input id="imageInEp" value="auto">
-        <label>Send hex bytes to bulk OUT</label>
-        <textarea id="hexOut" placeholder="Example: 01 02 03 04"></textarea>
-        <div class="btns">
-          <button id="sendHexBtn" class="secondary">Send hex</button>
-          <button id="readInBtn" class="secondary">Read IN once</button>
-          <button id="clearLogBtn" class="secondary">Clear log</button>
-        </div>
-      </div>
-    </section>
   </aside>
 
   <section id="chartPanel">
@@ -508,9 +488,6 @@ function discoverUsbEndpoints(){
         usbBulkIn=bulkIns[0] ? bulkIns[0].endpointNumber : null;       // eIn1/status in the DLL
         usbImageIn=bulkIns[1] ? bulkIns[1].endpointNumber : usbBulkIn; // eIn2/header+image in the DLL
         usbBulkOut=bulkOut ? bulkOut.endpointNumber : null;
-        if(usbBulkIn) $('bulkInEp').value = String(usbBulkIn);
-        if(usbImageIn) $('imageInEp').value = String(usbImageIn);
-        if(usbBulkOut) $('bulkOutEp').value = String(usbBulkOut);
         return;
       }
     }
@@ -531,74 +508,6 @@ function renderUsbDetails(){
   }
   el.innerHTML=`<table><thead><tr><th>Interface</th><th>Alt</th><th>Class</th><th>Endpoints</th></tr></thead><tbody>${rows.join('')}</tbody></table>`;
 }
-async function sendHex(){
-  if(!usbDevice){alert('Connect WebUSB first.');return;}
-  const ep = $('bulkOutEp').value.trim()==='auto' ? usbBulkOut : parseInt($('bulkOutEp').value,10);
-  if(!ep){alert('No bulk OUT endpoint found.');return;}
-  const data = hexToBytes($('hexOut').value);
-  if(!data.length){alert('No hex bytes to send.');return;}
-  try{
-    const r = await usbDevice.transferOut(ep, data);
-    log(`Sent ${data.length} bytes to bulk OUT ep${ep}; status=${r.status}`);
-  }catch(e){ log('Bulk OUT failed: '+e.message); }
-}
-async function readWebUsbOnce(){
-  if(!usbDevice){throw new Error('Connect WebUSB first.');}
-  const ep = $('bulkInEp').value.trim()==='auto' ? usbBulkIn : parseInt($('bulkInEp').value,10);
-  if(!ep) throw new Error('No bulk IN endpoint found.');
-  const byteCount = Math.max(64, pixelCount()*2 + 128);
-  const r = await usbDevice.transferIn(ep, byteCount);
-  if(r.status !== 'ok') throw new Error('transferIn status: '+r.status);
-  const bytes = new Uint8Array(r.data.buffer);
-  log(`Read ${bytes.length} bytes from bulk IN ep${ep}`);
-  const spec = parsePacketToSpectrum(bytes);
-  if(spec && spec.length){
-    setSpectrum(spec, {source:'webusb', bytes:bytes.length});
-    return spec;
-  }
-  return null;
-}
-function hexToBytes(text){
-  const clean = text.replace(/#.*$/mg,'').replace(/[^0-9a-fA-F]/g,' ');
-  const parts = clean.trim().split(/\s+/).filter(Boolean);
-  return new Uint8Array(parts.map(p=>parseInt(p,16)&255));
-}
-function parsePacketToSpectrum(bytes){
-  if(!bytes || !bytes.length) return null;
-  // JSON/CSV convenience for structured packets
-  try{
-    const txt = new TextDecoder().decode(bytes).trim();
-    if(txt.startsWith('{')){
-      const obj = JSON.parse(txt);
-      if(Array.isArray(obj.pixels)) return obj.pixels.map(Number);
-    }
-    if(/^\d+[\d,\s.\-eE]+$/.test(txt)){
-      const arr = txt.split(/[\s,]+/).map(Number).filter(Number.isFinite);
-      if(arr.length>16) return arr;
-    }
-  }catch(e){}
-
-  const n = pixelCount();
-  if(bytes.length < n*2) return null;
-  let offsetSetting = $('packetOffset').value.trim().toLowerCase();
-  let offset;
-  if(offsetSetting === 'auto'){
-    // Prefer the last complete 16-bit spectrum in the packet, common when a header is prepended.
-    offset = bytes.length - n*2;
-    if(offset < 0) offset = 0;
-    if(offset % 2) offset--;
-  }else{
-    offset = Math.max(0, parseInt(offsetSetting,10) || 0);
-  }
-  const out = new Array(n);
-  for(let i=0;i<n;i++){
-    const j=offset+i*2;
-    if(j+1>=bytes.length) break;
-    out[i] = bytes[j] | (bytes[j+1]<<8); // unsigned 16-bit little-endian
-  }
-  return out;
-}
-
 // Reverse-engineered C13016 command frame from MICRO_USB2_CLR.dll:
 //   OUT frame = uint32be(command) + uint32be(payloadLength) + payload
 // Multi-byte command payloads are big-endian. Captured header/image payloads observed from the C13016 stream are little-endian.
@@ -800,20 +709,16 @@ async function readC13016FrameFromImageStream(imageEp){
   throw new Error(`Could not find a complete header+image frame. Buffered bytes=${imageByteBuffer.length}, discarded stale bytes=${lastDiscardedByteCount}`);
 }
 
-function endpointValue(id, fallback){
-  const v=$(id).value.trim().toLowerCase();
-  return v==='auto' || v==='' ? fallback : parseInt(v,10);
-}
 async function c13016Command(cmd, payload=null, responseLen=0, responseEp='status'){
   if(!usbDevice) throw new Error('Connect WebUSB first.');
-  const outEp = endpointValue('bulkOutEp', usbBulkOut);
+  const outEp = usbBulkOut;
   if(!outEp) throw new Error('No bulk OUT endpoint found.');
   payload = payload || new Uint8Array(0);
   const frame = concatBytes(u32be(cmd), u32be(payload.length), payload);
   const wr = await usbDevice.transferOut(outEp, frame);
   if(wr.status !== 'ok') throw new Error(`Command ${cmd} OUT status ${wr.status}`);
   if(!responseLen) return new Uint8Array(0);
-  const inEp = responseEp==='image' ? endpointValue('imageInEp', usbImageIn || usbBulkIn) : endpointValue('bulkInEp', usbBulkIn);
+  const inEp = responseEp==='image' ? (usbImageIn || usbBulkIn) : usbBulkIn;
   if(!inEp) throw new Error('No bulk IN endpoint found.');
   const rr = await usbDevice.transferIn(inEp, responseLen);
   if(rr.status !== 'ok') throw new Error(`Command ${cmd} IN status ${rr.status}`);
@@ -873,8 +778,8 @@ async function c13016DirectReadOnce(){
   if(directFrameCounter <= 3 || directFrameCounter % 25 === 0){
     log(`Start capture mode=${capMode} reply bytes: ${bytesToHex(startReply)} code=0x${readU16BE(startReply).toString(16).padStart(4,'0')}`);
   }
-  const statusEp = endpointValue('bulkInEp', usbBulkIn);
-  const imageEp = endpointValue('imageInEp', usbImageIn || usbBulkIn);
+  const statusEp = usbBulkIn;
+  const imageEp = usbImageIn || usbBulkIn;
   const expUs = Number($('exposureUs').value || 10000);
   const deadline = Date.now() + Math.max(1200, expUs/1000 + 3000);
   let st=0, seen=[];
@@ -997,9 +902,6 @@ $('clearRefBtn').onclick=()=>{refSpectrum=null; log('Reference cleared.'); drawS
 $('pixelAxisBtn').onclick=()=>{useWavelength=false; drawSpectrum();};
 $('wavelengthAxisBtn').onclick=()=>{useWavelength=true; drawSpectrum();};
 $('downloadCsvBtn').onclick=downloadCsv;
-$('sendHexBtn').onclick=sendHex;
-$('readInBtn').onclick=()=>readWebUsbOnce().catch(e=>log('Read IN failed: '+e.message));
-$('clearLogBtn').onclick=()=>{logEl.textContent='';};
 for(const id of ['yScale','traceColour','traceThickness','coef0','coef1','coef2','coef3','coef4','coef5']) $(id).addEventListener('change', drawSpectrum);
 $('pixelCount').addEventListener('change', ()=>{ resetAveraging(true); drawSpectrum(); });
 $('avgFrames').addEventListener('change', ()=>{ resetAveraging(true); });
