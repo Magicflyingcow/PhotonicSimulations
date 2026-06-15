@@ -198,8 +198,6 @@ let usbInterfaceNumber = null;
 let usbBulkIn = null;
 let usbImageIn = null;
 let usbBulkOut = null;
-let usbTransferIn = null;
-let usbTransferOut = null;
 let c13016DirectReady = false;
 let lastDirectExposureUs = null;
 let directFrameCounter = 0;
@@ -491,6 +489,19 @@ function formatNumber(v){
   return v.toFixed(3);
 }
 
+function callUsbDevice(methodName, ...args){
+  if(!usbDevice) throw new Error('Connect WebUSB first.');
+  // Invoke WebUSB methods with the USBDevice as their explicit receiver.
+  // Looking up the native prototype first also bypasses wrappers/proxies that
+  // return an unbound WebUSB method and trigger Chromium's "Illegal invocation".
+  const prototype = typeof USBDevice !== 'undefined' ? USBDevice.prototype : Object.getPrototypeOf(usbDevice);
+  const method = prototype && prototype[methodName];
+  const fallback = usbDevice[methodName];
+  const callable = typeof method === 'function' ? method : fallback;
+  if(typeof callable !== 'function') throw new Error(`WebUSB method ${methodName} is unavailable.`);
+  return Reflect.apply(callable, usbDevice, args);
+}
+
 async function connectWebUSB(){
   if(!('usb' in navigator)){
     alert('WebUSB is not available in this browser. Try Chrome or Edge.');
@@ -499,16 +510,11 @@ async function connectWebUSB(){
   const vid=parseHexInt($('vid').value), pid=parseHexInt($('pid').value);
   try{
     usbDevice = await navigator.usb.requestDevice({filters:[{vendorId:vid, productId:pid}]});
-    await usbDevice.open();
-    if(usbDevice.configuration === null) await usbDevice.selectConfiguration(1);
-    // Keep explicitly bound references to the WebUSB native methods. Chromium
-    // throws "Illegal invocation" if a native method loses its USBDevice
-    // receiver (including with some wrapped/proxied device implementations).
-    usbTransferIn = usbDevice.transferIn.bind(usbDevice);
-    usbTransferOut = usbDevice.transferOut.bind(usbDevice);
+    await callUsbDevice('open');
+    if(usbDevice.configuration === null) await callUsbDevice('selectConfiguration', 1);
     discoverUsbEndpoints();
     if(usbInterfaceNumber !== null){
-      try{ await usbDevice.claimInterface(usbInterfaceNumber); }catch(e){ log('Claim interface failed: '+e.message); }
+      try{ await callUsbDevice('claimInterface', usbInterfaceNumber); }catch(e){ log('Claim interface failed: '+e.message); }
     }
     $('disconnectUsbBtn').disabled=false;
     setStatus('WebUSB connected', 'ok');
@@ -520,8 +526,8 @@ async function connectWebUSB(){
   }
 }
 async function disconnectWebUSB(){
-  try{ if(usbDevice) await usbDevice.close(); }catch(e){}
-  usbDevice=null; usbInterfaceNumber=null; usbBulkIn=null; usbImageIn=null; usbBulkOut=null; usbTransferIn=null; usbTransferOut=null; c13016DirectReady=false; lastDirectExposureUs=null; directFrameCounter=0;
+  try{ if(usbDevice) await callUsbDevice('close'); }catch(e){}
+  usbDevice=null; usbInterfaceNumber=null; usbBulkIn=null; usbImageIn=null; usbBulkOut=null; c13016DirectReady=false; lastDirectExposureUs=null; directFrameCounter=0;
   $('disconnectUsbBtn').disabled=true;
   setStatus('Not connected');
   renderUsbDetails();
@@ -591,19 +597,17 @@ function concatBytes(...parts){
   return out;
 }
 async function webUsbTransfer(direction, endpoint, dataOrLength){
-  const transfer = direction === 'in' ? usbTransferIn : usbTransferOut;
-  if(!usbDevice || !transfer) throw new Error('Connect WebUSB first.');
+  if(!usbDevice) throw new Error('Connect WebUSB first.');
+  const methodName = direction === 'in' ? 'transferIn' : 'transferOut';
   try{
-    return await transfer(endpoint, dataOrLength);
+    return await callUsbDevice(methodName, endpoint, dataOrLength);
   }catch(e){
     // A C13016 INIT_BOARD reset can make Chromium reject the first subsequent
-    // native call before it reaches the device. Rebind and retry that specific
-    // browser-side failure once; ordinary USB errors must remain visible.
+    // native call before it reaches the device. Retry that specific browser-side
+    // failure once; ordinary USB errors must remain visible.
     if(!(e instanceof TypeError) || e.message !== 'Illegal invocation') throw e;
     await sleep(100);
-    usbTransferIn = usbDevice.transferIn.bind(usbDevice);
-    usbTransferOut = usbDevice.transferOut.bind(usbDevice);
-    return await (direction === 'in' ? usbTransferIn : usbTransferOut)(endpoint, dataOrLength);
+    return await callUsbDevice(methodName, endpoint, dataOrLength);
   }
 }
 

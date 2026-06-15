@@ -31,10 +31,13 @@ test("C13016 command errors identify the failed WebUSB operation", () => {
   );
 });
 
-test("WebUSB native transfers retain their USBDevice receiver", () => {
-  assert.match(source, /usbDevice\.transferIn\.bind\(usbDevice\)/);
-  assert.match(source, /usbDevice\.transferOut\.bind\(usbDevice\)/);
+test("WebUSB methods retain their USBDevice receiver without relying on wrappers", () => {
+  assert.match(source, /const prototype = typeof USBDevice !== 'undefined' \? USBDevice\.prototype/);
+  assert.match(source, /return Reflect\.apply\(callable, usbDevice, args\);/);
   assert.doesNotMatch(source, /await usbDevice\.transfer(?:In|Out)\(/);
+  for(const method of ["open", "selectConfiguration", "claimInterface", "close"]){
+    assert.ok(source.includes(`callUsbDevice('${method}'`), `${method} should use the receiver-safe dispatcher`);
+  }
 });
 
 test("Chromium Illegal invocation transfer failures are retried once", () => {
@@ -44,7 +47,7 @@ test("Chromium Illegal invocation transfer failures are retried once", () => {
   );
   assert.match(
     source,
-    /return await \(direction === 'in' \? usbTransferIn : usbTransferOut\)\(endpoint, dataOrLength\);/,
+    /return await callUsbDevice\(methodName, endpoint, dataOrLength\);/,
   );
 });
 
