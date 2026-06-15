@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>C13016 / C12880MA Spectrometer Browser v14</title>
+<title>C13016 / C12880MA Spectrometer Browser v15</title>
 <style>
   :root{
     --bg:#0b1020;--panel:#111832;--panel2:#151f3f;--ink:#ecf2ff;--muted:#9eb0d3;
@@ -51,6 +51,8 @@
   th,td{border-bottom:1px solid #26365f;padding:6px;text-align:left;vertical-align:top}
   th{color:#c6d5f7;font-weight:650}
   .ok{color:var(--good)}.warnText{color:var(--warn)}.badText{color:var(--bad)}
+  .heartRateValue{font-size:34px;font-weight:750;color:#fb7185;line-height:1;margin:8px 0}
+  .heartRateMeta{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
   @media(max-width:1050px){main{grid-template-columns:1fr}header{position:static}#canvasWrap{height:520px}}
 </style>
 </head>
@@ -144,6 +146,22 @@
       </div>
     </section>
 
+    <section>
+      <h2>Heart Rate monitor mode</h2>
+      <div class="body">
+        <label class="checkRow"><input id="heartRateMode" type="checkbox"><span>Measure pulse fluctuations around 655 nm</span></label>
+        <div class="heartRateValue"><span id="heartRateValue">—</span> <span class="mini">BPM</span></div>
+        <div id="heartRateStatus" class="hint">Enable this mode, start live acquisition, and hold a fingertip steadily in the 655 nm optical path.</div>
+        <div class="heartRateMeta">
+          <span class="pill">Confidence: <strong id="heartRateConfidence">—</strong></span>
+          <span class="pill">Window: <strong id="heartRateWindow">0.0 s</strong></span>
+        </div>
+        <div class="hint">
+          The monitor ratios 652–658 nm against neighbouring red bands and the broad 600–700 nm intensity, then detrends the result. This rejects ambient changes, lamp flicker, exposure drift, and other common intensity fluctuations before estimating the dominant pulse frequency.
+        </div>
+      </div>
+    </section>
+
   </aside>
 
   <section id="chartPanel">
@@ -164,6 +182,7 @@
   </section>
 </main>
 
+<script src="heart-rate-monitor.js"></script>
 <script>
 'use strict';
 
@@ -200,6 +219,8 @@ let lastDiscardedByteCount = 0;
 let lastFramePayloadByteCount = 0;
 let lastFrameHeaderSummary = '';
 let c13016ModulePixels = 288;
+const heartRateMonitor = new HeartRateMonitor.Monitor({minimumSeconds:8, windowSeconds:20, keepSeconds:30});
+let heartRateStartedAt = null;
 
 function log(msg, cls=''){
   const time = new Date().toLocaleTimeString();
@@ -878,7 +899,32 @@ function setSpectrum(arr, info={}){
   currentSpectrum = applyFrameAveraging(raw);
   sampleCounter++;
   lastInfo=Object.assign({}, info, {averagedFrames: averagingBuffer.length || 1, averageTarget: averageFrameCount()});
+  updateHeartRate(currentSpectrum);
   drawSpectrum();
+}
+function resetHeartRate(message='Collecting a clean 8-second signal…'){
+  heartRateMonitor.reset();
+  heartRateStartedAt = performance.now()/1000;
+  $('heartRateValue').textContent='—';
+  $('heartRateConfidence').textContent='—';
+  $('heartRateWindow').textContent='0.0 s';
+  $('heartRateStatus').textContent=message;
+}
+function updateHeartRate(spectrum){
+  if(!$('heartRateMode').checked || !spectrum) return;
+  const now=performance.now()/1000;
+  if(heartRateStartedAt===null) resetHeartRate();
+  const wavelengths=spectrum.map((_,i)=>wavelengthForPixel(i));
+  const result=heartRateMonitor.addSpectrum(spectrum,wavelengths,now);
+  if(!result.accepted){
+    $('heartRateStatus').textContent=result.reason;
+    return;
+  }
+  const duration=heartRateMonitor.samples.length ? now-heartRateMonitor.samples[0].time : 0;
+  $('heartRateWindow').textContent=`${duration.toFixed(1)} s`;
+  $('heartRateConfidence').textContent=result.bpm ? `${Math.round(result.confidence*100)}%` : '—';
+  $('heartRateValue').textContent=result.bpm || '—';
+  $('heartRateStatus').textContent=result.reason || 'Pulse detected. Keep your fingertip and light source still.';
 }
 function setDark(){ if(currentSpectrum){ darkSpectrum=currentSpectrum.slice(); log('Dark spectrum captured.'); drawSpectrum(); } }
 function setRef(){ if(currentSpectrum){ refSpectrum=currentSpectrum.slice(); log('Reference spectrum captured.'); drawSpectrum(); } }
@@ -927,9 +973,22 @@ for(const id of ['traceColour','traceThickness','coef0','coef1','coef2','coef3',
 $('pixelCount').addEventListener('change', ()=>{ resetAveraging(true); drawSpectrum(); });
 $('avgFrames').addEventListener('change', ()=>{ resetAveraging(true); });
 $('resetAvgBtn').onclick=()=>resetAveraging(true);
+$('heartRateMode').addEventListener('change', ()=>{
+  if($('heartRateMode').checked){
+    resetHeartRate();
+    log('Heart Rate monitor mode enabled: tracking normalized 655 nm fluctuations.');
+  }else{
+    resetHeartRate('Enable this mode, start live acquisition, and hold a fingertip steadily in the 655 nm optical path.');
+    heartRateStartedAt=null;
+    log('Heart Rate monitor mode disabled.');
+  }
+});
+for(const id of ['coef0','coef1','coef2','coef3','coef4','coef5']){
+  $(id).addEventListener('change', ()=>{ if($('heartRateMode').checked) resetHeartRate('Calibration changed; collecting a new signal…'); });
+}
 
 resizeCanvas();
-log('Ready. Direct WebUSB v14 adds adjustable trace thickness, wavelength-coloured tracing, and rolling frame averaging. EEPROM/calibration writes remain disabled.');
+log('Ready. Direct WebUSB v15 adds Heart Rate monitor mode with common-mode lighting rejection. EEPROM/calibration writes remain disabled.');
 if(!('usb' in navigator)) log('WebUSB is not available in this browser. Try Chrome or Edge.');
 </script>
 </body>
