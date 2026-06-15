@@ -50,12 +50,20 @@
   .hint{font-size:12px;color:var(--muted);line-height:1.45;margin-top:8px}
   .note{font-size:12px;line-height:1.45;padding:10px;border:1px solid #3f3556;background:#1b1530;border-radius:10px;color:#d9d4ff}
   .mini{font-size:11px;color:var(--muted)}
-  #chartPanel{display:grid;grid-template-rows:auto minmax(0,1fr) auto auto;position:sticky;top:86px;height:calc(100vh - 100px);min-height:520px}
+  #chartPanel{display:grid;grid-template-rows:auto minmax(0,1fr) auto auto auto;position:sticky;top:86px;height:calc(100vh - 100px);min-height:520px}
   #canvasWrap{position:relative;min-height:0;padding:10px;background:radial-gradient(circle at 50% 0%,rgba(59,130,246,.16),transparent 35%),#060b18}
   canvas{width:100%;height:100%;display:block;border-radius:10px;background:#050916;border:1px solid #1b2a52}
   #readout{display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding:10px 14px;border-top:1px solid var(--line);background:rgba(21,31,63,.45);font-size:12px;color:var(--muted)}
   .pill{padding:5px 8px;border:1px solid #2c3d70;border-radius:999px;background:#0a1228}
   .pill strong{color:var(--ink)}
+  #peakAnalysis{padding:8px 14px 10px;border-top:1px solid var(--line);background:rgba(10,18,40,.55)}
+  .peakControls{display:flex;align-items:end;gap:8px;flex-wrap:wrap;margin-bottom:7px}
+  .peakControls label{margin:0;min-width:118px}
+  .peakControls input{padding:5px 7px;margin-top:3px}
+  #peakTableWrap{max-height:112px;overflow:auto}
+  #peakTable th,#peakTable td{padding:4px 6px;white-space:nowrap}
+  #peakTable td:first-child{color:var(--ink)}
+  .emptyPeaks{text-align:center;color:var(--muted)}
   #log{height:120px;background:#050916;color:#d7e6ff;border:1px solid #20305b;border-radius:10px;padding:9px;font:12px/1.35 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow:auto;white-space:pre-wrap}
   table{width:100%;border-collapse:collapse;font-size:12px;color:var(--muted)}
   th,td{border-bottom:1px solid #26365f;padding:6px;text-align:left;vertical-align:top}
@@ -202,6 +210,19 @@
       <span class="pill">Peak x: <strong id="peakX">—</strong></span>
       <span class="pill">Mean: <strong id="meanValue">—</strong></span>
       <span class="pill">Backend: <strong id="backendLabel">—</strong></span>
+    </div>
+    <div id="peakAnalysis">
+      <div class="peakControls">
+        <label>Maximum labels<input id="maxPeakLabels" type="number" min="0" max="12" step="1" value="4"></label>
+        <label>Minimum prominence<input id="minPeakProminence" type="number" min="0" step="any" value="100"></label>
+        <label>Minimum separation (px)<input id="minPeakSeparation" type="number" min="1" max="288" step="1" value="5"></label>
+      </div>
+      <div id="peakTableWrap">
+        <table id="peakTable">
+          <thead><tr><th>Wavelength</th><th>Intensity</th><th>Prominence</th><th>FWHM</th></tr></thead>
+          <tbody><tr><td class="emptyPeaks" colspan="4">No peaks detected</td></tr></tbody>
+        </table>
+      </div>
     </div>
     <div id="eventLogSection" class="collapsibleSection">
       <div class="sectionHeader">
@@ -411,6 +432,70 @@ function processedSpectrum(raw){
   return out;
 }
 
+function interpolatedWavelength(pixel){
+  const lo = Math.max(0, Math.floor(pixel));
+  const hi = Math.min(pixelCount()-1, Math.ceil(pixel));
+  if(lo === hi) return wavelengthForPixel(lo);
+  const fraction = pixel-lo;
+  return wavelengthForPixel(lo) + (wavelengthForPixel(hi)-wavelengthForPixel(lo))*fraction;
+}
+function crossingPixel(values, peakIndex, direction, level){
+  let inside = peakIndex;
+  let outside = peakIndex + direction;
+  while(outside >= 0 && outside < values.length && values[outside] > level){
+    inside = outside;
+    outside += direction;
+  }
+  if(outside < 0 || outside >= values.length) return null;
+  const insideValue = values[inside], outsideValue = values[outside];
+  if(insideValue === outsideValue) return outside;
+  return outside + (level-outsideValue)/(insideValue-outsideValue)*(inside-outside);
+}
+function analyzePeaks(values){
+  const minimumProminence = Math.max(0, Number($('minPeakProminence').value) || 0);
+  const minimumSeparation = Math.max(1, Math.round(Number($('minPeakSeparation').value) || 1));
+  const candidates = [];
+  for(let i=1;i<values.length-1;i++){
+    if(!isFinite(values[i]) || values[i] <= values[i-1] || values[i] < values[i+1]) continue;
+    let leftMin=values[i], rightMin=values[i];
+    for(let j=i-1;j>=0;j--){
+      if(values[j] > values[i]) break;
+      leftMin = Math.min(leftMin, values[j]);
+    }
+    for(let j=i+1;j<values.length;j++){
+      if(values[j] > values[i]) break;
+      rightMin = Math.min(rightMin, values[j]);
+    }
+    const prominence = values[i] - Math.max(leftMin, rightMin);
+    if(prominence < minimumProminence) continue;
+    const halfHeight = values[i] - prominence/2;
+    const left = crossingPixel(values, i, -1, halfHeight);
+    const right = crossingPixel(values, i, 1, halfHeight);
+    const wavelength = wavelengthForPixel(i);
+    const fwhm = left === null || right === null
+      ? null
+      : Math.abs(interpolatedWavelength(right)-interpolatedWavelength(left));
+    candidates.push({pixel:i, wavelength, intensity:values[i], prominence, fwhm});
+  }
+  candidates.sort((a,b) => b.prominence-a.prominence || b.intensity-a.intensity);
+  const accepted = [];
+  for(const peak of candidates){
+    if(accepted.every(other => Math.abs(other.pixel-peak.pixel) >= minimumSeparation)) accepted.push(peak);
+  }
+  return accepted.sort((a,b) => a.wavelength-b.wavelength);
+}
+function renderPeakTable(peaks){
+  const tbody = $('peakTable').tBodies[0];
+  if(!peaks.length){
+    tbody.innerHTML = '<tr><td class="emptyPeaks" colspan="4">No peaks detected</td></tr>';
+    return;
+  }
+  tbody.innerHTML = peaks
+    .slice().sort((a,b) => b.prominence-a.prominence)
+    .map(peak => `<tr><td>${formatNumber(peak.wavelength)} nm</td><td>${formatNumber(peak.intensity)}</td><td>${formatNumber(peak.prominence)}</td><td>${peak.fwhm === null ? '—' : formatNumber(peak.fwhm)+' nm'}</td></tr>`)
+    .join('');
+}
+
 function resizeCanvas(){
   const dpr = window.devicePixelRatio || 1;
   const rect = canvas.getBoundingClientRect();
@@ -446,6 +531,7 @@ function drawSpectrum(){
   if(!currentSpectrum || !currentSpectrum.length){
     ctx.fillStyle = '#9eb0d3';
     ctx.fillText('No spectrum yet', padL+14, padT+26);
+    renderPeakTable([]);
     return;
   }
 
@@ -510,7 +596,28 @@ function drawSpectrum(){
     ctx.stroke();
   }
 
-  // Peak marker
+  // Analyze the processed trace, then annotate the strongest accepted peaks.
+  const peaks = analyzePeaks(values);
+  renderPeakTable(peaks);
+  const maxLabels = Math.max(0, Math.min(12, Math.round(Number($('maxPeakLabels').value) || 0)));
+  const labelledPeaks = peaks.slice().sort((a,b) => b.prominence-a.prominence).slice(0,maxLabels);
+  const dpr = window.devicePixelRatio || 1;
+  ctx.save();
+  ctx.font = `${11*dpr}px ui-monospace, Menlo, Consolas, monospace`;
+  ctx.textAlign = 'center';
+  for(const peak of labelledPeaks){
+    const displayValue = yScale==='log' ? Math.log10(Math.max(1, peak.intensity)) : peak.intensity;
+    const px=sx(xs[peak.pixel]), py=sy(displayValue);
+    ctx.strokeStyle = '#facc15';
+    ctx.fillStyle = '#facc15';
+    ctx.lineWidth = dpr;
+    ctx.beginPath(); ctx.arc(px,py,3*dpr,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(px,py-5*dpr); ctx.lineTo(px,Math.max(padT+13*dpr,py-19*dpr)); ctx.stroke();
+    ctx.fillText(`${peak.wavelength.toFixed(1)} nm`, px, Math.max(padT+10*dpr,py-22*dpr));
+  }
+  ctx.restore();
+
+  // Overall maximum readout and marker.
   let peakIdx=0, peak=-Infinity, mean=0;
   for(let i=0;i<values.length;i++){ if(values[i]>peak){peak=values[i]; peakIdx=i;} mean += values[i]; }
   mean /= values.length;
@@ -1111,6 +1218,7 @@ $('fixYScale').addEventListener('change', ()=>{
   drawSpectrum();
 });
 for(const id of ['traceColour','traceThickness','coef0','coef1','coef2','coef3','coef4','coef5']) $(id).addEventListener('change', drawSpectrum);
+for(const id of ['maxPeakLabels','minPeakProminence','minPeakSeparation']) $(id).addEventListener('input', drawSpectrum);
 $('pixelCount').addEventListener('change', ()=>{ resetAveraging(true); drawSpectrum(); });
 $('avgFrames').addEventListener('change', ()=>{ resetAveraging(true); });
 $('resetAvgBtn').onclick=()=>resetAveraging(true);
