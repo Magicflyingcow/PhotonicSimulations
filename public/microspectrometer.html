@@ -1,0 +1,1113 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>C13016 / C12880MA Spectrometer Browser v14</title>
+<style>
+  :root{
+    --bg:#0b1020;--panel:#111832;--panel2:#151f3f;--ink:#ecf2ff;--muted:#9eb0d3;
+    --accent:#7dd3fc;--good:#4ade80;--warn:#facc15;--bad:#fb7185;--line:#2b3a68;
+    --input:#0c1329;--button:#1e3a8a;--button2:#334155;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:linear-gradient(180deg,#080d1d,#0e1630 55%,#080d1d);color:var(--ink);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+  header{padding:18px 22px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:16px;position:sticky;top:0;background:rgba(11,16,32,.92);backdrop-filter:blur(8px);z-index:2}
+  h1{font-size:18px;margin:0;font-weight:700;letter-spacing:.2px}
+  .sub{color:var(--muted);font-size:12px;margin-top:2px}
+  .status{font-size:12px;color:var(--muted);padding:8px 10px;background:#0a1228;border:1px solid var(--line);border-radius:999px;white-space:nowrap}
+  main{display:grid;grid-template-columns:380px 1fr;gap:14px;padding:14px;min-height:calc(100vh - 72px)}
+  aside{display:flex;flex-direction:column;gap:12px;min-width:0}
+  section{background:rgba(17,24,50,.94);border:1px solid var(--line);border-radius:14px;box-shadow:0 18px 50px rgba(0,0,0,.22);overflow:hidden}
+  section h2{font-size:13px;letter-spacing:.3px;margin:0;padding:12px 14px;border-bottom:1px solid var(--line);background:rgba(21,31,63,.65)}
+  .body{padding:12px 14px}
+  label{display:block;font-size:12px;color:var(--muted);margin:8px 0 4px}
+  input,select,textarea{width:100%;background:var(--input);color:var(--ink);border:1px solid #27345f;border-radius:9px;padding:8px 9px;font:13px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;outline:none}
+  input:focus,select:focus,textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(125,211,252,.12)}
+  textarea{min-height:78px;resize:vertical;line-height:1.35}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+  .btns{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+  button{background:var(--button);color:white;border:1px solid #3758b8;border-radius:10px;padding:8px 11px;font-weight:650;cursor:pointer;font-size:13px}
+  button.secondary{background:var(--button2);border-color:#475569}
+  button.good{background:#166534;border-color:#22c55e}
+  button.warn{background:#854d0e;border-color:#eab308}
+  button.bad{background:#881337;border-color:#fb7185}
+  button:disabled{opacity:.48;cursor:not-allowed}
+  .hint{font-size:12px;color:var(--muted);line-height:1.45;margin-top:8px}
+  .note{font-size:12px;line-height:1.45;padding:10px;border:1px solid #3f3556;background:#1b1530;border-radius:10px;color:#d9d4ff}
+  .mini{font-size:11px;color:var(--muted)}
+  #chartPanel{display:grid;grid-template-rows:auto 1fr auto;min-height:0}
+  #canvasWrap{position:relative;min-height:460px;padding:10px;background:radial-gradient(circle at 50% 0%,rgba(59,130,246,.16),transparent 35%),#060b18}
+  canvas{width:100%;height:100%;display:block;border-radius:10px;background:#050916;border:1px solid #1b2a52}
+  #readout{display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding:10px 14px;border-top:1px solid var(--line);background:rgba(21,31,63,.45);font-size:12px;color:var(--muted)}
+  .pill{padding:5px 8px;border:1px solid #2c3d70;border-radius:999px;background:#0a1228}
+  .pill strong{color:var(--ink)}
+  #log{height:190px;background:#050916;color:#d7e6ff;border:1px solid #20305b;border-radius:10px;padding:9px;font:12px/1.35 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow:auto;white-space:pre-wrap}
+  table{width:100%;border-collapse:collapse;font-size:12px;color:var(--muted)}
+  th,td{border-bottom:1px solid #26365f;padding:6px;text-align:left;vertical-align:top}
+  th{color:#c6d5f7;font-weight:650}
+  .ok{color:var(--good)}.warnText{color:var(--warn)}.badText{color:var(--bad)}
+  @media(max-width:1050px){main{grid-template-columns:1fr}header{position:static}#canvasWrap{height:520px}}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>C13016 / C12880MA browser spectrometer</h1>
+    <div class="sub">Single-file HTML. Direct WebUSB is experimental; bridge mode remains available for the Hamamatsu DLL path.</div>
+  </div>
+  <div id="topStatus" class="status">Not connected</div>
+</header>
+
+<main>
+  <aside>
+    <section>
+      <h2>Connection</h2>
+      <div class="body">
+        <div class="note">
+          The C13016 is a USB2/WinUSB device, not a USB serial device. A browser cannot call <code>MICRO_USB2_CLR.dll</code> directly. This page can try a reverse-engineered direct WebUSB capture path or talk to a local bridge that wraps the DLL.
+        </div>
+        <div class="row">
+          <div><label>VID</label><input id="vid" value="0x0661"></div>
+          <div><label>PID</label><input id="pid" value="0x2936"></div>
+        </div>
+        <div class="btns">
+          <button id="connectUsbBtn">Connect WebUSB</button>
+          <button id="disconnectUsbBtn" class="secondary" disabled>Disconnect</button>
+        </div>
+        <label>Local bridge WebSocket URL</label>
+        <input id="bridgeUrl" value="ws://127.0.0.1:8765/c13016">
+        <div class="btns">
+          <button id="connectBridgeBtn" class="secondary">Connect bridge</button>
+          <button id="disconnectBridgeBtn" class="secondary" disabled>Close bridge</button>
+        </div>
+        <div class="hint">
+          Direct WebUSB needs Chrome/Edge and OS permission to the device. Bridge mode needs a small local app that exposes the DLL functions over WebSocket.
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Acquisition</h2>
+      <div class="body">
+        <label>Acquisition backend</label>
+        <select id="backend">
+          <option value="bridge">Local DLL bridge</option>
+          <option value="webusb">Experimental direct WebUSB</option>
+          <option value="demo">Demo simulated spectrum</option>
+        </select>
+        <div class="row">
+          <div><label>Exposure time (µs)</label><input id="exposureUs" type="number" min="11" max="1000000" step="1" value="10000"></div>
+          <div><label>Poll rate (Hz)</label><input id="pollHz" type="number" min="0.2" max="100" step="0.1" value="5"></div>
+        </div>
+        <div class="row">
+          <div><label>Pixel count</label><input id="pixelCount" type="number" min="16" max="4096" step="1" value="288"></div>
+          <div><label>Average frames</label><input id="avgFrames" type="number" min="1" max="200" step="1" value="1"></div>
+        </div>
+        <div class="row">
+          <div><label>Raw packet offset</label><input id="packetOffset" value="auto"></div>
+          <div><label>Averaging</label><button id="resetAvgBtn" class="secondary" type="button">Reset average</button></div>
+        </div>
+        <div class="row">
+          <div><label>Capture mode</label><select id="captureMode"><option value="0">Specified number</option><option value="2">Trigger</option></select></div>
+          <div><label>Y scale</label><select id="yScale"><option value="linear">Linear</option><option value="log">Log</option></select></div>
+        </div>
+        <div class="row">
+          <div><label>Trace colour</label><select id="traceColour"><option value="wavelength" selected>Actual wavelength colour</option><option value="solid">Solid cyan</option></select></div>
+          <div><label>Trace thickness (px)</label><input id="traceThickness" type="number" min="0.5" max="12" step="0.5" value="2.5"></div>
+        </div>
+        <div class="btns">
+          <button id="initBtn" class="secondary">Initialise</button>
+          <button id="readOnceBtn">Read once</button>
+          <button id="startBtn" class="good">Start</button>
+          <button id="stopBtn" class="bad" disabled>Stop</button>
+        </div>
+        <div class="btns">
+          <button id="setDarkBtn" class="secondary">Set dark</button>
+          <button id="clearDarkBtn" class="secondary">Clear dark</button>
+          <button id="setRefBtn" class="secondary">Set reference</button>
+          <button id="clearRefBtn" class="secondary">Clear reference</button>
+        </div>
+        <div class="hint">
+          Use “Demo simulated spectrum” to verify the graph. Direct WebUSB is still experimental. The v12 diagnostics parse little-endian image data using DLL-style header framing. Average frames smooths the displayed spectrum by averaging the last N raw frames without changing exposure time.
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Wavelength calibration</h2>
+      <div class="body">
+        <div class="hint">Wavelength is calculated as A0 + B1·pix + B2·pix² + B3·pix³ + B4·pix⁴ + B5·pix⁵. Use the coefficients supplied with your C12880MA if available.</div>
+        <div class="row3">
+          <div><label>A0</label><input id="coef0" value="3.177690273E+002"></div>
+          <div><label>B1</label><input id="coef1" value="2.700686029E+000"></div>
+          <div><label>B2</label><input id="coef2" value="-1.144517407E-003"></div>
+        </div>
+        <div class="row3">
+          <div><label>B3</label><input id="coef3" value="-8.530887275E-006"></div>
+          <div><label>B4</label><input id="coef4" value="1.496279381E-008"></div>
+          <div><label>B5</label><input id="coef5" value="-5.706326871E-012"></div>
+        </div>
+        <div class="btns">
+          <button id="pixelAxisBtn" class="secondary">Pixel axis</button>
+          <button id="wavelengthAxisBtn" class="secondary">Wavelength axis</button>
+          <button id="downloadCsvBtn" class="secondary">Download CSV</button>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Experimental WebUSB raw controls</h2>
+      <div class="body">
+        <div class="row">
+          <div><label>Bulk OUT endpoint</label><input id="bulkOutEp" value="auto"></div>
+          <div><label>Status Bulk IN endpoint</label><input id="bulkInEp" value="auto"></div>
+        </div>
+        <label>Image Bulk IN endpoint</label><input id="imageInEp" value="auto">
+        <label>Send hex bytes to bulk OUT</label>
+        <textarea id="hexOut" placeholder="Example: 01 02 03 04"></textarea>
+        <div class="btns">
+          <button id="sendHexBtn" class="secondary">Send hex</button>
+          <button id="readInBtn" class="secondary">Read IN once</button>
+          <button id="clearLogBtn" class="secondary">Clear log</button>
+        </div>
+      </div>
+    </section>
+  </aside>
+
+  <section id="chartPanel">
+    <h2>Live spectrum</h2>
+    <div id="canvasWrap"><canvas id="plot"></canvas></div>
+    <div id="readout">
+      <span class="pill">Samples: <strong id="sampleCount">0</strong></span>
+      <span class="pill">Avg: <strong id="avgStatus">1/1</strong></span>
+      <span class="pill">Peak: <strong id="peakValue">—</strong></span>
+      <span class="pill">Peak x: <strong id="peakX">—</strong></span>
+      <span class="pill">Mean: <strong id="meanValue">—</strong></span>
+      <span class="pill">Backend: <strong id="backendLabel">—</strong></span>
+    </div>
+    <div class="body">
+      <div id="log"></div>
+      <div id="usbDetails" style="margin-top:12px"></div>
+    </div>
+  </section>
+</main>
+
+<script>
+'use strict';
+
+const $ = id => document.getElementById(id);
+const logEl = $('log');
+const topStatus = $('topStatus');
+const canvas = $('plot');
+const ctx = canvas.getContext('2d');
+
+let usbDevice = null;
+let usbInterfaceNumber = null;
+let usbBulkIn = null;
+let usbImageIn = null;
+let usbBulkOut = null;
+let c13016DirectReady = false;
+let lastDirectExposureUs = null;
+let directFrameCounter = 0;
+let bridge = null;
+let running = false;
+let readLoopTimer = null;
+let lastHeaderBytes = null;
+let lastImageBytes = null;
+let currentSpectrum = null;
+let lastRawSpectrum = null;
+let averagingBuffer = [];
+let averagingTarget = 1;
+let darkSpectrum = null;
+let refSpectrum = null;
+let sampleCounter = 0;
+let useWavelength = true;
+let lastInfo = {};
+let imageByteBuffer = new Uint8Array(0);
+let lastDiscardedByteCount = 0;
+let lastFramePayloadByteCount = 0;
+let lastFrameHeaderSummary = '';
+let c13016ModulePixels = 288;
+
+function log(msg, cls=''){
+  const time = new Date().toLocaleTimeString();
+  const line = `[${time}] ${msg}`;
+  logEl.textContent += line + '\n';
+  logEl.scrollTop = logEl.scrollHeight;
+  console.log(line);
+}
+function setStatus(msg, kind=''){
+  topStatus.textContent = msg;
+  topStatus.className = 'status ' + kind;
+}
+function parseHexInt(s){
+  s = String(s).trim();
+  if(s.toLowerCase().startsWith('0x')) return parseInt(s,16);
+  return parseInt(s,10);
+}
+function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
+function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
+function pixelCount(){return Math.max(16, Math.min(4096, parseInt($('pixelCount').value || '288',10)));}
+function averageFrameCount(){return Math.max(1, Math.min(200, parseInt($('avgFrames').value || '1',10)));}
+function traceThickness(){return Math.max(0.5, Math.min(12, parseFloat($('traceThickness')?.value || '2.5')));}
+function resetAveraging(logMessage=false){
+  averagingBuffer = [];
+  averagingTarget = averageFrameCount();
+  if($('avgStatus')) $('avgStatus').textContent = `0/${averagingTarget}`;
+  if(logMessage) log('Frame averaging buffer reset.');
+}
+function applyFrameAveraging(raw){
+  const n = averageFrameCount();
+  const clean = raw.map(Number);
+  if(n <= 1){
+    averagingBuffer = [];
+    averagingTarget = 1;
+    if($('avgStatus')) $('avgStatus').textContent = '1/1';
+    return clean;
+  }
+  if(averagingTarget !== n || averagingBuffer.some(frame => frame.length !== clean.length)){
+    averagingBuffer = [];
+    averagingTarget = n;
+  }
+  averagingBuffer.push(clean);
+  while(averagingBuffer.length > n) averagingBuffer.shift();
+  const out = new Array(clean.length).fill(0);
+  for(const frame of averagingBuffer){
+    for(let i=0;i<out.length;i++) out[i] += frame[i];
+  }
+  const denom = averagingBuffer.length;
+  for(let i=0;i<out.length;i++) out[i] /= denom;
+  if($('avgStatus')) $('avgStatus').textContent = `${denom}/${n}`;
+  return out;
+}
+function pollInterval(){return Math.max(20, 1000 / Math.max(0.2, parseFloat($('pollHz').value || '5')));}
+function coefficients(){
+  return [0,1,2,3,4,5].map(i => Number($('coef'+i).value || 0));
+}
+function wavelengthForPixel(i){
+  const [a0,b1,b2,b3,b4,b5] = coefficients();
+  const p = i;
+  return a0 + b1*p + b2*p*p + b3*p*p*p + b4*Math.pow(p,4) + b5*Math.pow(p,5);
+}
+function xForPixel(i){
+  return useWavelength ? wavelengthForPixel(i) : i;
+}
+function wavelengthToCss(nm){
+  nm = Number(nm);
+  if(!isFinite(nm)) return '#7dd3fc';
+
+  // Approximate visible-spectrum RGB mapping. Outside the visible range,
+  // use subdued colours so UV/IR-adjacent regions are still distinguishable
+  // but not misleadingly bright.
+  if(nm < 380) return '#5b21b6';
+  if(nm > 700) return '#7f1d1d';
+
+  let r=0, g=0, b=0;
+  if(nm < 440){ r=-(nm-440)/(440-380); g=0; b=1; }
+  else if(nm < 490){ r=0; g=(nm-440)/(490-440); b=1; }
+  else if(nm < 510){ r=0; g=1; b=-(nm-510)/(510-490); }
+  else if(nm < 580){ r=(nm-510)/(580-510); g=1; b=0; }
+  else if(nm < 645){ r=1; g=-(nm-645)/(645-580); b=0; }
+  else { r=1; g=0; b=0; }
+
+  let factor=1;
+  if(nm < 420) factor = 0.35 + 0.65*(nm-380)/(420-380);
+  else if(nm > 645) factor = 0.35 + 0.65*(700-nm)/(700-645);
+  const gamma = 0.8;
+  const to8 = v => Math.round(255*Math.pow(Math.max(0, Math.min(1, v*factor)), gamma));
+  return `rgb(${to8(r)},${to8(g)},${to8(b)})`;
+}
+function drawWavelengthColouredLine(vals, xs, sx, sy){
+  const dpr = window.devicePixelRatio || 1;
+  ctx.save();
+  ctx.lineWidth = traceThickness()*dpr;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  for(let i=1;i<vals.length;i++){
+    const x0=sx(xs[i-1]), y0=sy(vals[i-1]);
+    const x1=sx(xs[i]), y1=sy(vals[i]);
+    if(!isFinite(x0)||!isFinite(y0)||!isFinite(x1)||!isFinite(y1)) continue;
+    const nm = (wavelengthForPixel(i-1)+wavelengthForPixel(i))/2;
+    ctx.strokeStyle = wavelengthToCss(nm);
+    ctx.beginPath();
+    ctx.moveTo(x0,y0);
+    ctx.lineTo(x1,y1);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+function processedSpectrum(raw){
+  if(!raw) return [];
+  const out = new Array(raw.length);
+  for(let i=0;i<raw.length;i++){
+    let v = Number(raw[i]);
+    if(darkSpectrum && darkSpectrum.length===raw.length) v -= darkSpectrum[i];
+    if(refSpectrum && refSpectrum.length===raw.length){
+      let r = refSpectrum[i] - (darkSpectrum && darkSpectrum.length===raw.length ? darkSpectrum[i] : 0);
+      if(Math.abs(r) > 1e-9) v = v / r;
+    }
+    out[i] = v;
+  }
+  return out;
+}
+
+function resizeCanvas(){
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  canvas.width = Math.max(320, Math.round(rect.width*dpr));
+  canvas.height = Math.max(240, Math.round(rect.height*dpr));
+  drawSpectrum();
+}
+window.addEventListener('resize', resizeCanvas);
+
+function drawSpectrum(){
+  const w = canvas.width, h = canvas.height;
+  ctx.clearRect(0,0,w,h);
+  ctx.fillStyle = '#050916';
+  ctx.fillRect(0,0,w,h);
+
+  const padL=58, padR=18, padT=24, padB=42;
+  const plotW=w-padL-padR, plotH=h-padT-padB;
+  ctx.strokeStyle = '#1b2a52'; ctx.lineWidth = 1;
+  ctx.strokeRect(padL,padT,plotW,plotH);
+
+  ctx.font = `${12*(window.devicePixelRatio||1)}px ui-monospace, Menlo, Consolas, monospace`;
+  ctx.fillStyle = '#7890be';
+  ctx.strokeStyle = '#132348';
+  for(let i=1;i<5;i++){
+    const y=padT+plotH*i/5;
+    ctx.beginPath(); ctx.moveTo(padL,y); ctx.lineTo(w-padR,y); ctx.stroke();
+  }
+  for(let i=1;i<8;i++){
+    const x=padL+plotW*i/8;
+    ctx.beginPath(); ctx.moveTo(x,padT); ctx.lineTo(x,h-padB); ctx.stroke();
+  }
+
+  if(!currentSpectrum || !currentSpectrum.length){
+    ctx.fillStyle = '#9eb0d3';
+    ctx.fillText('No spectrum yet', padL+14, padT+26);
+    return;
+  }
+
+  const yScale = $('yScale').value;
+  const values = processedSpectrum(currentSpectrum);
+  const xs = values.map((_,i)=>xForPixel(i));
+  let minX = Math.min(...xs), maxX = Math.max(...xs);
+  let displayVals = values.slice();
+  if(yScale === 'log') displayVals = displayVals.map(v => Math.log10(Math.max(1, v)));
+  let minY = Math.min(...displayVals), maxY = Math.max(...displayVals);
+  if(!isFinite(minY) || !isFinite(maxY) || minY===maxY){minY=0; maxY=1;}
+  const margin=(maxY-minY)*0.06; minY-=margin; maxY+=margin;
+
+  function sx(x){ return padL + (x-minX)/(maxX-minX || 1)*plotW; }
+  function sy(v){ return padT + plotH - (v-minY)/(maxY-minY || 1)*plotH; }
+
+  // Axis labels
+  ctx.fillStyle = '#9eb0d3';
+  ctx.textAlign = 'center';
+  ctx.fillText(useWavelength ? 'Wavelength (nm)' : 'Pixel', padL+plotW/2, h-13);
+  ctx.save(); ctx.translate(14, padT+plotH/2); ctx.rotate(-Math.PI/2); ctx.fillText(refSpectrum ? 'Relative intensity' : 'A/D counts', 0, 0); ctx.restore();
+  ctx.textAlign = 'left';
+
+  // Ticks
+  ctx.fillStyle = '#7890be';
+  for(let i=0;i<=4;i++){
+    const y=padT+plotH*i/4;
+    const val=maxY-(maxY-minY)*i/4;
+    ctx.fillText(formatNumber(yScale==='log'?Math.pow(10,val):val), 6, y+4);
+  }
+  for(let i=0;i<=4;i++){
+    const x=padL+plotW*i/4;
+    const val=minX+(maxX-minX)*i/4;
+    ctx.fillText(formatNumber(val), x-14, h-padB+18);
+  }
+
+  // Raw/dark/ref faint reference lines
+  if(darkSpectrum && darkSpectrum.length===currentSpectrum.length) drawLine(darkSpectrum.map(Number), '#6b7280', .7, true, minX, maxX, minY, maxY, padL,padT,plotW,plotH, yScale);
+  if(refSpectrum && refSpectrum.length===currentSpectrum.length) drawLine(refSpectrum.map(Number), '#a3e635', .7, true, minX, maxX, minY, maxY, padL,padT,plotW,plotH, yScale);
+
+  // Spectrum line. In wavelength-colour mode, each segment is coloured
+  // from the calibrated wavelength of that part of the trace.
+  if(($('traceColour')?.value || 'wavelength') === 'wavelength') {
+    drawWavelengthColouredLine(displayVals, xs, sx, sy);
+  } else {
+    ctx.beginPath();
+    for(let i=0;i<displayVals.length;i++){
+      const x=sx(xs[i]), y=sy(displayVals[i]);
+      if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    }
+    ctx.strokeStyle = '#7dd3fc';
+    ctx.lineWidth = traceThickness()*(window.devicePixelRatio||1);
+    ctx.stroke();
+  }
+
+  // Peak marker
+  let peakIdx=0, peak=-Infinity, mean=0;
+  for(let i=0;i<values.length;i++){ if(values[i]>peak){peak=values[i]; peakIdx=i;} mean += values[i]; }
+  mean /= values.length;
+  const py = yScale==='log' ? Math.log10(Math.max(1, values[peakIdx])) : values[peakIdx];
+  const px = sx(xs[peakIdx]); const pyy=sy(py);
+  ctx.fillStyle = '#facc15';
+  ctx.beginPath(); ctx.arc(px,pyy,4*(window.devicePixelRatio||1),0,Math.PI*2); ctx.fill();
+
+  $('sampleCount').textContent = String(sampleCounter);
+  $('peakValue').textContent = formatNumber(peak);
+  $('peakX').textContent = formatNumber(xs[peakIdx]) + (useWavelength ? ' nm' : ' px');
+  $('meanValue').textContent = formatNumber(mean);
+  $('backendLabel').textContent = $('backend').selectedOptions[0].textContent;
+}
+function drawLine(vals, color, lw, dotted, minX,maxX,minY,maxY,padL,padT,plotW,plotH,yScale){
+  const xs = vals.map((_,i)=>xForPixel(i));
+  let disp = vals.slice();
+  if(yScale === 'log') disp = disp.map(v => Math.log10(Math.max(1, v)));
+  function sx(x){ return padL + (x-minX)/(maxX-minX || 1)*plotW; }
+  function sy(v){ return padT + plotH - (v-minY)/(maxY-minY || 1)*plotH; }
+  ctx.beginPath();
+  if(dotted) ctx.setLineDash([4,4]);
+  for(let i=0;i<disp.length;i++){
+    const x=sx(xs[i]), y=sy(disp[i]);
+    if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+  }
+  ctx.strokeStyle=color; ctx.lineWidth=lw*(window.devicePixelRatio||1); ctx.stroke(); ctx.setLineDash([]);
+}
+function formatNumber(v){
+  if(!isFinite(v)) return '—';
+  if(Math.abs(v)>=10000) return v.toFixed(0);
+  if(Math.abs(v)>=100) return v.toFixed(1);
+  if(Math.abs(v)>=10) return v.toFixed(2);
+  return v.toFixed(3);
+}
+
+async function connectWebUSB(){
+  if(!('usb' in navigator)){
+    alert('WebUSB is not available in this browser. Try Chrome or Edge.');
+    return;
+  }
+  const vid=parseHexInt($('vid').value), pid=parseHexInt($('pid').value);
+  try{
+    usbDevice = await navigator.usb.requestDevice({filters:[{vendorId:vid, productId:pid}]});
+    await usbDevice.open();
+    if(usbDevice.configuration === null) await usbDevice.selectConfiguration(1);
+    discoverUsbEndpoints();
+    if(usbInterfaceNumber !== null){
+      try{ await usbDevice.claimInterface(usbInterfaceNumber); }catch(e){ log('Claim interface failed: '+e.message); }
+    }
+    $('disconnectUsbBtn').disabled=false;
+    setStatus('WebUSB connected', 'ok');
+    log(`Connected WebUSB: VID=0x${usbDevice.vendorId.toString(16)} PID=0x${usbDevice.productId.toString(16)} ${usbDevice.productName||''}`);
+    renderUsbDetails();
+  }catch(e){
+    log('WebUSB connect failed: '+e.message);
+    setStatus('WebUSB connect failed','badText');
+  }
+}
+async function disconnectWebUSB(){
+  try{ if(usbDevice) await usbDevice.close(); }catch(e){}
+  usbDevice=null; usbInterfaceNumber=null; usbBulkIn=null; usbImageIn=null; usbBulkOut=null; c13016DirectReady=false; lastDirectExposureUs=null; directFrameCounter=0;
+  $('disconnectUsbBtn').disabled=true;
+  setStatus('Not connected');
+  renderUsbDetails();
+}
+function discoverUsbEndpoints(){
+  usbInterfaceNumber=null; usbBulkIn=null; usbImageIn=null; usbBulkOut=null;
+  const cfg=usbDevice.configuration;
+  if(!cfg) return;
+  for(const iface of cfg.interfaces){
+    for(const alt of iface.alternates){
+      const bulkIns = alt.endpoints.filter(ep=>ep.direction==='in' && ep.type==='bulk');
+      const bulkOut = alt.endpoints.find(ep=>ep.direction==='out' && ep.type==='bulk');
+      if(bulkIns.length || bulkOut){
+        usbInterfaceNumber=iface.interfaceNumber;
+        usbBulkIn=bulkIns[0] ? bulkIns[0].endpointNumber : null;       // eIn1/status in the DLL
+        usbImageIn=bulkIns[1] ? bulkIns[1].endpointNumber : usbBulkIn; // eIn2/header+image in the DLL
+        usbBulkOut=bulkOut ? bulkOut.endpointNumber : null;
+        if(usbBulkIn) $('bulkInEp').value = String(usbBulkIn);
+        if(usbImageIn) $('imageInEp').value = String(usbImageIn);
+        if(usbBulkOut) $('bulkOutEp').value = String(usbBulkOut);
+        return;
+      }
+    }
+  }
+}
+function renderUsbDetails(){
+  const el=$('usbDetails');
+  if(!usbDevice){el.innerHTML=''; return;}
+  let rows=[];
+  const cfg=usbDevice.configuration;
+  if(cfg){
+    for(const iface of cfg.interfaces){
+      for(const alt of iface.alternates){
+        const eps=alt.endpoints.map(ep=>`${ep.direction} ${ep.type} ep${ep.endpointNumber} max=${ep.packetSize}`).join('<br>') || 'none';
+        rows.push(`<tr><td>${iface.interfaceNumber}</td><td>${alt.alternateSetting}</td><td>${alt.interfaceClass}</td><td>${eps}</td></tr>`);
+      }
+    }
+  }
+  el.innerHTML=`<table><thead><tr><th>Interface</th><th>Alt</th><th>Class</th><th>Endpoints</th></tr></thead><tbody>${rows.join('')}</tbody></table>`;
+}
+async function sendHex(){
+  if(!usbDevice){alert('Connect WebUSB first.');return;}
+  const ep = $('bulkOutEp').value.trim()==='auto' ? usbBulkOut : parseInt($('bulkOutEp').value,10);
+  if(!ep){alert('No bulk OUT endpoint found.');return;}
+  const data = hexToBytes($('hexOut').value);
+  if(!data.length){alert('No hex bytes to send.');return;}
+  try{
+    const r = await usbDevice.transferOut(ep, data);
+    log(`Sent ${data.length} bytes to bulk OUT ep${ep}; status=${r.status}`);
+  }catch(e){ log('Bulk OUT failed: '+e.message); }
+}
+async function readWebUsbOnce(){
+  if(!usbDevice){throw new Error('Connect WebUSB first.');}
+  const ep = $('bulkInEp').value.trim()==='auto' ? usbBulkIn : parseInt($('bulkInEp').value,10);
+  if(!ep) throw new Error('No bulk IN endpoint found.');
+  const byteCount = Math.max(64, pixelCount()*2 + 128);
+  const r = await usbDevice.transferIn(ep, byteCount);
+  if(r.status !== 'ok') throw new Error('transferIn status: '+r.status);
+  const bytes = new Uint8Array(r.data.buffer);
+  log(`Read ${bytes.length} bytes from bulk IN ep${ep}`);
+  const spec = parsePacketToSpectrum(bytes);
+  if(spec && spec.length){
+    setSpectrum(spec, {source:'webusb', bytes:bytes.length});
+    return spec;
+  }
+  return null;
+}
+function hexToBytes(text){
+  const clean = text.replace(/#.*$/mg,'').replace(/[^0-9a-fA-F]/g,' ');
+  const parts = clean.trim().split(/\s+/).filter(Boolean);
+  return new Uint8Array(parts.map(p=>parseInt(p,16)&255));
+}
+function parsePacketToSpectrum(bytes){
+  if(!bytes || !bytes.length) return null;
+  // JSON/CSV convenience for bridge-like packets
+  try{
+    const txt = new TextDecoder().decode(bytes).trim();
+    if(txt.startsWith('{')){
+      const obj = JSON.parse(txt);
+      if(Array.isArray(obj.pixels)) return obj.pixels.map(Number);
+    }
+    if(/^\d+[\d,\s.\-eE]+$/.test(txt)){
+      const arr = txt.split(/[\s,]+/).map(Number).filter(Number.isFinite);
+      if(arr.length>16) return arr;
+    }
+  }catch(e){}
+
+  const n = pixelCount();
+  if(bytes.length < n*2) return null;
+  let offsetSetting = $('packetOffset').value.trim().toLowerCase();
+  let offset;
+  if(offsetSetting === 'auto'){
+    // Prefer the last complete 16-bit spectrum in the packet, common when a header is prepended.
+    offset = bytes.length - n*2;
+    if(offset < 0) offset = 0;
+    if(offset % 2) offset--;
+  }else{
+    offset = Math.max(0, parseInt(offsetSetting,10) || 0);
+  }
+  const out = new Array(n);
+  for(let i=0;i<n;i++){
+    const j=offset+i*2;
+    if(j+1>=bytes.length) break;
+    out[i] = bytes[j] | (bytes[j+1]<<8); // unsigned 16-bit little-endian
+  }
+  return out;
+}
+
+// Reverse-engineered C13016 command frame from MICRO_USB2_CLR.dll:
+//   OUT frame = uint32be(command) + uint32be(payloadLength) + payload
+// Multi-byte command payloads are big-endian. Captured header/image payloads observed from the C13016 stream are little-endian.
+const C13016 = {
+  INIT_BOARD:0,
+  GET_MODULE_INFO:1,
+  GET_SPECTRO_INFO:2,
+  GET_MODULE_PROPERTY:3,
+  GET_EXPOSURE_PROPERTY:8,
+  GET_IMAGE_SIZE:13,
+  GET_CAPTURE_MODE:15,
+  SET_CAPTURE_MODE:16,
+  GET_EXPOSURE_TIME:25,
+  SET_EXPOSURE_TIME:26,
+  SET_EXPOSURE_CYCLE:28,
+  START_CAPTURE:47,
+  ABORT_CAPTURE:49
+};
+function u16be(v){ const a=new Uint8Array(2); new DataView(a.buffer).setUint16(0, v & 0xffff, false); return a; }
+function u32be(v){ const a=new Uint8Array(4); new DataView(a.buffer).setUint32(0, v >>> 0, false); return a; }
+function f64be(v){ const a=new Uint8Array(8); new DataView(a.buffer).setFloat64(0, Number(v), false); return a; }
+function readU16BE(bytes, off=0){ return ((bytes[off]||0)<<8) | (bytes[off+1]||0); }
+function readU16LE(bytes, off=0){ return (bytes[off]||0) | ((bytes[off+1]||0)<<8); }
+function readU32BE(bytes, off=0){ return (((bytes[off]||0)<<24)>>>0) + ((bytes[off+1]||0)<<16) + ((bytes[off+2]||0)<<8) + (bytes[off+3]||0); }
+function readU32LE(bytes, off=0){ return ((bytes[off]||0) + ((bytes[off+1]||0)<<8) + ((bytes[off+2]||0)<<16) + (((bytes[off+3]||0)<<24)>>>0)) >>> 0; }
+function readF64BE(bytes, off=0){ return new DataView(bytes.buffer, bytes.byteOffset+off, 8).getFloat64(0, false); }
+function concatBytes(...parts){
+  const len=parts.reduce((n,p)=>n+(p?p.length:0),0); const out=new Uint8Array(len); let o=0;
+  for(const p of parts){ if(!p) continue; out.set(p,o); o+=p.length; }
+  return out;
+}
+
+async function readBulkExact(ep, totalLen, label='bulk'){
+  const chunks=[]; let got=0; let guard=0;
+  while(got < totalLen){
+    const want = Math.min(totalLen-got, Math.max(64, totalLen-got));
+    const rr = await usbDevice.transferIn(ep, want);
+    if(rr.status !== 'ok') throw new Error(`${label} read failed: ${rr.status}`);
+    const b = new Uint8Array(rr.data.buffer, rr.data.byteOffset, rr.data.byteLength);
+    if(!b.length) throw new Error(`${label} read returned zero bytes after ${got}/${totalLen}`);
+    chunks.push(b); got += b.length;
+    if(++guard > 50) throw new Error(`${label} read did not complete: ${got}/${totalLen}`);
+  }
+  const out = new Uint8Array(got); let o=0;
+  for(const c of chunks){ out.set(c,o); o+=c.length; }
+  if(got !== totalLen) log(`${label}: requested ${totalLen}, received ${got} bytes.`);
+  return out.slice(0,totalLen);
+}
+function parseHeaderSummary(h){
+  if(!h || h.length < 112) return 'header too short';
+  const be = {
+    state:readU16BE(h,0), x:readU16BE(h,2), y:readU16BE(h,4), packet:readU16BE(h,6), mode:readU16BE(h,8),
+    trigger:readU16BE(h,10), polarity:readU16BE(h,12), start:readU16BE(h,64), num:readU16BE(h,66), transmit:readU16BE(h,68), offset:readU16BE(h,70), marker:readU32BE(h,108)
+  };
+  const le = {
+    state:readU16LE(h,0), x:readU16LE(h,2), y:readU16LE(h,4), packet:readU16LE(h,6), mode:readU16LE(h,8),
+    trigger:readU16LE(h,10), polarity:readU16LE(h,12), start:readU16LE(h,64), num:readU16LE(h,66), transmit:readU16LE(h,68), offset:readU16LE(h,70), marker:readU32LE(h,108)
+  };
+  return `Header BE state=${be.state} x=${be.x} y=${be.y} packet=${be.packet} mode=${be.mode} start=${be.start} num=${be.num} transmit=${be.transmit} marker=0x${be.marker.toString(16)} | LE state=${le.state} x=${le.x} y=${le.y} packet=${le.packet} mode=${le.mode} start=${le.start} num=${le.num} transmit=${le.transmit} marker=0x${le.marker.toString(16)}`;
+}
+function spectrumStats(arr){
+  if(!arr || !arr.length) return 'no spectrum';
+  let min=Infinity,max=-Infinity,sum=0,zeros=0,sat=0,diff2=0;
+  for(let i=0;i<arr.length;i++){
+    const v=arr[i]; if(v<min)min=v; if(v>max)max=v; sum+=v; if(v===0)zeros++; if(v>=65535)sat++;
+    if(i){ const d=v-arr[i-1]; diff2 += d*d; }
+  }
+  const mean=sum/arr.length;
+  let varsum=0; for(const v of arr){ const d=v-mean; varsum+=d*d; }
+  const std=Math.sqrt(varsum/arr.length);
+  const adj=Math.sqrt(diff2/Math.max(1,arr.length-1));
+  return `n=${arr.length} min=${Math.round(min)} max=${Math.round(max)} mean=${Math.round(mean)} std=${Math.round(std)} adjacentRMS=${Math.round(adj)} zeros=${zeros} saturated=${sat}`;
+}
+
+
+
+function parseC13016HeaderLE(bytes, off=0){
+  if(!bytes || bytes.length < off + 112) return null;
+  return {
+    state: readU16LE(bytes, off+0),
+    x: readU16LE(bytes, off+2),
+    y: readU16LE(bytes, off+4),
+    packet: readU16LE(bytes, off+6),
+    mode: readU16LE(bytes, off+8),
+    trigger: readU16LE(bytes, off+10),
+    polarity: readU16LE(bytes, off+12),
+    start: readU16LE(bytes, off+64),
+    num: readU16LE(bytes, off+66),
+    transmit: readU16LE(bytes, off+68),
+    offset: readU16LE(bytes, off+70),
+    marker: readU32LE(bytes, off+108)
+  };
+}
+function isLikelyC13016HeaderAtByte(bytes, off){
+  const h = parseC13016HeaderLE(bytes, off);
+  if(!h) return false;
+  // This signature comes from the DLL HeaderInfo structure and from the hardware logs:
+  // state=0, x=288, y=1, packet=1, mode=1, start=1, num=1, transmit=1, marker=1.
+  // Keep it slightly tolerant but strict enough that ordinary spectrum data will not match.
+  if(!(h.state <= 3)) return false;
+  if(!(h.x >= 256 && h.x <= 320)) return false;
+  if(!(h.y >= 1 && h.y <= 4)) return false;
+  if(!(h.packet >= 1 && h.packet <= 16)) return false;
+  if(!(h.mode >= 0 && h.mode <= 16)) return false;
+  if(!(h.start >= 0 && h.start <= 16)) return false;
+  if(!(h.num >= 1 && h.num <= 16)) return false;
+  if(!(h.transmit >= 1 && h.transmit <= 16)) return false;
+  if(!(h.marker === 0 || h.marker === 1)) return false;
+  return true;
+}
+function findC13016HeaderByteOffset(bytes){
+  if(!bytes || bytes.length < 112) return -1;
+  // Prefer 16-bit alignment, but fall back to byte alignment if needed.
+  for(let off=0; off <= bytes.length-112; off+=2){
+    if(isLikelyC13016HeaderAtByte(bytes, off)) return off;
+  }
+  for(let off=1; off <= bytes.length-112; off+=2){
+    if(isLikelyC13016HeaderAtByte(bytes, off)) return off;
+  }
+  return -1;
+}
+function appendBytes(a,b){
+  if(!a || !a.length) return b.slice();
+  if(!b || !b.length) return a;
+  const out = new Uint8Array(a.length + b.length);
+  out.set(a,0); out.set(b,a.length);
+  return out;
+}
+function resetImageStreamBuffer(){
+  imageByteBuffer = new Uint8Array(0);
+  lastDiscardedByteCount = 0;
+  lastFramePayloadByteCount = 0;
+  lastFrameHeaderSummary = '';
+}
+async function appendImageEndpointChunk(imageEp){
+  const chunk = await usbDevice.transferIn(imageEp, 512);
+  if(chunk.status !== 'ok') throw new Error('Image stream read failed: '+chunk.status);
+  const packet = new Uint8Array(chunk.data.buffer, chunk.data.byteOffset, chunk.data.byteLength);
+  lastImageBytes = packet;
+  imageByteBuffer = appendBytes(imageByteBuffer, packet);
+  return packet.length;
+}
+function parsePixelsLittleEndian(payload, count){
+  const n = Math.min(count, Math.floor(payload.length / 2));
+  const pixels = new Array(n);
+  for(let i=0;i<n;i++) pixels[i] = readU16LE(payload, i*2);
+  return pixels;
+}
+async function readC13016FrameFromImageStream(imageEp){
+  lastDiscardedByteCount = 0;
+  lastFramePayloadByteCount = 0;
+  lastFrameHeaderSummary = '';
+  const requestedForDisplay = pixelCount();
+  const maxHeaderWaitBytes = 8192;
+
+  for(let attempt=0; attempt<32; attempt++){
+    let headerOffset = findC13016HeaderByteOffset(imageByteBuffer);
+    if(headerOffset < 0){
+      // Keep only a tail large enough to contain the start of a split 512-byte header.
+      if(imageByteBuffer.length > maxHeaderWaitBytes){
+        lastDiscardedByteCount += imageByteBuffer.length - 511;
+        imageByteBuffer = imageByteBuffer.slice(-511);
+      }
+      await appendImageEndpointChunk(imageEp);
+      continue;
+    }
+
+    if(headerOffset > 0){
+      // These bytes are a stale partial spectrum/header tail from a previous capture. Do not plot them.
+      lastDiscardedByteCount += headerOffset;
+      imageByteBuffer = imageByteBuffer.slice(headerOffset);
+      headerOffset = 0;
+    }
+
+    if(imageByteBuffer.length < 512){
+      await appendImageEndpointChunk(imageEp);
+      continue;
+    }
+
+    const header = imageByteBuffer.slice(0,512);
+    lastHeaderBytes = header;
+    const h = parseC13016HeaderLE(header,0);
+    const x = (h && h.x >= 16 && h.x <= 4096) ? h.x : (c13016ModulePixels || 288);
+    const y = (h && h.y >= 1 && h.y <= 4) ? h.y : 1;
+    const payloadBytesNeeded = x * y * 2;
+
+    if(imageByteBuffer.length < 512 + payloadBytesNeeded){
+      await appendImageEndpointChunk(imageEp);
+      continue;
+    }
+
+    const payload = imageByteBuffer.slice(512, 512 + payloadBytesNeeded);
+    imageByteBuffer = imageByteBuffer.slice(512 + payloadBytesNeeded);
+    lastFramePayloadByteCount = payload.length;
+    lastFrameHeaderSummary = `Header LE state=${h.state} x=${h.x} y=${h.y} packet=${h.packet} mode=${h.mode} start=${h.start} num=${h.num} transmit=${h.transmit} marker=0x${h.marker.toString(16)}`;
+    const pixels = parsePixelsLittleEndian(payload, Math.min(requestedForDisplay, x*y));
+    return pixels;
+  }
+  throw new Error(`Could not find a complete header+image frame. Buffered bytes=${imageByteBuffer.length}, discarded stale bytes=${lastDiscardedByteCount}`);
+}
+
+function endpointValue(id, fallback){
+  const v=$(id).value.trim().toLowerCase();
+  return v==='auto' || v==='' ? fallback : parseInt(v,10);
+}
+async function c13016Command(cmd, payload=null, responseLen=0, responseEp='status'){
+  if(!usbDevice) throw new Error('Connect WebUSB first.');
+  const outEp = endpointValue('bulkOutEp', usbBulkOut);
+  if(!outEp) throw new Error('No bulk OUT endpoint found.');
+  payload = payload || new Uint8Array(0);
+  const frame = concatBytes(u32be(cmd), u32be(payload.length), payload);
+  const wr = await usbDevice.transferOut(outEp, frame);
+  if(wr.status !== 'ok') throw new Error(`Command ${cmd} OUT status ${wr.status}`);
+  if(!responseLen) return new Uint8Array(0);
+  const inEp = responseEp==='image' ? endpointValue('imageInEp', usbImageIn || usbBulkIn) : endpointValue('bulkInEp', usbBulkIn);
+  if(!inEp) throw new Error('No bulk IN endpoint found.');
+  const rr = await usbDevice.transferIn(inEp, responseLen);
+  if(rr.status !== 'ok') throw new Error(`Command ${cmd} IN status ${rr.status}`);
+  return new Uint8Array(rr.data.buffer, rr.data.byteOffset, rr.data.byteLength);
+}
+async function c13016DirectInitialise(){
+  if(!usbDevice) throw new Error('Connect WebUSB first.');
+  const init = await c13016Command(C13016.INIT_BOARD, null, 2);
+  log(`C13016 init reply: 0x${readU16BE(init).toString(16).padStart(4,'0')}`);
+  const mp = await c13016Command(C13016.GET_MODULE_PROPERTY, null, 12);
+  const pix=readU32BE(mp,0), res=readU32BE(mp,4), cap=readU32BE(mp,8);
+  c13016ModulePixels = (pix>16 && pix<4096) ? pix : 288;
+  if(pix>16 && pix<4096){
+    $('pixelCount').value=String(pix);
+    log(`Module reports ${pix} sensor positions; v11 uses the DLL-style stream framing: 512-byte header first, then ${pix} little-endian uint16 data words.`);
+  }
+  log(`Module property: pixels=${pix}, ADC bits=${res}, captureModeBits=0x${cap.toString(16)}`);
+  try{
+    const ep = await c13016Command(C13016.GET_EXPOSURE_PROPERTY, null, 48);
+    log(`Exposure property us: min=${readF64BE(ep,0)} max=${readF64BE(ep,8)} step=${readF64BE(ep,16)}`);
+  }catch(e){ log('Exposure property read failed: '+e.message); }
+  await c13016SetCaptureMode(0);
+  lastDirectExposureUs = null;
+  await c13016EnsureExposure(Number($('exposureUs').value || 10000));
+  resetImageStreamBuffer();
+  c13016DirectReady=true;
+}
+async function c13016SetCaptureMode(mode){
+  const r = await c13016Command(C13016.SET_CAPTURE_MODE, u32be(mode), 4);
+  log(`Set capture mode ${mode}: reply=0x${Array.from(r).map(b=>b.toString(16).padStart(2,'0')).join('')}`);
+}
+async function c13016SetExposure(us){
+  const r1 = await c13016Command(C13016.SET_EXPOSURE_TIME, f64be(us), 8);
+  const cycle = us + 2000; // DLL does this after setting exposure time.
+  const r2 = await c13016Command(C13016.SET_EXPOSURE_CYCLE, f64be(cycle), 8);
+  lastDirectExposureUs = Number(us);
+  log(`Set exposure ${us} us, cycle ${cycle} us.`);
+}
+async function c13016EnsureExposure(us){
+  us = Number(us);
+  if(!Number.isFinite(us)) us = 10000;
+  if(lastDirectExposureUs !== us) await c13016SetExposure(us);
+}
+function bytesToHex(bytes, max=16){
+  return Array.from(bytes.slice(0,max)).map(b=>b.toString(16).padStart(2,'0')).join(' ');
+}
+async function c13016DirectReadOnce(){
+  if(!c13016DirectReady) await c13016DirectInitialise();
+  await c13016EnsureExposure(Number($('exposureUs').value || 10000));
+  // The DLL sends the current capture mode as the START_CAPTURE payload, not the scan count.
+  const capMode = Number($('captureMode').value || 0);
+  // v7: START_CAPTURE leaves a 32-bit reply on this hardware. Earlier builds read only
+  // 2 bytes, leaving stale 0x0100/0x0000 words in the status FIFO. That made live mode
+  // intermittently miss the later VVALID marker.
+  const startReply = await c13016Command(C13016.START_CAPTURE, u16be(capMode), 4);
+  directFrameCounter++;
+  if(directFrameCounter <= 3 || directFrameCounter % 25 === 0){
+    log(`Start capture mode=${capMode} reply bytes: ${bytesToHex(startReply)} code=0x${readU16BE(startReply).toString(16).padStart(4,'0')}`);
+  }
+  const statusEp = endpointValue('bulkInEp', usbBulkIn);
+  const imageEp = endpointValue('imageInEp', usbImageIn || usbBulkIn);
+  const expUs = Number($('exposureUs').value || 10000);
+  const deadline = Date.now() + Math.max(1200, expUs/1000 + 3000);
+  let st=0, seen=[];
+  while(Date.now() < deadline){
+    const rr = await usbDevice.transferIn(statusEp, 2);
+    if(rr.status !== 'ok') throw new Error('Status read failed: '+rr.status);
+    const b = new Uint8Array(rr.data.buffer, rr.data.byteOffset, rr.data.byteLength); st = readU16BE(b);
+    if(seen.length<12) seen.push('0x'+st.toString(16).padStart(4,'0'));
+    if(st === 0x0280) break;       // VVALID begin
+    if(st === 0x0180) throw new Error('Device reported capture error 0x0180.');
+    await sleep(1);
+  }
+  if(st !== 0x0280){
+    try{ await c13016DirectStop(); }catch(_e){}
+    // Force a light reinitialise on the next read so the status stream gets realigned.
+    c13016DirectReady=false;
+    resetImageStreamBuffer();
+    throw new Error('Timed out waiting for VVALID/status 0x0280. Capture was aborted and the next frame will reinitialise. Saw: '+seen.join(', '));
+  }
+  // v11: Follow the DLL's framing: the image endpoint carries a 512-byte HeaderInfo
+  // block, followed by x*y*2 bytes of little-endian uint16 image data. If WebUSB starts
+  // mid-stream, scan forward to the next valid header and discard stale partial bytes.
+  const pixels = await readC13016FrameFromImageStream(imageEp);
+  if(!pixels.length){
+    throw new Error('No spectrum pixels assembled from image stream.');
+  }
+  if(directFrameCounter <= 3 || directFrameCounter % 25 === 0){
+    if(lastDiscardedByteCount) log(`Discarded stale image-stream bytes before header: ${lastDiscardedByteCount}`);
+    log(lastFrameHeaderSummary);
+    log(`Image stream frame: payloadBytes=${lastFramePayloadByteCount}, plottedPixels=${pixels.length}, bufferedBytes=${imageByteBuffer.length}`);
+    log('Spectrum stats: '+spectrumStats(pixels));
+  }
+  try{
+    const rt = await usbDevice.transferIn(statusEp, 6);
+    const rb = new Uint8Array(rt.data.buffer, rt.data.byteOffset, rt.data.byteLength);
+    const done = readU16BE(rb,0);
+    if(directFrameCounter <= 3 || directFrameCounter % 25 === 0) log(`Readout status: 0x${done.toString(16).padStart(4,'0')} bytes=${rb.length}`);
+  }catch(e){ if(directFrameCounter <= 3) log('Readout-time/status read skipped/failed: '+e.message); }
+  setSpectrum(pixels, {source:'direct WebUSB'});
+  return pixels;
+}
+async function c13016DirectStop(){
+  resetImageStreamBuffer();
+  try{ await c13016Command(C13016.ABORT_CAPTURE, null, 0); log('Sent abort/stop capture.'); }catch(e){ log('Stop command failed: '+e.message); }
+}
+
+function connectBridge(){
+  const url=$('bridgeUrl').value.trim();
+  if(!url) return;
+  try{
+    bridge = new WebSocket(url);
+    bridge.onopen = ()=>{ log('Bridge connected: '+url); setStatus('Bridge connected','ok'); $('disconnectBridgeBtn').disabled=false; };
+    bridge.onclose = ()=>{ log('Bridge closed'); bridge=null; $('disconnectBridgeBtn').disabled=true; setStatus(usbDevice?'WebUSB connected':'Not connected'); };
+    bridge.onerror = ()=>log('Bridge error');
+    bridge.onmessage = ev => handleBridgeMessage(ev.data);
+  }catch(e){ log('Bridge connect failed: '+e.message); }
+}
+function disconnectBridge(){ try{ if(bridge) bridge.close(); }catch(e){} }
+function bridgeSend(cmd, extra={}){
+  if(!bridge || bridge.readyState!==WebSocket.OPEN) throw new Error('Bridge is not connected.');
+  const msg = Object.assign({cmd}, extra);
+  bridge.send(JSON.stringify(msg));
+}
+function bridgeRequest(cmd, extra={}, timeoutMs=4000){
+  return new Promise((resolve,reject)=>{
+    if(!bridge || bridge.readyState!==WebSocket.OPEN) return reject(new Error('Bridge is not connected.'));
+    const id = Math.random().toString(36).slice(2);
+    const timer=setTimeout(()=>{pendingBridge.delete(id); reject(new Error('Bridge timeout: '+cmd));}, timeoutMs);
+    pendingBridge.set(id,{resolve,reject,timer});
+    bridge.send(JSON.stringify(Object.assign({id,cmd}, extra)));
+  });
+}
+const pendingBridge = new Map();
+function handleBridgeMessage(data){
+  let obj;
+  try{ obj=JSON.parse(data); }catch(e){ log('Bridge text: '+data); return; }
+  if(obj.id && pendingBridge.has(obj.id)){
+    const p=pendingBridge.get(obj.id); pendingBridge.delete(obj.id); clearTimeout(p.timer); p.resolve(obj); return;
+  }
+  if(Array.isArray(obj.pixels)) setSpectrum(obj.pixels.map(Number), {source:'bridge push'});
+  if(obj.log) log('Bridge: '+obj.log);
+  if(obj.error) log('Bridge error: '+obj.error);
+}
+async function bridgeInitialise(){
+  const res = await bridgeRequest('initialize', {pixelCount: pixelCount()});
+  log('Bridge initialise: '+JSON.stringify(res));
+  try{ await bridgeRequest('setExposureTime', {us:Number($('exposureUs').value)}); }catch(e){ log('Set exposure failed: '+e.message); }
+  try{ await bridgeRequest('setCaptureMode', {mode:Number($('captureMode').value)}); }catch(e){ log('Set mode failed: '+e.message); }
+}
+async function bridgeReadOnce(){
+  await bridgeRequest('setExposureTime', {us:Number($('exposureUs').value)}).catch(()=>{});
+  await bridgeRequest('captureStart', {}).catch(()=>{});
+  const deadline=Date.now()+5000;
+  while(Date.now()<deadline){
+    const st = await bridgeRequest('getCaptureStatus', {}, 1500).catch(()=>null);
+    if(st && (st.ready || st.code===0 || st.ok===true)) break;
+    await sleep(25);
+  }
+  const data = await bridgeRequest('getImageData', {}, 5000);
+  await bridgeRequest('captureStop', {}).catch(()=>{});
+  if(data && Array.isArray(data.pixels)){
+    setSpectrum(data.pixels.map(Number), {source:'bridge'});
+    return data.pixels;
+  }
+  throw new Error('Bridge returned no pixel array. Expected JSON like {pixels:[...]}');
+}
+
+async function initialise(){
+  const backend=$('backend').value;
+  try{
+    if(backend==='bridge') await bridgeInitialise();
+    else if(backend==='webusb') await c13016DirectInitialise();
+    else log('Demo mode ready.');
+  }catch(e){ log('Initialise failed: '+e.message); }
+}
+async function readOnce(){
+  const backend=$('backend').value;
+  try{
+    if(backend==='bridge') await bridgeReadOnce();
+    else if(backend==='webusb') await c13016DirectReadOnce();
+    else setSpectrum(makeDemoSpectrum(pixelCount()), {source:'demo'});
+  }catch(e){ log('Read failed: '+e.message); }
+}
+async function start(){
+  running=true;
+  $('startBtn').disabled=true; $('stopBtn').disabled=false;
+  log('Started acquisition loop.');
+  const loop=async()=>{
+    if(!running) return;
+    const t0=performance.now();
+    await readOnce();
+    const elapsed=performance.now()-t0;
+    if(running) readLoopTimer=setTimeout(loop, Math.max(1, pollInterval()-elapsed));
+  };
+  loop();
+}
+async function stop(){
+  running=false;
+  if(readLoopTimer) clearTimeout(readLoopTimer);
+  $('startBtn').disabled=false; $('stopBtn').disabled=true;
+  if($('backend').value==='webusb') await c13016DirectStop();
+  log('Stopped acquisition loop.');
+}
+function setSpectrum(arr, info={}){
+  if(!arr || !arr.length) return;
+  const raw = arr.slice(0, pixelCount()).map(Number);
+  lastRawSpectrum = raw;
+  currentSpectrum = applyFrameAveraging(raw);
+  sampleCounter++;
+  lastInfo=Object.assign({}, info, {averagedFrames: averagingBuffer.length || 1, averageTarget: averageFrameCount()});
+  drawSpectrum();
+}
+function makeDemoSpectrum(n){
+  const t=performance.now()/1000;
+  const arr=new Array(n);
+  const peaks=[
+    {c:n*(0.24+0.02*Math.sin(t*.3)),w:n*.045,a:16000},
+    {c:n*(0.52+0.03*Math.sin(t*.17)),w:n*.07,a:26000},
+    {c:n*.76,w:n*.035,a:21000}
+  ];
+  for(let i=0;i<n;i++){
+    let v=800+200*Math.sin(i*0.12+t);
+    for(const p of peaks){ v += p.a*Math.exp(-0.5*Math.pow((i-p.c)/p.w,2)); }
+    v += Math.random()*500;
+    arr[i]=Math.max(0,Math.min(65535,Math.round(v)));
+  }
+  return arr;
+}
+function setDark(){ if(currentSpectrum){ darkSpectrum=currentSpectrum.slice(); log('Dark spectrum captured.'); drawSpectrum(); } }
+function setRef(){ if(currentSpectrum){ refSpectrum=currentSpectrum.slice(); log('Reference spectrum captured.'); drawSpectrum(); } }
+function downloadCsv(){
+  if(!currentSpectrum){alert('No spectrum to save.'); return;}
+  const vals=processedSpectrum(currentSpectrum);
+  let csv='# intensity is the displayed spectrum after dark/reference processing; raw is the averaged raw spectrum when Average frames > 1\n';
+  csv += 'pixel,x,intensity,raw';
+  if(darkSpectrum) csv+=',dark';
+  if(refSpectrum) csv+=',reference';
+  csv+='\n';
+  for(let i=0;i<currentSpectrum.length;i++){
+    const row=[i, xForPixel(i), vals[i], currentSpectrum[i]];
+    if(darkSpectrum) row.push(darkSpectrum[i]);
+    if(refSpectrum) row.push(refSpectrum[i]);
+    csv += row.join(',')+'\n';
+  }
+  const blob=new Blob([csv],{type:'text/csv'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='c13016_spectrum_'+new Date().toISOString().replace(/[:.]/g,'-')+'.csv';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+$('connectUsbBtn').onclick=connectWebUSB;
+$('disconnectUsbBtn').onclick=disconnectWebUSB;
+$('connectBridgeBtn').onclick=connectBridge;
+$('disconnectBridgeBtn').onclick=disconnectBridge;
+$('initBtn').onclick=initialise;
+$('readOnceBtn').onclick=readOnce;
+$('startBtn').onclick=start;
+$('stopBtn').onclick=stop;
+$('setDarkBtn').onclick=setDark;
+$('clearDarkBtn').onclick=()=>{darkSpectrum=null; log('Dark cleared.'); drawSpectrum();};
+$('setRefBtn').onclick=setRef;
+$('clearRefBtn').onclick=()=>{refSpectrum=null; log('Reference cleared.'); drawSpectrum();};
+$('pixelAxisBtn').onclick=()=>{useWavelength=false; drawSpectrum();};
+$('wavelengthAxisBtn').onclick=()=>{useWavelength=true; drawSpectrum();};
+$('downloadCsvBtn').onclick=downloadCsv;
+$('sendHexBtn').onclick=sendHex;
+$('readInBtn').onclick=()=>readWebUsbOnce().catch(e=>log('Read IN failed: '+e.message));
+$('clearLogBtn').onclick=()=>{logEl.textContent='';};
+for(const id of ['yScale','traceColour','traceThickness','coef0','coef1','coef2','coef3','coef4','coef5']) $(id).addEventListener('change', drawSpectrum);
+$('pixelCount').addEventListener('change', ()=>{ resetAveraging(true); drawSpectrum(); });
+$('avgFrames').addEventListener('change', ()=>{ resetAveraging(true); });
+$('resetAvgBtn').onclick=()=>resetAveraging(true);
+
+resizeCanvas();
+log('Ready. Direct WebUSB v14 adds adjustable trace thickness, wavelength-coloured tracing, and rolling frame averaging. EEPROM/calibration writes remain disabled.');
+if(!('usb' in navigator)) log('WebUSB is not available in this browser. Try Chrome or Edge.');
+</script>
+</body>
+</html>
