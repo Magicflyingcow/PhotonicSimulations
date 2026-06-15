@@ -183,6 +183,7 @@
 </main>
 
 <script src="heart-rate-monitor.js"></script>
+<script src="log-retention.js"></script>
 <script>
 'use strict';
 
@@ -221,12 +222,19 @@ let lastFrameHeaderSummary = '';
 let c13016ModulePixels = 288;
 const heartRateMonitor = new HeartRateMonitor.Monitor({minimumSeconds:8, windowSeconds:20, keepSeconds:30});
 let heartRateStartedAt = null;
+const LOG_RETENTION_MS = 60 * 1000;
+const spectrometerLog = new LogRetention.TimedLog({
+  retentionMs: LOG_RETENTION_MS,
+  onChange(lines){
+    logEl.textContent = lines.length ? lines.join('\n') + '\n' : '';
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+});
 
 function log(msg, cls=''){
   const time = new Date().toLocaleTimeString();
   const line = `[${time}] ${msg}`;
-  logEl.textContent += line + '\n';
-  logEl.scrollTop = logEl.scrollHeight;
+  spectrometerLog.add(line);
   console.log(line);
 }
 function setStatus(msg, kind=''){
