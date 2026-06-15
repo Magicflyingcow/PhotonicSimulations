@@ -55,7 +55,7 @@
 <header>
   <div>
     <h1>C13016 / C12880MA browser spectrometer</h1>
-    <div class="sub">Single-file HTML. Direct WebUSB is experimental; bridge mode remains available for the Hamamatsu DLL path.</div>
+    <div class="sub">Single-file HTML with experimental direct WebUSB acquisition.</div>
   </div>
   <div id="topStatus" class="status">Not connected</div>
 </header>
@@ -66,7 +66,7 @@
       <h2>Connection</h2>
       <div class="body">
         <div class="note">
-          The C13016 is a USB2/WinUSB device, not a USB serial device. A browser cannot call <code>MICRO_USB2_CLR.dll</code> directly. This page can try a reverse-engineered direct WebUSB capture path or talk to a local bridge that wraps the DLL.
+          The C13016 is a USB2/WinUSB device, not a USB serial device. This page uses an experimental reverse-engineered direct WebUSB capture path.
         </div>
         <div class="row">
           <div><label>VID</label><input id="vid" value="0x0661"></div>
@@ -76,30 +76,16 @@
           <button id="connectUsbBtn">Connect WebUSB</button>
           <button id="disconnectUsbBtn" class="secondary" disabled>Disconnect</button>
         </div>
-        <label>Local bridge WebSocket URL</label>
-        <input id="bridgeUrl" value="ws://127.0.0.1:8765/c13016">
-        <div class="btns">
-          <button id="connectBridgeBtn" class="secondary">Connect bridge</button>
-          <button id="disconnectBridgeBtn" class="secondary" disabled>Close bridge</button>
-        </div>
-        <div class="hint">
-          Direct WebUSB needs Chrome/Edge and OS permission to the device. Bridge mode needs a small local app that exposes the DLL functions over WebSocket.
-        </div>
+        <div class="hint">Direct WebUSB needs Chrome or Edge and OS permission to the device.</div>
       </div>
     </section>
 
     <section>
       <h2>Acquisition</h2>
       <div class="body">
-        <label>Acquisition backend</label>
-        <select id="backend">
-          <option value="bridge">Local DLL bridge</option>
-          <option value="webusb">Experimental direct WebUSB</option>
-          <option value="demo">Demo simulated spectrum</option>
-        </select>
         <div class="row">
           <div><label>Exposure time (µs)</label><input id="exposureUs" type="number" min="11" max="1000000" step="1" value="10000"></div>
-          <div><label>Poll rate (Hz)</label><input id="pollHz" type="number" min="0.2" max="100" step="0.1" value="5"></div>
+          <div><label>Poll rate (Hz)</label><input id="pollHz" type="number" min="0.2" max="100" step="0.1" value="50"></div>
         </div>
         <div class="row">
           <div><label>Pixel count</label><input id="pixelCount" type="number" min="16" max="4096" step="1" value="288"></div>
@@ -115,7 +101,7 @@
         </div>
         <div class="row">
           <div><label>Trace colour</label><select id="traceColour"><option value="wavelength" selected>Actual wavelength colour</option><option value="solid">Solid cyan</option></select></div>
-          <div><label>Trace thickness (px)</label><input id="traceThickness" type="number" min="0.5" max="12" step="0.5" value="2.5"></div>
+          <div><label>Trace thickness (px)</label><input id="traceThickness" type="number" min="0.5" max="12" step="0.5" value="10"></div>
         </div>
         <div class="btns">
           <button id="initBtn" class="secondary">Initialise</button>
@@ -130,7 +116,7 @@
           <button id="clearRefBtn" class="secondary">Clear reference</button>
         </div>
         <div class="hint">
-          Use “Demo simulated spectrum” to verify the graph. Direct WebUSB is still experimental. The v12 diagnostics parse little-endian image data using DLL-style header framing. Average frames smooths the displayed spectrum by averaging the last N raw frames without changing exposure time.
+          Direct WebUSB is experimental. The diagnostics parse little-endian image data using the device header framing. Average frames smooths the displayed spectrum by averaging the last N raw frames without changing exposure time.
         </div>
       </div>
     </section>
@@ -211,7 +197,6 @@ let usbBulkOut = null;
 let c13016DirectReady = false;
 let lastDirectExposureUs = null;
 let directFrameCounter = 0;
-let bridge = null;
 let running = false;
 let readLoopTimer = null;
 let lastHeaderBytes = null;
@@ -251,7 +236,7 @@ function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
 function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
 function pixelCount(){return Math.max(16, Math.min(4096, parseInt($('pixelCount').value || '288',10)));}
 function averageFrameCount(){return Math.max(1, Math.min(200, parseInt($('avgFrames').value || '1',10)));}
-function traceThickness(){return Math.max(0.5, Math.min(12, parseFloat($('traceThickness')?.value || '2.5')));}
+function traceThickness(){return Math.max(0.5, Math.min(12, parseFloat($('traceThickness')?.value || '10')));}
 function resetAveraging(logMessage=false){
   averagingBuffer = [];
   averagingTarget = averageFrameCount();
@@ -282,7 +267,7 @@ function applyFrameAveraging(raw){
   if($('avgStatus')) $('avgStatus').textContent = `${denom}/${n}`;
   return out;
 }
-function pollInterval(){return Math.max(20, 1000 / Math.max(0.2, parseFloat($('pollHz').value || '5')));}
+function pollInterval(){return Math.max(20, 1000 / Math.max(0.2, parseFloat($('pollHz').value || '50')));}
 function coefficients(){
   return [0,1,2,3,4,5].map(i => Number($('coef'+i).value || 0));
 }
@@ -456,7 +441,7 @@ function drawSpectrum(){
   $('peakValue').textContent = formatNumber(peak);
   $('peakX').textContent = formatNumber(xs[peakIdx]) + (useWavelength ? ' nm' : ' px');
   $('meanValue').textContent = formatNumber(mean);
-  $('backendLabel').textContent = $('backend').selectedOptions[0].textContent;
+  $('backendLabel').textContent = 'Experimental direct WebUSB';
 }
 function drawLine(vals, color, lw, dotted, minX,maxX,minY,maxY,padL,padT,plotW,plotH,yScale){
   const xs = vals.map((_,i)=>xForPixel(i));
@@ -580,7 +565,7 @@ function hexToBytes(text){
 }
 function parsePacketToSpectrum(bytes){
   if(!bytes || !bytes.length) return null;
-  // JSON/CSV convenience for bridge-like packets
+  // JSON/CSV convenience for structured packets
   try{
     const txt = new TextDecoder().decode(bytes).trim();
     if(txt.startsWith('{')){
@@ -936,81 +921,14 @@ async function c13016DirectStop(){
   try{ await c13016Command(C13016.ABORT_CAPTURE, null, 0); log('Sent abort/stop capture.'); }catch(e){ log('Stop command failed: '+e.message); }
 }
 
-function connectBridge(){
-  const url=$('bridgeUrl').value.trim();
-  if(!url) return;
-  try{
-    bridge = new WebSocket(url);
-    bridge.onopen = ()=>{ log('Bridge connected: '+url); setStatus('Bridge connected','ok'); $('disconnectBridgeBtn').disabled=false; };
-    bridge.onclose = ()=>{ log('Bridge closed'); bridge=null; $('disconnectBridgeBtn').disabled=true; setStatus(usbDevice?'WebUSB connected':'Not connected'); };
-    bridge.onerror = ()=>log('Bridge error');
-    bridge.onmessage = ev => handleBridgeMessage(ev.data);
-  }catch(e){ log('Bridge connect failed: '+e.message); }
-}
-function disconnectBridge(){ try{ if(bridge) bridge.close(); }catch(e){} }
-function bridgeSend(cmd, extra={}){
-  if(!bridge || bridge.readyState!==WebSocket.OPEN) throw new Error('Bridge is not connected.');
-  const msg = Object.assign({cmd}, extra);
-  bridge.send(JSON.stringify(msg));
-}
-function bridgeRequest(cmd, extra={}, timeoutMs=4000){
-  return new Promise((resolve,reject)=>{
-    if(!bridge || bridge.readyState!==WebSocket.OPEN) return reject(new Error('Bridge is not connected.'));
-    const id = Math.random().toString(36).slice(2);
-    const timer=setTimeout(()=>{pendingBridge.delete(id); reject(new Error('Bridge timeout: '+cmd));}, timeoutMs);
-    pendingBridge.set(id,{resolve,reject,timer});
-    bridge.send(JSON.stringify(Object.assign({id,cmd}, extra)));
-  });
-}
-const pendingBridge = new Map();
-function handleBridgeMessage(data){
-  let obj;
-  try{ obj=JSON.parse(data); }catch(e){ log('Bridge text: '+data); return; }
-  if(obj.id && pendingBridge.has(obj.id)){
-    const p=pendingBridge.get(obj.id); pendingBridge.delete(obj.id); clearTimeout(p.timer); p.resolve(obj); return;
-  }
-  if(Array.isArray(obj.pixels)) setSpectrum(obj.pixels.map(Number), {source:'bridge push'});
-  if(obj.log) log('Bridge: '+obj.log);
-  if(obj.error) log('Bridge error: '+obj.error);
-}
-async function bridgeInitialise(){
-  const res = await bridgeRequest('initialize', {pixelCount: pixelCount()});
-  log('Bridge initialise: '+JSON.stringify(res));
-  try{ await bridgeRequest('setExposureTime', {us:Number($('exposureUs').value)}); }catch(e){ log('Set exposure failed: '+e.message); }
-  try{ await bridgeRequest('setCaptureMode', {mode:Number($('captureMode').value)}); }catch(e){ log('Set mode failed: '+e.message); }
-}
-async function bridgeReadOnce(){
-  await bridgeRequest('setExposureTime', {us:Number($('exposureUs').value)}).catch(()=>{});
-  await bridgeRequest('captureStart', {}).catch(()=>{});
-  const deadline=Date.now()+5000;
-  while(Date.now()<deadline){
-    const st = await bridgeRequest('getCaptureStatus', {}, 1500).catch(()=>null);
-    if(st && (st.ready || st.code===0 || st.ok===true)) break;
-    await sleep(25);
-  }
-  const data = await bridgeRequest('getImageData', {}, 5000);
-  await bridgeRequest('captureStop', {}).catch(()=>{});
-  if(data && Array.isArray(data.pixels)){
-    setSpectrum(data.pixels.map(Number), {source:'bridge'});
-    return data.pixels;
-  }
-  throw new Error('Bridge returned no pixel array. Expected JSON like {pixels:[...]}');
-}
-
 async function initialise(){
-  const backend=$('backend').value;
   try{
-    if(backend==='bridge') await bridgeInitialise();
-    else if(backend==='webusb') await c13016DirectInitialise();
-    else log('Demo mode ready.');
+    await c13016DirectInitialise();
   }catch(e){ log('Initialise failed: '+e.message); }
 }
 async function readOnce(){
-  const backend=$('backend').value;
   try{
-    if(backend==='bridge') await bridgeReadOnce();
-    else if(backend==='webusb') await c13016DirectReadOnce();
-    else setSpectrum(makeDemoSpectrum(pixelCount()), {source:'demo'});
+    await c13016DirectReadOnce();
   }catch(e){ log('Read failed: '+e.message); }
 }
 async function start(){
@@ -1030,7 +948,7 @@ async function stop(){
   running=false;
   if(readLoopTimer) clearTimeout(readLoopTimer);
   $('startBtn').disabled=false; $('stopBtn').disabled=true;
-  if($('backend').value==='webusb') await c13016DirectStop();
+  await c13016DirectStop();
   log('Stopped acquisition loop.');
 }
 function setSpectrum(arr, info={}){
@@ -1041,22 +959,6 @@ function setSpectrum(arr, info={}){
   sampleCounter++;
   lastInfo=Object.assign({}, info, {averagedFrames: averagingBuffer.length || 1, averageTarget: averageFrameCount()});
   drawSpectrum();
-}
-function makeDemoSpectrum(n){
-  const t=performance.now()/1000;
-  const arr=new Array(n);
-  const peaks=[
-    {c:n*(0.24+0.02*Math.sin(t*.3)),w:n*.045,a:16000},
-    {c:n*(0.52+0.03*Math.sin(t*.17)),w:n*.07,a:26000},
-    {c:n*.76,w:n*.035,a:21000}
-  ];
-  for(let i=0;i<n;i++){
-    let v=800+200*Math.sin(i*0.12+t);
-    for(const p of peaks){ v += p.a*Math.exp(-0.5*Math.pow((i-p.c)/p.w,2)); }
-    v += Math.random()*500;
-    arr[i]=Math.max(0,Math.min(65535,Math.round(v)));
-  }
-  return arr;
 }
 function setDark(){ if(currentSpectrum){ darkSpectrum=currentSpectrum.slice(); log('Dark spectrum captured.'); drawSpectrum(); } }
 function setRef(){ if(currentSpectrum){ refSpectrum=currentSpectrum.slice(); log('Reference spectrum captured.'); drawSpectrum(); } }
@@ -1084,8 +986,6 @@ function downloadCsv(){
 
 $('connectUsbBtn').onclick=connectWebUSB;
 $('disconnectUsbBtn').onclick=disconnectWebUSB;
-$('connectBridgeBtn').onclick=connectBridge;
-$('disconnectBridgeBtn').onclick=disconnectBridge;
 $('initBtn').onclick=initialise;
 $('readOnceBtn').onclick=readOnce;
 $('startBtn').onclick=start;

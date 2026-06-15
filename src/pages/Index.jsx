@@ -43,9 +43,9 @@ const simulations = [
 const liveDemos = [
   {
     title: "C13016 / C12880MA Microspectrometer",
-    description: "Capture and plot spectra through experimental WebUSB, a local Hamamatsu DLL bridge, or the built-in simulated spectrum.",
+    description: "Capture and plot live spectra through experimental direct WebUSB acquisition.",
     path: "/microspectrometer",
-    requirement: "Chrome or Edge · HTTPS or localhost · WebUSB device or local DLL bridge",
+    requirement: "Chrome or Edge · HTTPS or localhost · WebUSB device",
   },
   {
     title: "LW20 Rangefinder Scene Mapper",
