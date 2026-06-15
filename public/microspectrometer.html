@@ -53,6 +53,10 @@
   .ok{color:var(--good)}.warnText{color:var(--warn)}.badText{color:var(--bad)}
   .heartRateValue{font-size:34px;font-weight:750;color:#fb7185;line-height:1;margin:8px 0}
   .heartRateMeta{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+  .matchResult{margin-top:10px;padding:11px;border:1px solid #2c3d70;border-radius:10px;background:#0a1228}
+  .matchResult strong{display:block;margin-bottom:3px}
+  .matchResult.ok{border-color:#166534;background:rgba(22,101,52,.18)}
+  .matchResult.badText{border-color:#881337;background:rgba(136,19,55,.16)}
   @media(max-width:1050px){main{grid-template-columns:1fr}header{position:static}#canvasWrap{height:520px}}
 </style>
 </head>
@@ -162,6 +166,19 @@
       </div>
     </section>
 
+    <section>
+      <h2>Sample spectrum match</h2>
+      <div class="body">
+        <div id="matchResult" class="matchResult">
+          <strong id="matchTitle">Loading samples…</strong>
+          <span id="matchDetail" class="mini">Waiting for the sample spectra file.</span>
+        </div>
+        <div class="hint">
+          The live spectral shape is baseline-corrected, normalized, and compared with every named spectrum in Sample Spectra.csv. Add future samples as new named columns.
+        </div>
+      </div>
+    </section>
+
   </aside>
 
   <section id="chartPanel">
@@ -184,6 +201,7 @@
 
 <script src="heart-rate-monitor.js"></script>
 <script src="log-retention.js"></script>
+<script src="spectrum-matcher.js"></script>
 <script>
 'use strict';
 
@@ -220,6 +238,9 @@ let lastDiscardedByteCount = 0;
 let lastFramePayloadByteCount = 0;
 let lastFrameHeaderSummary = '';
 let c13016ModulePixels = 288;
+let sampleSpectra = [];
+let sampleSpectraError = null;
+const SAMPLE_MATCH_THRESHOLD = 0.9;
 const heartRateMonitor = new HeartRateMonitor.Monitor({minimumSeconds:8, windowSeconds:20, keepSeconds:30});
 let heartRateStartedAt = null;
 const LOG_RETENTION_MS = 60 * 1000;
@@ -927,7 +948,64 @@ function setSpectrum(arr, info={}){
   sampleCounter++;
   lastInfo=Object.assign({}, info, {averagedFrames: averagingBuffer.length || 1, averageTarget: averageFrameCount()});
   updateHeartRate(currentSpectrum);
+  updateSampleMatch();
   drawSpectrum();
+}
+async function loadSampleSpectra(){
+  try{
+    const response=await fetch('Sample%20Spectra.csv', {cache:'no-cache'});
+    if(!response.ok) throw new Error(`HTTP ${response.status}`);
+    sampleSpectra=SpectrumMatcher.parseSampleCsv(await response.text());
+    if(!sampleSpectra.length) throw new Error('no named sample columns were found');
+    sampleSpectraError=null;
+    log(`Loaded ${sampleSpectra.length} sample spectra: ${sampleSpectra.map(sample=>sample.name).join(', ')}.`);
+    updateSampleMatch();
+  }catch(e){
+    sampleSpectra=[];
+    sampleSpectraError=e.message;
+    updateSampleMatch();
+    log('Sample spectra could not be loaded: '+e.message);
+  }
+}
+function updateSampleMatch(){
+  const resultEl=$('matchResult');
+  const titleEl=$('matchTitle');
+  const detailEl=$('matchDetail');
+  resultEl.className='matchResult';
+  if(sampleSpectraError){
+    resultEl.classList.add('badText');
+    titleEl.textContent='Samples unavailable';
+    detailEl.textContent=sampleSpectraError;
+    return;
+  }
+  if(!sampleSpectra.length){
+    titleEl.textContent='Loading samples…';
+    detailEl.textContent='Waiting for the sample spectra file.';
+    return;
+  }
+  if(!currentSpectrum){
+    titleEl.textContent='Ready to compare';
+    detailEl.textContent=`${sampleSpectra.length} sample${sampleSpectra.length===1?'':'s'} loaded; capture a spectrum to check for a match.`;
+    return;
+  }
+  const live=processedSpectrum(currentSpectrum);
+  const wavelengths=live.map((_,i)=>wavelengthForPixel(i));
+  const result=SpectrumMatcher.findBestMatch(live,wavelengths,sampleSpectra,{threshold:SAMPLE_MATCH_THRESHOLD});
+  if(!result.best){
+    titleEl.textContent='No match found';
+    detailEl.textContent='The live and sample wavelength ranges do not overlap enough for comparison.';
+    return;
+  }
+  const similarity=Math.round(result.best.score*100);
+  if(result.matched){
+    resultEl.classList.add('ok');
+    titleEl.textContent=`Match found: ${result.best.name}`;
+    detailEl.textContent=`Spectral-shape similarity ${similarity}% (match threshold ${Math.round(result.threshold*100)}%).`;
+  }else{
+    resultEl.classList.add('badText');
+    titleEl.textContent='No match found';
+    detailEl.textContent=`Closest sample: ${result.best.name} at ${similarity}% similarity (match threshold ${Math.round(result.threshold*100)}%).`;
+  }
 }
 function resetHeartRate(message='Collecting a clean 8-second signal…'){
   heartRateMonitor.reset();
@@ -1015,6 +1093,7 @@ for(const id of ['coef0','coef1','coef2','coef3','coef4','coef5']){
 }
 
 resizeCanvas();
+loadSampleSpectra();
 log('Ready. Direct WebUSB v15 adds Heart Rate monitor mode with common-mode lighting rejection. EEPROM/calibration writes remain disabled.');
 if(!('usb' in navigator)) log('WebUSB is not available in this browser. Try Chrome or Edge.');
 </script>
