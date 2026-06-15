@@ -6,7 +6,13 @@
   'use strict';
 
   class TimedLog {
-    constructor({retentionMs, onChange, now = Date.now, setTimer = setTimeout, clearTimer = clearTimeout}){
+    constructor({
+      retentionMs,
+      onChange,
+      now = () => Date.now(),
+      setTimer = (callback, delay) => globalThis.setTimeout(callback, delay),
+      clearTimer = timer => globalThis.clearTimeout(timer)
+    }){
       this.retentionMs = Math.max(1, Number(retentionMs) || 1);
       this.onChange = onChange;
       this.now = now;
