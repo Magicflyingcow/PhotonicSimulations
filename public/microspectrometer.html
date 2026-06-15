@@ -56,7 +56,8 @@
   #readout{display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding:10px 14px;border-top:1px solid var(--line);background:rgba(21,31,63,.45);font-size:12px;color:var(--muted)}
   .pill{padding:5px 8px;border:1px solid #2c3d70;border-radius:999px;background:#0a1228}
   .pill strong{color:var(--ink)}
-  #peakAnalysis{padding:8px 14px 10px;border-top:1px solid var(--line);background:rgba(10,18,40,.55)}
+  #peakAnalysis{border-top:1px solid var(--line);background:rgba(10,18,40,.55)}
+  #peakAnalysisBody{padding:8px 14px 10px}
   .peakControls{display:flex;align-items:end;gap:8px;flex-wrap:wrap;margin-bottom:7px}
   .peakControls label{margin:0;min-width:118px}
   .peakControls input{padding:5px 7px;margin-top:3px}
@@ -211,17 +212,23 @@
       <span class="pill">Mean: <strong id="meanValue">—</strong></span>
       <span class="pill">Backend: <strong id="backendLabel">—</strong></span>
     </div>
-    <div id="peakAnalysis">
-      <div class="peakControls">
-        <label>Maximum labels<input id="maxPeakLabels" type="number" min="0" max="12" step="1" value="4"></label>
-        <label>Minimum prominence<input id="minPeakProminence" type="number" min="0" step="any" value="100"></label>
-        <label>Minimum separation (px)<input id="minPeakSeparation" type="number" min="1" max="288" step="1" value="5"></label>
+    <div id="peakAnalysis" class="collapsibleSection">
+      <div class="sectionHeader">
+        <h2>Wavelength details</h2>
+        <button id="peakAnalysisToggle" class="collapseBtn" type="button" aria-expanded="true" aria-controls="peakAnalysisBody" title="Minimise wavelength details">−</button>
       </div>
-      <div id="peakTableWrap">
-        <table id="peakTable">
-          <thead><tr><th>Wavelength</th><th>Intensity</th><th>Prominence</th><th>FWHM</th></tr></thead>
-          <tbody><tr><td class="emptyPeaks" colspan="4">No peaks detected</td></tr></tbody>
-        </table>
+      <div id="peakAnalysisBody" class="collapsibleBody">
+        <div class="peakControls">
+          <label>Maximum labels<input id="maxPeakLabels" type="number" min="0" max="12" step="1" value="4"></label>
+          <label>Minimum prominence<input id="minPeakProminence" type="number" min="0" step="any" value="1000"></label>
+          <label>Minimum separation (px)<input id="minPeakSeparation" type="number" min="1" max="288" step="1" value="5"></label>
+        </div>
+        <div id="peakTableWrap">
+          <table id="peakTable">
+            <thead><tr><th>Wavelength</th><th>Intensity</th><th>Prominence</th><th>FWHM</th></tr></thead>
+            <tbody><tr><td class="emptyPeaks" colspan="4">No peaks detected</td></tr></tbody>
+          </table>
+        </div>
       </div>
     </div>
     <div id="eventLogSection" class="collapsibleSection">
@@ -263,6 +270,9 @@ function setupCollapsible(panelId, buttonId, label, onToggle){
 
 setupCollapsible('settingsPanel', 'settingsToggle', 'settings', collapsed => {
   document.querySelector('main').classList.toggle('settings-collapsed', collapsed);
+  requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
+});
+setupCollapsible('peakAnalysis', 'peakAnalysisToggle', 'wavelength details', () => {
   requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
 });
 setupCollapsible('eventLogSection', 'eventLogToggle', 'event log', () => {
