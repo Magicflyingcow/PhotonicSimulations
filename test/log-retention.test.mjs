@@ -43,3 +43,36 @@ test('removes log entries after the retention period', () => {
   assert.deepEqual(renders.at(-1), []);
   assert.equal(timers.size, 0);
 });
+
+test('calls default browser timers with the global object as their receiver', () => {
+  const originalSetTimeout = globalThis.setTimeout;
+  const originalClearTimeout = globalThis.clearTimeout;
+  const timerId = {};
+  let scheduledCallback;
+
+  globalThis.setTimeout = function(callback, delay){
+    assert.equal(this, globalThis);
+    assert.equal(delay, 1000);
+    scheduledCallback = callback;
+    return timerId;
+  };
+  globalThis.clearTimeout = function(id){
+    assert.equal(this, globalThis);
+    assert.equal(id, timerId);
+  };
+
+  try {
+    const log = new TimedLog({
+      retentionMs: 1000,
+      now: () => 0,
+      onChange: () => {}
+    });
+
+    log.add('entry');
+    assert.equal(typeof scheduledCallback, 'function');
+    log.destroy();
+  } finally {
+    globalThis.setTimeout = originalSetTimeout;
+    globalThis.clearTimeout = originalClearTimeout;
+  }
+});
