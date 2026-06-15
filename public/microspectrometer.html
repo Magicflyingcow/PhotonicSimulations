@@ -50,9 +50,22 @@
   .hint{font-size:12px;color:var(--muted);line-height:1.45;margin-top:8px}
   .note{font-size:12px;line-height:1.45;padding:10px;border:1px solid #3f3556;background:#1b1530;border-radius:10px;color:#d9d4ff}
   .mini{font-size:11px;color:var(--muted)}
-  #chartPanel{display:grid;grid-template-rows:auto minmax(0,1fr) auto auto auto;position:sticky;top:86px;height:calc(100vh - 100px);min-height:520px}
+  #chartArea{position:sticky;top:86px;min-width:0}
+  .tabs{display:flex;gap:6px;margin-bottom:10px;padding:5px;border:1px solid var(--line);border-radius:12px;background:rgba(17,24,50,.94)}
+  .tabBtn{flex:1;background:transparent;border-color:transparent;color:var(--muted)}
+  .tabBtn.active{background:var(--button);border-color:#3758b8;color:white}
+  .tabPanel[hidden]{display:none}
+  #chartPanel{display:grid;grid-template-rows:auto minmax(0,1fr) auto auto auto;height:calc(100vh - 154px);min-height:520px}
   #canvasWrap{position:relative;min-height:0;padding:10px;background:radial-gradient(circle at 50% 0%,rgba(59,130,246,.16),transparent 35%),#060b18}
   canvas{width:100%;height:100%;display:block;border-radius:10px;background:#050916;border:1px solid #1b2a52}
+  #heartRatePanel{padding-bottom:12px}
+  .heartRateHeader{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;padding:14px}
+  .heartRateHeader .checkRow{margin-top:0}
+  .heartRateHeader .heartRateValue{margin:4px 0;text-align:right;white-space:nowrap}
+  .heartCharts{display:grid;grid-template-rows:minmax(280px,1fr) minmax(220px,.7fr);gap:12px;padding:0 12px}
+  .heartChart{min-height:0}
+  .heartChart h3{font-size:12px;color:var(--muted);margin:0 0 6px}
+  .heartCanvasWrap{height:calc(100% - 24px);min-height:190px}
   #readout{display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding:10px 14px;border-top:1px solid var(--line);background:rgba(21,31,63,.45);font-size:12px;color:var(--muted)}
   .pill{padding:5px 8px;border:1px solid #2c3d70;border-radius:999px;background:#0a1228}
   .pill strong{color:var(--ink)}
@@ -77,7 +90,7 @@
   .matchResult .mini{margin-top:3px}
   .matchResult.ok{border-color:#166534;background:rgba(22,101,52,.18)}
   .matchResult.badText{border-color:#881337;background:rgba(136,19,55,.16)}
-  @media(max-width:1050px){main,main.settings-collapsed{grid-template-columns:1fr}header{position:static}#chartPanel{position:static;height:auto;min-height:0}#canvasWrap{height:520px}#log{height:190px}#settingsPanel.collapsed .panelHeader{flex-direction:row}#settingsPanel.collapsed .panelHeader h2{writing-mode:initial;transform:none}}
+  @media(max-width:1050px){main,main.settings-collapsed{grid-template-columns:1fr}header{position:static}#chartArea{position:static}#chartPanel{height:auto;min-height:0}#canvasWrap{height:520px}.heartCharts{grid-template-rows:360px 260px}#log{height:190px}#settingsPanel.collapsed .panelHeader{flex-direction:row}#settingsPanel.collapsed .panelHeader h2{writing-mode:initial;transform:none}}
 </style>
 </head>
 <body>
@@ -175,27 +188,16 @@
       </div>
     </section>
 
-    <section>
-      <h2>Heart Rate monitor mode</h2>
-      <div class="body">
-        <label class="checkRow"><input id="heartRateMode" type="checkbox"><span>Track pulse intensity from 650–660 nm</span></label>
-        <div class="heartRateValue"><span id="heartRateValue">—</span> <span class="mini">BPM</span></div>
-        <div id="heartRateStatus" class="hint">Enable this mode, start live acquisition, and hold a fingertip steadily in the 655 nm optical path.</div>
-        <div class="heartRateMeta">
-          <span class="pill">Confidence: <strong id="heartRateConfidence">—</strong></span>
-          <span class="pill">Window: <strong id="heartRateWindow">0.0 s</strong></span>
-        </div>
-        <div class="hint">
-          The monitor tracks the mean intensity in the 650–660 nm band over time, detrends that time series, and estimates its dominant pulse frequency. It does not compare this band against any other wavelengths.
-        </div>
-      </div>
-    </section>
-
     </div>
 
   </aside>
 
-  <section id="chartPanel">
+  <div id="chartArea">
+    <nav class="tabs" aria-label="Spectrometer views">
+      <button id="spectrumTab" class="tabBtn active" type="button" role="tab" aria-selected="true" aria-controls="chartPanel">Live spectrum</button>
+      <button id="heartRateTab" class="tabBtn" type="button" role="tab" aria-selected="false" aria-controls="heartRatePanel">Heart rate monitor</button>
+    </nav>
+  <section id="chartPanel" class="tabPanel" role="tabpanel" aria-labelledby="spectrumTab">
     <h2>Live spectrum</h2>
     <div id="canvasWrap">
       <canvas id="plot"></canvas>
@@ -242,6 +244,32 @@
       </div>
     </div>
   </section>
+  <section id="heartRatePanel" class="tabPanel" role="tabpanel" aria-labelledby="heartRateTab" hidden>
+    <div class="heartRateHeader">
+      <div>
+        <h2>Heart rate monitor</h2>
+        <label class="checkRow"><input id="heartRateMode" type="checkbox"><span>Track pulse intensity from 650–660 nm</span></label>
+        <div id="heartRateStatus" class="hint">Enable this mode, start live acquisition, and hold a fingertip steadily in the 655 nm optical path.</div>
+        <div class="heartRateMeta">
+          <span class="pill">Confidence: <strong id="heartRateConfidence">—</strong></span>
+          <span class="pill">Window: <strong id="heartRateWindow">0.0 s</strong></span>
+        </div>
+      </div>
+      <div class="heartRateValue"><span id="heartRateValue">—</span> <span class="mini">BPM</span></div>
+    </div>
+    <div class="heartCharts">
+      <div class="heartChart">
+        <h3>Live spectrum · Y maximum holds the highest value observed in the past 5 seconds</h3>
+        <div class="heartCanvasWrap"><canvas id="heartSpectrumPlot"></canvas></div>
+      </div>
+      <div class="heartChart">
+        <h3>650–660 nm intensity over time</h3>
+        <div class="heartCanvasWrap"><canvas id="heartRatePlot"></canvas></div>
+      </div>
+    </div>
+    <div class="hint body">The monitor tracks the mean intensity in the 650–660 nm band over time, detrends that time series, and estimates its dominant pulse frequency.</div>
+  </section>
+  </div>
 </main>
 
 <script src="heart-rate-monitor.js"></script>
@@ -255,6 +283,10 @@ const logEl = $('log');
 const topStatus = $('topStatus');
 const canvas = $('plot');
 const ctx = canvas.getContext('2d');
+const heartSpectrumCanvas = $('heartSpectrumPlot');
+const heartSpectrumCtx = heartSpectrumCanvas.getContext('2d');
+const heartRateCanvas = $('heartRatePlot');
+const heartRateCtx = heartRateCanvas.getContext('2d');
 
 function setupCollapsible(panelId, buttonId, label, onToggle){
   const panel = $(panelId);
@@ -311,6 +343,7 @@ let sampleSpectraError = null;
 const SAMPLE_MATCH_THRESHOLD = 0.9;
 const heartRateMonitor = new HeartRateMonitor.Monitor({minimumSeconds:8, windowSeconds:20, keepSeconds:30});
 let heartRateStartedAt = null;
+let heartSpectrumMaxima = [];
 const LOG_RETENTION_MS = 60 * 1000;
 const spectrometerLog = new LogRetention.TimedLog({
   retentionMs: LOG_RETENTION_MS,
@@ -512,8 +545,81 @@ function resizeCanvas(){
   canvas.width = Math.max(320, Math.round(rect.width*dpr));
   canvas.height = Math.max(240, Math.round(rect.height*dpr));
   drawSpectrum();
+  resizeHeartCanvases();
 }
 window.addEventListener('resize', resizeCanvas);
+
+function resizeHeartCanvases(){
+  const dpr = window.devicePixelRatio || 1;
+  for(const target of [heartSpectrumCanvas, heartRateCanvas]){
+    const rect = target.getBoundingClientRect();
+    if(rect.width && rect.height){
+      target.width = Math.max(320, Math.round(rect.width*dpr));
+      target.height = Math.max(180, Math.round(rect.height*dpr));
+    }
+  }
+  drawHeartRateCharts();
+}
+
+function drawHeartRateCharts(){
+  drawHeartSpectrum();
+  drawHeartSignal();
+}
+
+function prepareHeartCanvas(target, context, xLabel, yLabel){
+  const w=target.width, h=target.height;
+  context.clearRect(0,0,w,h);
+  context.fillStyle='#050916'; context.fillRect(0,0,w,h);
+  const dpr=window.devicePixelRatio||1;
+  const bounds={left:58*dpr,right:18*dpr,top:18*dpr,bottom:38*dpr};
+  bounds.width=w-bounds.left-bounds.right; bounds.height=h-bounds.top-bounds.bottom;
+  context.strokeStyle='#1b2a52'; context.strokeRect(bounds.left,bounds.top,bounds.width,bounds.height);
+  context.font=`${11*dpr}px ui-monospace, Menlo, Consolas, monospace`;
+  context.fillStyle='#9eb0d3'; context.textAlign='center';
+  context.fillText(xLabel,bounds.left+bounds.width/2,h-10*dpr);
+  context.save(); context.translate(13*dpr,bounds.top+bounds.height/2); context.rotate(-Math.PI/2); context.fillText(yLabel,0,0); context.restore();
+  context.textAlign='left';
+  return bounds;
+}
+
+function drawHeartSpectrum(){
+  const bounds=prepareHeartCanvas(heartSpectrumCanvas,heartSpectrumCtx,'Wavelength (nm)',refSpectrum?'Relative intensity':'A/D counts');
+  if(!currentSpectrum?.length) return;
+  const values=processedSpectrum(currentSpectrum);
+  const xs=values.map((_,i)=>wavelengthForPixel(i));
+  const now=performance.now()/1000;
+  heartSpectrumMaxima=heartSpectrumMaxima.filter(item=>now-item.time<=5);
+  const currentMax=Math.max(0,...values.filter(Number.isFinite));
+  if(!heartSpectrumMaxima.length || heartSpectrumMaxima[heartSpectrumMaxima.length-1].time!==now) heartSpectrumMaxima.push({time:now,value:currentMax});
+  const maxY=Math.max(1,...heartSpectrumMaxima.map(item=>item.value))*1.06;
+  const minX=Math.min(...xs), maxX=Math.max(...xs);
+  const sx=x=>bounds.left+(x-minX)/(maxX-minX||1)*bounds.width;
+  const sy=y=>bounds.top+bounds.height-clamp(y,0,maxY)/maxY*bounds.height;
+  heartSpectrumCtx.beginPath();
+  values.forEach((value,i)=>i ? heartSpectrumCtx.lineTo(sx(xs[i]),sy(value)) : heartSpectrumCtx.moveTo(sx(xs[i]),sy(value)));
+  heartSpectrumCtx.strokeStyle='#fb7185'; heartSpectrumCtx.lineWidth=2*(window.devicePixelRatio||1); heartSpectrumCtx.stroke();
+  heartSpectrumCtx.fillStyle='#7890be';
+  heartSpectrumCtx.fillText(formatNumber(maxY),6, bounds.top+4);
+  heartSpectrumCtx.fillText('0',30,bounds.top+bounds.height);
+}
+
+function drawHeartSignal(){
+  const bounds=prepareHeartCanvas(heartRateCanvas,heartRateCtx,'Time (seconds)','650–660 nm intensity');
+  const samples=heartRateMonitor.samples;
+  if(!samples.length) return;
+  const end=samples[samples.length-1].time;
+  const start=Math.max(samples[0].time,end-30);
+  const visible=samples.filter(sample=>sample.time>=start);
+  let minY=Math.min(...visible.map(sample=>sample.value));
+  let maxY=Math.max(...visible.map(sample=>sample.value));
+  if(minY===maxY){minY-=1;maxY+=1;}
+  const margin=(maxY-minY)*.08; minY-=margin; maxY+=margin;
+  const sx=x=>bounds.left+(x-start)/(end-start||1)*bounds.width;
+  const sy=y=>bounds.top+bounds.height-(y-minY)/(maxY-minY)*bounds.height;
+  heartRateCtx.beginPath();
+  visible.forEach((sample,i)=>i ? heartRateCtx.lineTo(sx(sample.time),sy(sample.value)) : heartRateCtx.moveTo(sx(sample.time),sy(sample.value)));
+  heartRateCtx.strokeStyle='#7dd3fc'; heartRateCtx.lineWidth=2*(window.devicePixelRatio||1); heartRateCtx.stroke();
+}
 
 function drawSpectrum(){
   const w = canvas.width, h = canvas.height;
@@ -1162,20 +1268,26 @@ function updateSampleMatch(){
 }
 function resetHeartRate(message='Collecting a clean 8-second signal…'){
   heartRateMonitor.reset();
+  heartSpectrumMaxima=[];
   heartRateStartedAt = performance.now()/1000;
   $('heartRateValue').textContent='—';
   $('heartRateConfidence').textContent='—';
   $('heartRateWindow').textContent='0.0 s';
   $('heartRateStatus').textContent=message;
+  drawHeartRateCharts();
 }
 function updateHeartRate(spectrum){
-  if(!$('heartRateMode').checked || !spectrum) return;
+  if(!$('heartRateMode').checked || !spectrum){
+    drawHeartRateCharts();
+    return;
+  }
   const now=performance.now()/1000;
   if(heartRateStartedAt===null) resetHeartRate();
   const wavelengths=spectrum.map((_,i)=>wavelengthForPixel(i));
   const result=heartRateMonitor.addSpectrum(spectrum,wavelengths,now);
   if(!result.accepted){
     $('heartRateStatus').textContent=result.reason;
+    drawHeartRateCharts();
     return;
   }
   const duration=heartRateMonitor.samples.length ? now-heartRateMonitor.samples[0].time : 0;
@@ -1183,6 +1295,7 @@ function updateHeartRate(spectrum){
   $('heartRateConfidence').textContent=result.bpm ? `${Math.round(result.confidence*100)}%` : '—';
   $('heartRateValue').textContent=result.bpm || '—';
   $('heartRateStatus').textContent=result.reason || 'Pulse detected. Keep your fingertip and light source still.';
+  drawHeartRateCharts();
 }
 function setDark(){ if(currentSpectrum){ darkSpectrum=currentSpectrum.slice(); log('Dark spectrum captured.'); drawSpectrum(); } }
 function setRef(){ if(currentSpectrum){ refSpectrum=currentSpectrum.slice(); log('Reference spectrum captured.'); drawSpectrum(); } }
@@ -1232,6 +1345,18 @@ for(const id of ['maxPeakLabels','minPeakProminence','minPeakSeparation']) $(id)
 $('pixelCount').addEventListener('change', ()=>{ resetAveraging(true); drawSpectrum(); });
 $('avgFrames').addEventListener('change', ()=>{ resetAveraging(true); });
 $('resetAvgBtn').onclick=()=>resetAveraging(true);
+function selectTab(selected){
+  const heartSelected=selected==='heart';
+  $('chartPanel').hidden=heartSelected;
+  $('heartRatePanel').hidden=!heartSelected;
+  $('spectrumTab').classList.toggle('active',!heartSelected);
+  $('heartRateTab').classList.toggle('active',heartSelected);
+  $('spectrumTab').setAttribute('aria-selected',String(!heartSelected));
+  $('heartRateTab').setAttribute('aria-selected',String(heartSelected));
+  requestAnimationFrame(()=>heartSelected ? resizeHeartCanvases() : resizeCanvas());
+}
+$('spectrumTab').onclick=()=>selectTab('spectrum');
+$('heartRateTab').onclick=()=>selectTab('heart');
 $('heartRateMode').addEventListener('change', ()=>{
   if($('heartRateMode').checked){
     resetHeartRate();
