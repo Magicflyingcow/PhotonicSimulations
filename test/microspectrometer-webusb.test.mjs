@@ -30,3 +30,27 @@ test("C13016 command errors identify the failed WebUSB operation", () => {
     /Command \$\{cmd\} transferIn failed: \$\{e\.message\}/,
   );
 });
+
+test("WebUSB native transfers retain their USBDevice receiver", () => {
+  assert.match(source, /usbDevice\.transferIn\.bind\(usbDevice\)/);
+  assert.match(source, /usbDevice\.transferOut\.bind\(usbDevice\)/);
+  assert.doesNotMatch(source, /await usbDevice\.transfer(?:In|Out)\(/);
+});
+
+test("Chromium Illegal invocation transfer failures are retried once", () => {
+  assert.match(
+    source,
+    /if\(!\(e instanceof TypeError\) \|\| e\.message !== 'Illegal invocation'\) throw e;/,
+  );
+  assert.match(
+    source,
+    /return await \(direction === 'in' \? usbTransferIn : usbTransferOut\)\(endpoint, dataOrLength\);/,
+  );
+});
+
+test("USB descriptor diagnostics cannot turn a successful connection into a failure", () => {
+  assert.match(
+    source,
+    /try\{ renderUsbDetails\(\); \}catch\(e\)\{ log\('USB descriptor rendering failed: '\+e\.message\); \}/,
+  );
+});

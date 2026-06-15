@@ -198,6 +198,8 @@ let usbInterfaceNumber = null;
 let usbBulkIn = null;
 let usbImageIn = null;
 let usbBulkOut = null;
+let usbTransferIn = null;
+let usbTransferOut = null;
 let c13016DirectReady = false;
 let lastDirectExposureUs = null;
 let directFrameCounter = 0;
@@ -499,6 +501,11 @@ async function connectWebUSB(){
     usbDevice = await navigator.usb.requestDevice({filters:[{vendorId:vid, productId:pid}]});
     await usbDevice.open();
     if(usbDevice.configuration === null) await usbDevice.selectConfiguration(1);
+    // Keep explicitly bound references to the WebUSB native methods. Chromium
+    // throws "Illegal invocation" if a native method loses its USBDevice
+    // receiver (including with some wrapped/proxied device implementations).
+    usbTransferIn = usbDevice.transferIn.bind(usbDevice);
+    usbTransferOut = usbDevice.transferOut.bind(usbDevice);
     discoverUsbEndpoints();
     if(usbInterfaceNumber !== null){
       try{ await usbDevice.claimInterface(usbInterfaceNumber); }catch(e){ log('Claim interface failed: '+e.message); }
@@ -506,7 +513,7 @@ async function connectWebUSB(){
     $('disconnectUsbBtn').disabled=false;
     setStatus('WebUSB connected', 'ok');
     log(`Connected WebUSB: VID=0x${usbDevice.vendorId.toString(16)} PID=0x${usbDevice.productId.toString(16)} ${usbDevice.productName||''}`);
-    renderUsbDetails();
+    try{ renderUsbDetails(); }catch(e){ log('USB descriptor rendering failed: '+e.message); }
   }catch(e){
     log('WebUSB connect failed: '+e.message);
     setStatus('WebUSB connect failed','badText');
@@ -514,7 +521,7 @@ async function connectWebUSB(){
 }
 async function disconnectWebUSB(){
   try{ if(usbDevice) await usbDevice.close(); }catch(e){}
-  usbDevice=null; usbInterfaceNumber=null; usbBulkIn=null; usbImageIn=null; usbBulkOut=null; c13016DirectReady=false; lastDirectExposureUs=null; directFrameCounter=0;
+  usbDevice=null; usbInterfaceNumber=null; usbBulkIn=null; usbImageIn=null; usbBulkOut=null; usbTransferIn=null; usbTransferOut=null; c13016DirectReady=false; lastDirectExposureUs=null; directFrameCounter=0;
   $('disconnectUsbBtn').disabled=true;
   setStatus('Not connected');
   renderUsbDetails();
@@ -583,12 +590,28 @@ function concatBytes(...parts){
   for(const p of parts){ if(!p) continue; out.set(p,o); o+=p.length; }
   return out;
 }
+async function webUsbTransfer(direction, endpoint, dataOrLength){
+  const transfer = direction === 'in' ? usbTransferIn : usbTransferOut;
+  if(!usbDevice || !transfer) throw new Error('Connect WebUSB first.');
+  try{
+    return await transfer(endpoint, dataOrLength);
+  }catch(e){
+    // A C13016 INIT_BOARD reset can make Chromium reject the first subsequent
+    // native call before it reaches the device. Rebind and retry that specific
+    // browser-side failure once; ordinary USB errors must remain visible.
+    if(!(e instanceof TypeError) || e.message !== 'Illegal invocation') throw e;
+    await sleep(100);
+    usbTransferIn = usbDevice.transferIn.bind(usbDevice);
+    usbTransferOut = usbDevice.transferOut.bind(usbDevice);
+    return await (direction === 'in' ? usbTransferIn : usbTransferOut)(endpoint, dataOrLength);
+  }
+}
 
 async function readBulkExact(ep, totalLen, label='bulk'){
   const chunks=[]; let got=0; let guard=0;
   while(got < totalLen){
     const want = Math.min(totalLen-got, Math.max(64, totalLen-got));
-    const rr = await usbDevice.transferIn(ep, want);
+    const rr = await webUsbTransfer('in', ep, want);
     if(rr.status !== 'ok') throw new Error(`${label} read failed: ${rr.status}`);
     const b = new Uint8Array(rr.data.buffer, rr.data.byteOffset, rr.data.byteLength);
     if(!b.length) throw new Error(`${label} read returned zero bytes after ${got}/${totalLen}`);
@@ -687,7 +710,7 @@ function resetImageStreamBuffer(){
   lastFrameHeaderSummary = '';
 }
 async function appendImageEndpointChunk(imageEp){
-  const chunk = await usbDevice.transferIn(imageEp, 512);
+  const chunk = await webUsbTransfer('in', imageEp, 512);
   if(chunk.status !== 'ok') throw new Error('Image stream read failed: '+chunk.status);
   const packet = new Uint8Array(chunk.data.buffer, chunk.data.byteOffset, chunk.data.byteLength);
   lastImageBytes = packet;
@@ -761,7 +784,7 @@ async function c13016Command(cmd, payload=null, responseLen=0, responseEp='statu
   const frame = concatBytes(u32be(cmd), u32be(payload.length), payload);
   let wr;
   try{
-    wr = await usbDevice.transferOut(outEp, frame);
+    wr = await webUsbTransfer('out', outEp, frame);
   }catch(e){
     throw new Error(`Command ${cmd} transferOut failed: ${e.message}`, {cause:e});
   }
@@ -771,7 +794,7 @@ async function c13016Command(cmd, payload=null, responseLen=0, responseEp='statu
   if(!inEp) throw new Error('No bulk IN endpoint found.');
   let rr;
   try{
-    rr = await usbDevice.transferIn(inEp, responseLen);
+    rr = await webUsbTransfer('in', inEp, responseLen);
   }catch(e){
     throw new Error(`Command ${cmd} transferIn failed: ${e.message}`, {cause:e});
   }
@@ -843,7 +866,7 @@ async function c13016DirectReadOnce(){
   const deadline = Date.now() + Math.max(1200, expUs/1000 + 3000);
   let st=0, seen=[];
   while(Date.now() < deadline){
-    const rr = await usbDevice.transferIn(statusEp, 2);
+    const rr = await webUsbTransfer('in', statusEp, 2);
     if(rr.status !== 'ok') throw new Error('Status read failed: '+rr.status);
     const b = new Uint8Array(rr.data.buffer, rr.data.byteOffset, rr.data.byteLength); st = readU16BE(b);
     if(seen.length<12) seen.push('0x'+st.toString(16).padStart(4,'0'));
@@ -872,7 +895,7 @@ async function c13016DirectReadOnce(){
     log('Spectrum stats: '+spectrumStats(pixels));
   }
   try{
-    const rt = await usbDevice.transferIn(statusEp, 6);
+    const rt = await webUsbTransfer('in', statusEp, 6);
     const rb = new Uint8Array(rt.data.buffer, rt.data.byteOffset, rt.data.byteLength);
     const done = readU16BE(rb,0);
     if(directFrameCounter <= 3 || directFrameCounter % 25 === 0) log(`Readout status: 0x${done.toString(16).padStart(4,'0')} bytes=${rb.length}`);
