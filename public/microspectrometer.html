@@ -759,12 +759,22 @@ async function c13016Command(cmd, payload=null, responseLen=0, responseEp='statu
   if(!outEp) throw new Error('No bulk OUT endpoint found.');
   payload = payload || new Uint8Array(0);
   const frame = concatBytes(u32be(cmd), u32be(payload.length), payload);
-  const wr = await usbDevice.transferOut(outEp, frame);
+  let wr;
+  try{
+    wr = await usbDevice.transferOut(outEp, frame);
+  }catch(e){
+    throw new Error(`Command ${cmd} transferOut failed: ${e.message}`, {cause:e});
+  }
   if(wr.status !== 'ok') throw new Error(`Command ${cmd} OUT status ${wr.status}`);
   if(!responseLen) return new Uint8Array(0);
   const inEp = responseEp==='image' ? (usbImageIn || usbBulkIn) : usbBulkIn;
   if(!inEp) throw new Error('No bulk IN endpoint found.');
-  const rr = await usbDevice.transferIn(inEp, responseLen);
+  let rr;
+  try{
+    rr = await usbDevice.transferIn(inEp, responseLen);
+  }catch(e){
+    throw new Error(`Command ${cmd} transferIn failed: ${e.message}`, {cause:e});
+  }
   if(rr.status !== 'ok') throw new Error(`Command ${cmd} IN status ${rr.status}`);
   return new Uint8Array(rr.data.buffer, rr.data.byteOffset, rr.data.byteLength);
 }
@@ -772,6 +782,11 @@ async function c13016DirectInitialise(){
   if(!usbDevice) throw new Error('Connect WebUSB first.');
   const init = await c13016Command(C13016.INIT_BOARD, null, 2);
   log(`C13016 init reply: 0x${readU16BE(init).toString(16).padStart(4,'0')}`);
+  // INIT_BOARD returns before the controller has finished resetting its command
+  // interface. Sending GET_MODULE_PROPERTY in the same task can make Chromium
+  // reject the next native WebUSB call with the unhelpful "Illegal invocation"
+  // TypeError. Give the board the same short settling period used by the DLL.
+  await sleep(100);
   const mp = await c13016Command(C13016.GET_MODULE_PROPERTY, null, 12);
   const pix=readU32BE(mp,0), res=readU32BE(mp,4), cap=readU32BE(mp,8);
   c13016ModulePixels = (pix>16 && pix<4096) ? pix : 288;
