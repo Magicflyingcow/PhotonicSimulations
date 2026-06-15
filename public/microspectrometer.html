@@ -178,7 +178,7 @@
     <section>
       <h2>Heart Rate monitor mode</h2>
       <div class="body">
-        <label class="checkRow"><input id="heartRateMode" type="checkbox"><span>Measure pulse fluctuations around 655 nm</span></label>
+        <label class="checkRow"><input id="heartRateMode" type="checkbox"><span>Track pulse intensity from 650–660 nm</span></label>
         <div class="heartRateValue"><span id="heartRateValue">—</span> <span class="mini">BPM</span></div>
         <div id="heartRateStatus" class="hint">Enable this mode, start live acquisition, and hold a fingertip steadily in the 655 nm optical path.</div>
         <div class="heartRateMeta">
@@ -186,7 +186,7 @@
           <span class="pill">Window: <strong id="heartRateWindow">0.0 s</strong></span>
         </div>
         <div class="hint">
-          The monitor ratios 652–658 nm against neighbouring red bands and the broad 600–700 nm intensity, then detrends the result. This rejects ambient changes, lamp flicker, exposure drift, and other common intensity fluctuations before estimating the dominant pulse frequency.
+          The monitor tracks the mean intensity in the 650–660 nm band over time, detrends that time series, and estimates its dominant pulse frequency. It does not compare this band against any other wavelengths.
         </div>
       </div>
     </section>
@@ -1235,7 +1235,7 @@ $('resetAvgBtn').onclick=()=>resetAveraging(true);
 $('heartRateMode').addEventListener('change', ()=>{
   if($('heartRateMode').checked){
     resetHeartRate();
-    log('Heart Rate monitor mode enabled: tracking normalized 655 nm fluctuations.');
+    log('Heart Rate monitor mode enabled: tracking 650–660 nm intensity over time.');
   }else{
     resetHeartRate('Enable this mode, start live acquisition, and hold a fingertip steadily in the 655 nm optical path.');
     heartRateStartedAt=null;
@@ -1248,7 +1248,7 @@ for(const id of ['coef0','coef1','coef2','coef3','coef4','coef5']){
 
 resizeCanvas();
 loadSampleSpectra();
-log('Ready. Direct WebUSB v15 adds Heart Rate monitor mode with common-mode lighting rejection. EEPROM/calibration writes remain disabled.');
+log('Ready. Direct WebUSB v15 adds Heart Rate monitor mode using 650–660 nm intensity over time. EEPROM/calibration writes remain disabled.');
 if(!('usb' in navigator)) log('WebUSB is not available in this browser. Try Chrome or Edge.');
 </script>
 </body>

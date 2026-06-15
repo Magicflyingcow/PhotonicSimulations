@@ -85,21 +85,15 @@
     reset(){ this.samples=[]; }
     addSpectrum(spectrum, wavelengths, timeSeconds){
       if(!spectrum || spectrum.length !== wavelengths.length) return {accepted:false, reason:'Spectrum size mismatch'};
-      const target = bandMean(spectrum, wavelengths, 652, 658);
-      const left = bandMean(spectrum, wavelengths, 640, 648);
-      const right = bandMean(spectrum, wavelengths, 662, 670);
-      const broad = bandMean(spectrum, wavelengths, 600, 700);
-      if(![target,left,right,broad].every(Number.isFinite) || broad <= 0) return {accepted:false, reason:'655 nm band is outside calibration'};
+      const value = bandMean(spectrum, wavelengths, 650, 660);
+      if(!Number.isFinite(value)) return {accepted:false, reason:'650–660 nm band is outside calibration'};
 
-      // Nearby-band subtraction rejects additive ambient light. Dividing that
-      // spectral contrast by broad red intensity rejects multiplicative lamp,
-      // exposure, and optical-coupling changes.
-      const localReference = Math.max(1e-9, (left + right) / 2);
-      const value = (target - localReference) / Math.max(broad,1e-9);
+      // Heart rate is derived solely from changes in this band's intensity
+      // over time. No neighbouring or broad wavelength bands are used.
       this.samples.push({time:timeSeconds, value});
       const keepSeconds = this.options.keepSeconds || 30;
       this.samples = this.samples.filter(sample => timeSeconds - sample.time <= keepSeconds);
-      return Object.assign({accepted:true, normalized:value, target, localReference, broad}, estimateBpm(this.samples, this.options));
+      return Object.assign({accepted:true, intensity:value}, estimateBpm(this.samples, this.options));
     }
   }
 
