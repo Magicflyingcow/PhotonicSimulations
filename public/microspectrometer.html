@@ -17,7 +17,17 @@
   .sub{color:var(--muted);font-size:12px;margin-top:2px}
   .status{font-size:12px;color:var(--muted);padding:8px 10px;background:#0a1228;border:1px solid var(--line);border-radius:999px;white-space:nowrap}
   main{display:grid;grid-template-columns:380px 1fr;align-items:start;gap:14px;padding:14px;min-height:calc(100vh - 72px)}
+  main.settings-collapsed{grid-template-columns:52px 1fr}
   aside{display:flex;flex-direction:column;gap:12px;min-width:0}
+  .panelHeader,.sectionHeader{display:flex;align-items:center;justify-content:space-between;gap:10px;background:rgba(21,31,63,.65)}
+  .panelHeader{padding:10px 12px;border:1px solid var(--line);border-radius:14px}
+  .panelHeader h2,.sectionHeader h2{padding:0;border:0;background:none}
+  .sectionHeader{padding:8px 12px;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+  .collapseBtn{display:inline-flex;align-items:center;justify-content:center;min-width:30px;padding:5px 8px;background:var(--button2);border-color:#475569;font-size:16px;line-height:1}
+  .collapsibleContent{display:flex;flex-direction:column;gap:12px}
+  #settingsPanel.collapsed .panelHeader{flex-direction:column}
+  #settingsPanel.collapsed .panelHeader h2{writing-mode:vertical-rl;transform:rotate(180deg)}
+  #settingsPanel.collapsed #settingsContent,.collapsibleSection.collapsed .collapsibleBody{display:none}
   section{background:rgba(17,24,50,.94);border:1px solid var(--line);border-radius:14px;box-shadow:0 18px 50px rgba(0,0,0,.22);overflow:hidden}
   section h2{font-size:13px;letter-spacing:.3px;margin:0;padding:12px 14px;border-bottom:1px solid var(--line);background:rgba(21,31,63,.65)}
   .body{padding:12px 14px}
@@ -57,7 +67,7 @@
   .matchResult strong{display:block;margin-bottom:3px}
   .matchResult.ok{border-color:#166534;background:rgba(22,101,52,.18)}
   .matchResult.badText{border-color:#881337;background:rgba(136,19,55,.16)}
-  @media(max-width:1050px){main{grid-template-columns:1fr}header{position:static}#chartPanel{position:static;height:auto;min-height:0}#canvasWrap{height:520px}#log{height:190px}}
+  @media(max-width:1050px){main,main.settings-collapsed{grid-template-columns:1fr}header{position:static}#chartPanel{position:static;height:auto;min-height:0}#canvasWrap{height:520px}#log{height:190px}#settingsPanel.collapsed .panelHeader{flex-direction:row}#settingsPanel.collapsed .panelHeader h2{writing-mode:initial;transform:none}}
 </style>
 </head>
 <body>
@@ -70,7 +80,12 @@
 </header>
 
 <main>
-  <aside>
+  <aside id="settingsPanel">
+    <div class="panelHeader">
+      <h2>Settings</h2>
+      <button id="settingsToggle" class="collapseBtn" type="button" aria-expanded="true" aria-controls="settingsContent" title="Minimise settings">−</button>
+    </div>
+    <div id="settingsContent" class="collapsibleContent">
     <section>
       <h2>Connection</h2>
       <div class="body">
@@ -178,6 +193,7 @@
         </div>
       </div>
     </section>
+    </div>
 
   </aside>
 
@@ -192,9 +208,15 @@
       <span class="pill">Mean: <strong id="meanValue">—</strong></span>
       <span class="pill">Backend: <strong id="backendLabel">—</strong></span>
     </div>
-    <div class="body">
-      <div id="log"></div>
-      <div id="usbDetails" style="margin-top:12px"></div>
+    <div id="eventLogSection" class="collapsibleSection">
+      <div class="sectionHeader">
+        <h2>Event log</h2>
+        <button id="eventLogToggle" class="collapseBtn" type="button" aria-expanded="true" aria-controls="eventLogBody" title="Minimise event log">−</button>
+      </div>
+      <div id="eventLogBody" class="body collapsibleBody">
+        <div id="log"></div>
+        <div id="usbDetails" style="margin-top:12px"></div>
+      </div>
     </div>
   </section>
 </main>
@@ -210,6 +232,26 @@ const logEl = $('log');
 const topStatus = $('topStatus');
 const canvas = $('plot');
 const ctx = canvas.getContext('2d');
+
+function setupCollapsible(panelId, buttonId, label, onToggle){
+  const panel = $(panelId);
+  const button = $(buttonId);
+  button.addEventListener('click', () => {
+    const collapsed = panel.classList.toggle('collapsed');
+    button.textContent = collapsed ? '+' : '−';
+    button.setAttribute('aria-expanded', String(!collapsed));
+    button.title = `${collapsed ? 'Expand' : 'Minimise'} ${label}`;
+    if(onToggle) onToggle(collapsed);
+  });
+}
+
+setupCollapsible('settingsPanel', 'settingsToggle', 'settings', collapsed => {
+  document.querySelector('main').classList.toggle('settings-collapsed', collapsed);
+  requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
+});
+setupCollapsible('eventLogSection', 'eventLogToggle', 'event log', () => {
+  requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
+});
 
 let usbDevice = null;
 let usbInterfaceNumber = null;
