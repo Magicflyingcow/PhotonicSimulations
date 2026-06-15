@@ -24,9 +24,12 @@
   label{display:block;font-size:12px;color:var(--muted);margin:8px 0 4px}
   input,select,textarea{width:100%;background:var(--input);color:var(--ink);border:1px solid #27345f;border-radius:9px;padding:8px 9px;font:13px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;outline:none}
   input:focus,select:focus,textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(125,211,252,.12)}
+  input[type="checkbox"]{width:auto;accent-color:var(--accent)}
   textarea{min-height:78px;resize:vertical;line-height:1.35}
   .row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
   .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+  .checkRow{display:flex;align-items:center;gap:8px;margin-top:10px;color:var(--ink);cursor:pointer}
+  .checkRow span{font-size:12px}
   .btns{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
   button{background:var(--button);color:white;border:1px solid #3758b8;border-radius:10px;padding:8px 11px;font-weight:650;cursor:pointer;font-size:13px}
   button.secondary{background:var(--button2);border-color:#475569}
@@ -96,6 +99,7 @@
           <div><label>Capture mode</label><select id="captureMode"><option value="0">Specified number</option><option value="2">Trigger</option></select></div>
           <div><label>Y scale</label><select id="yScale"><option value="linear">Linear</option><option value="log">Log</option></select></div>
         </div>
+        <label class="checkRow"><input id="fixYScale" type="checkbox"><span>Fix Y scale at the current displayed range</span></label>
         <div class="row">
           <div><label>Trace colour</label><select id="traceColour"><option value="wavelength" selected>Actual wavelength colour</option><option value="solid">Solid cyan</option></select></div>
           <div><label>Trace thickness (px)</label><input id="traceThickness" type="number" min="0.5" max="12" step="0.5" value="10"></div>
@@ -189,6 +193,7 @@ let darkSpectrum = null;
 let refSpectrum = null;
 let sampleCounter = 0;
 let useWavelength = true;
+let fixedYRange = null;
 let lastInfo = {};
 let imageByteBuffer = new Uint8Array(0);
 let lastDiscardedByteCount = 0;
@@ -217,6 +222,7 @@ function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
 function pixelCount(){return Math.max(16, Math.min(4096, parseInt($('pixelCount').value || '288',10)));}
 function averageFrameCount(){return Math.max(1, Math.min(200, parseInt($('avgFrames').value || '1',10)));}
 function traceThickness(){return Math.max(0.5, Math.min(12, parseFloat($('traceThickness')?.value || '10')));}
+function fixYScale(){return Boolean($('fixYScale')?.checked);}
 function resetAveraging(logMessage=false){
   averagingBuffer = [];
   averagingTarget = averageFrameCount();
@@ -365,6 +371,15 @@ function drawSpectrum(){
   let minY = Math.min(...displayVals), maxY = Math.max(...displayVals);
   if(!isFinite(minY) || !isFinite(maxY) || minY===maxY){minY=0; maxY=1;}
   const margin=(maxY-minY)*0.06; minY-=margin; maxY+=margin;
+  if(fixYScale()){
+    if(!fixedYRange || fixedYRange.scale !== yScale){
+      fixedYRange = {scale:yScale, min:minY, max:maxY};
+    }
+    minY = fixedYRange.min;
+    maxY = fixedYRange.max;
+  } else {
+    fixedYRange = null;
+  }
 
   function sx(x){ return padL + (x-minX)/(maxX-minX || 1)*plotW; }
   function sy(v){ return padT + plotH - (v-minY)/(maxY-minY || 1)*plotH; }
@@ -902,7 +917,13 @@ $('clearRefBtn').onclick=()=>{refSpectrum=null; log('Reference cleared.'); drawS
 $('pixelAxisBtn').onclick=()=>{useWavelength=false; drawSpectrum();};
 $('wavelengthAxisBtn').onclick=()=>{useWavelength=true; drawSpectrum();};
 $('downloadCsvBtn').onclick=downloadCsv;
-for(const id of ['yScale','traceColour','traceThickness','coef0','coef1','coef2','coef3','coef4','coef5']) $(id).addEventListener('change', drawSpectrum);
+$('yScale').addEventListener('change', ()=>{ fixedYRange=null; drawSpectrum(); });
+$('fixYScale').addEventListener('change', ()=>{
+  fixedYRange=null;
+  log(fixYScale() ? 'Y scale fixed at the current displayed range.' : 'Y scale returned to automatic ranging.');
+  drawSpectrum();
+});
+for(const id of ['traceColour','traceThickness','coef0','coef1','coef2','coef3','coef4','coef5']) $(id).addEventListener('change', drawSpectrum);
 $('pixelCount').addEventListener('change', ()=>{ resetAveraging(true); drawSpectrum(); });
 $('avgFrames').addEventListener('change', ()=>{ resetAveraging(true); });
 $('resetAvgBtn').onclick=()=>resetAveraging(true);
