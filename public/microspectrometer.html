@@ -63,8 +63,9 @@
   .ok{color:var(--good)}.warnText{color:var(--warn)}.badText{color:var(--bad)}
   .heartRateValue{font-size:34px;font-weight:750;color:#fb7185;line-height:1;margin:8px 0}
   .heartRateMeta{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
-  .matchResult{margin-top:10px;padding:11px;border:1px solid #2c3d70;border-radius:10px;background:#0a1228}
-  .matchResult strong{display:block;margin-bottom:3px}
+  .matchResult{position:absolute;z-index:1;top:22px;right:22px;min-width:150px;padding:9px 11px;border:1px solid #2c3d70;border-radius:10px;background:rgba(10,18,40,.9);box-shadow:0 6px 18px rgba(0,0,0,.25);pointer-events:none}
+  .matchResult span{display:block}
+  .matchResult .mini{margin-top:3px}
   .matchResult.ok{border-color:#166534;background:rgba(22,101,52,.18)}
   .matchResult.badText{border-color:#881337;background:rgba(136,19,55,.16)}
   @media(max-width:1050px){main,main.settings-collapsed{grid-template-columns:1fr}header{position:static}#chartPanel{position:static;height:auto;min-height:0}#canvasWrap{height:520px}#log{height:190px}#settingsPanel.collapsed .panelHeader{flex-direction:row}#settingsPanel.collapsed .panelHeader h2{writing-mode:initial;transform:none}}
@@ -181,25 +182,19 @@
       </div>
     </section>
 
-    <section>
-      <h2>Sample spectrum match</h2>
-      <div class="body">
-        <div id="matchResult" class="matchResult">
-          <strong id="matchTitle">Loading samples…</strong>
-          <span id="matchDetail" class="mini">Waiting for the sample spectra file.</span>
-        </div>
-        <div class="hint">
-          The live spectral shape is baseline-corrected, normalized, and compared with every named spectrum in Sample Spectra.csv. Add future samples as new named columns.
-        </div>
-      </div>
-    </section>
     </div>
 
   </aside>
 
   <section id="chartPanel">
     <h2>Live spectrum</h2>
-    <div id="canvasWrap"><canvas id="plot"></canvas></div>
+    <div id="canvasWrap">
+      <canvas id="plot"></canvas>
+      <div id="matchResult" class="matchResult">
+        <span>Match: <strong id="matchTitle">Loading…</strong></span>
+        <span class="mini">Similarity: <strong id="matchDetail">—</strong></span>
+      </div>
+    </div>
     <div id="readout">
       <span class="pill">Samples: <strong id="sampleCount">0</strong></span>
       <span class="pill">Avg: <strong id="avgStatus">1/1</strong></span>
@@ -1016,38 +1011,37 @@ function updateSampleMatch(){
   resultEl.className='matchResult';
   if(sampleSpectraError){
     resultEl.classList.add('badText');
-    titleEl.textContent='Samples unavailable';
-    detailEl.textContent=sampleSpectraError;
+    titleEl.textContent='Unavailable';
+    detailEl.textContent='—';
     return;
   }
   if(!sampleSpectra.length){
-    titleEl.textContent='Loading samples…';
-    detailEl.textContent='Waiting for the sample spectra file.';
+    titleEl.textContent='Loading…';
+    detailEl.textContent='—';
     return;
   }
   if(!currentSpectrum){
-    titleEl.textContent='Ready to compare';
-    detailEl.textContent=`${sampleSpectra.length} sample${sampleSpectra.length===1?'':'s'} loaded; capture a spectrum to check for a match.`;
+    titleEl.textContent='—';
+    detailEl.textContent='—';
     return;
   }
   const live=processedSpectrum(currentSpectrum);
   const wavelengths=live.map((_,i)=>wavelengthForPixel(i));
   const result=SpectrumMatcher.findBestMatch(live,wavelengths,sampleSpectra,{threshold:SAMPLE_MATCH_THRESHOLD});
   if(!result.best){
-    titleEl.textContent='No match found';
-    detailEl.textContent='The live and sample wavelength ranges do not overlap enough for comparison.';
+    titleEl.textContent='None';
+    detailEl.textContent='—';
     return;
   }
   const similarity=Math.round(result.best.score*100);
   if(result.matched){
     resultEl.classList.add('ok');
-    titleEl.textContent=`Match found: ${result.best.name}`;
-    detailEl.textContent=`Spectral-shape similarity ${similarity}% (match threshold ${Math.round(result.threshold*100)}%).`;
+    titleEl.textContent=result.best.name;
   }else{
     resultEl.classList.add('badText');
-    titleEl.textContent='No match found';
-    detailEl.textContent=`Closest sample: ${result.best.name} at ${similarity}% similarity (match threshold ${Math.round(result.threshold*100)}%).`;
+    titleEl.textContent='None';
   }
+  detailEl.textContent=`${similarity}%`;
 }
 function resetHeartRate(message='Collecting a clean 8-second signal…'){
   heartRateMonitor.reset();
