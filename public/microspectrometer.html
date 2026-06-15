@@ -489,19 +489,6 @@ function formatNumber(v){
   return v.toFixed(3);
 }
 
-function callUsbDevice(methodName, ...args){
-  if(!usbDevice) throw new Error('Connect WebUSB first.');
-  // Invoke WebUSB methods with the USBDevice as their explicit receiver.
-  // Looking up the native prototype first also bypasses wrappers/proxies that
-  // return an unbound WebUSB method and trigger Chromium's "Illegal invocation".
-  const prototype = typeof USBDevice !== 'undefined' ? USBDevice.prototype : Object.getPrototypeOf(usbDevice);
-  const method = prototype && prototype[methodName];
-  const fallback = usbDevice[methodName];
-  const callable = typeof method === 'function' ? method : fallback;
-  if(typeof callable !== 'function') throw new Error(`WebUSB method ${methodName} is unavailable.`);
-  return Reflect.apply(callable, usbDevice, args);
-}
-
 async function connectWebUSB(){
   if(!('usb' in navigator)){
     alert('WebUSB is not available in this browser. Try Chrome or Edge.');
@@ -510,11 +497,11 @@ async function connectWebUSB(){
   const vid=parseHexInt($('vid').value), pid=parseHexInt($('pid').value);
   try{
     usbDevice = await navigator.usb.requestDevice({filters:[{vendorId:vid, productId:pid}]});
-    await callUsbDevice('open');
-    if(usbDevice.configuration === null) await callUsbDevice('selectConfiguration', 1);
+    await usbDevice.open();
+    if(usbDevice.configuration === null) await usbDevice.selectConfiguration(1);
     discoverUsbEndpoints();
     if(usbInterfaceNumber !== null){
-      try{ await callUsbDevice('claimInterface', usbInterfaceNumber); }catch(e){ log('Claim interface failed: '+e.message); }
+      try{ await usbDevice.claimInterface(usbInterfaceNumber); }catch(e){ log('Claim interface failed: '+e.message); }
     }
     $('disconnectUsbBtn').disabled=false;
     setStatus('WebUSB connected', 'ok');
@@ -526,7 +513,7 @@ async function connectWebUSB(){
   }
 }
 async function disconnectWebUSB(){
-  try{ if(usbDevice) await callUsbDevice('close'); }catch(e){}
+  try{ if(usbDevice) await usbDevice.close(); }catch(e){}
   usbDevice=null; usbInterfaceNumber=null; usbBulkIn=null; usbImageIn=null; usbBulkOut=null; c13016DirectReady=false; lastDirectExposureUs=null; directFrameCounter=0;
   $('disconnectUsbBtn').disabled=true;
   setStatus('Not connected');
@@ -598,17 +585,12 @@ function concatBytes(...parts){
 }
 async function webUsbTransfer(direction, endpoint, dataOrLength){
   if(!usbDevice) throw new Error('Connect WebUSB first.');
-  const methodName = direction === 'in' ? 'transferIn' : 'transferOut';
-  try{
-    return await callUsbDevice(methodName, endpoint, dataOrLength);
-  }catch(e){
-    // A C13016 INIT_BOARD reset can make Chromium reject the first subsequent
-    // native call before it reaches the device. Retry that specific browser-side
-    // failure once; ordinary USB errors must remain visible.
-    if(!(e instanceof TypeError) || e.message !== 'Illegal invocation') throw e;
-    await sleep(100);
-    return await callUsbDevice(methodName, endpoint, dataOrLength);
-  }
+  // Keep each native method call attached to the selected device. The previous
+  // indirect dispatcher caused Chromium to reject the command after INIT_BOARD
+  // with "Illegal invocation".
+  return direction === 'in'
+    ? usbDevice.transferIn(endpoint, dataOrLength)
+    : usbDevice.transferOut(endpoint, dataOrLength);
 }
 
 async function readBulkExact(ep, totalLen, label='bulk'){
@@ -809,11 +791,6 @@ async function c13016DirectInitialise(){
   if(!usbDevice) throw new Error('Connect WebUSB first.');
   const init = await c13016Command(C13016.INIT_BOARD, null, 2);
   log(`C13016 init reply: 0x${readU16BE(init).toString(16).padStart(4,'0')}`);
-  // INIT_BOARD returns before the controller has finished resetting its command
-  // interface. Sending GET_MODULE_PROPERTY in the same task can make Chromium
-  // reject the next native WebUSB call with the unhelpful "Illegal invocation"
-  // TypeError. Give the board the same short settling period used by the DLL.
-  await sleep(100);
   const mp = await c13016Command(C13016.GET_MODULE_PROPERTY, null, 12);
   const pix=readU32BE(mp,0), res=readU32BE(mp,4), cap=readU32BE(mp,8);
   c13016ModulePixels = (pix>16 && pix<4096) ? pix : 288;

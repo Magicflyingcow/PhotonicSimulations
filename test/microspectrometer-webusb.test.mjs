@@ -7,17 +7,12 @@ const source = await readFile(
   "utf8",
 );
 
-test("C13016 initialization lets the command interface settle after INIT_BOARD", () => {
+test("C13016 initialization continues with GET_MODULE_PROPERTY after INIT_BOARD", () => {
   const initReply = source.indexOf("C13016 init reply:");
-  const settleDelay = source.indexOf("await sleep(100);", initReply);
-  const moduleProperty = source.indexOf(
-    "C13016.GET_MODULE_PROPERTY",
-    settleDelay,
-  );
+  const moduleProperty = source.indexOf("C13016.GET_MODULE_PROPERTY", initReply);
 
   assert.notEqual(initReply, -1);
-  assert.ok(settleDelay > initReply);
-  assert.ok(moduleProperty > settleDelay);
+  assert.ok(moduleProperty > initReply);
 });
 
 test("C13016 command errors identify the failed WebUSB operation", () => {
@@ -31,24 +26,20 @@ test("C13016 command errors identify the failed WebUSB operation", () => {
   );
 });
 
-test("WebUSB methods retain their USBDevice receiver without relying on wrappers", () => {
-  assert.match(source, /const prototype = typeof USBDevice !== 'undefined' \? USBDevice\.prototype/);
-  assert.match(source, /return Reflect\.apply\(callable, usbDevice, args\);/);
-  assert.doesNotMatch(source, /await usbDevice\.transfer(?:In|Out)\(/);
-  for(const method of ["open", "selectConfiguration", "claimInterface", "close"]){
-    assert.ok(source.includes(`callUsbDevice('${method}'`), `${method} should use the receiver-safe dispatcher`);
-  }
+test("WebUSB methods are called directly on USBDevice so Chromium retains the native receiver", () => {
+  assert.doesNotMatch(source, /Reflect\.apply/);
+  assert.doesNotMatch(source, /USBDevice\.prototype/);
+  assert.match(source, /await usbDevice\.open\(\)/);
+  assert.match(source, /await usbDevice\.selectConfiguration\(1\)/);
+  assert.match(source, /await usbDevice\.claimInterface\(usbInterfaceNumber\)/);
+  assert.match(source, /await usbDevice\.close\(\)/);
+  assert.match(source, /usbDevice\.transferIn\(endpoint, dataOrLength\)/);
+  assert.match(source, /usbDevice\.transferOut\(endpoint, dataOrLength\)/);
 });
 
-test("Chromium Illegal invocation transfer failures are retried once", () => {
-  assert.match(
-    source,
-    /if\(!\(e instanceof TypeError\) \|\| e\.message !== 'Illegal invocation'\) throw e;/,
-  );
-  assert.match(
-    source,
-    /return await callUsbDevice\(methodName, endpoint, dataOrLength\);/,
-  );
+test("WebUSB transfers do not retry browser-side Illegal invocation failures", () => {
+  assert.doesNotMatch(source, /e\.message !== 'Illegal invocation'/);
+  assert.doesNotMatch(source, /callUsbDevice/);
 });
 
 test("USB descriptor diagnostics cannot turn a successful connection into a failure", () => {
