@@ -6,6 +6,7 @@ import FtirSimulator from "./pages/FtirSimulator.jsx";
 import FourierConcepts from "./pages/FourierConcepts.jsx";
 import PmtSimulator from "./pages/PmtSimulator.jsx";
 import PmtPhotonCounting from "./pages/PmtPhotonCounting.jsx";
+import PhotonCountingLinearity from "./pages/PhotonCountingLinearity.jsx";
 import ProfileSensor from "./pages/ProfileSensor.jsx";
 import LcosSlmDemo from "./pages/LcosSlmDemo.jsx";
 import CommonEquations from "./pages/CommonEquations.jsx";
@@ -34,6 +35,10 @@ const router = createHashRouter([
   {
     path: "/pmt-photon-counting",
     element: <PmtPhotonCounting />,
+  },
+  {
+    path: "/photon-counting-linearity",
+    element: <PhotonCountingLinearity />,
   },
   {
     path: "/profile-sensor",

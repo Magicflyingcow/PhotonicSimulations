@@ -19,6 +19,11 @@ const simulations = [
     path: "/pmt-photon-counting",
   },
   {
+    title: "Photon Counting Linearity",
+    description: "PMT pulse-pair resolution demo with circuit output and count-rate deviation plots.",
+    path: "/photon-counting-linearity",
+  },
+  {
     title: "Profile Sensor Speckle Demo",
     description: "2D sensor walkthrough for speckle behaviour and projection tools.",
     path: "/profile-sensor",
