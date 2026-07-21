@@ -27,40 +27,68 @@ const measuredRate = (realRate, resolutionNs) => {
 };
 
 function WaveformPanel({ countRate, resolutionNs }) {
-  const periodNs = 1e9 / countRate;
-  const spacingNs = Math.min(periodNs, resolutionNs * 1.55);
-  const resolved = spacingNs >= resolutionNs;
-  const pulses = [38, 38 + (spacingNs / resolutionNs) * 96];
-  const windowEnd = 252;
-  const circuitEnd = resolved ? pulses[1] + 34 : pulses[0] + 34;
+  const windowNs = 100;
+  const plotStart = 54;
+  const plotEnd = 282;
+  const plotWidth = plotEnd - plotStart;
+  const nsToX = (ns) => plotStart + (ns / windowNs) * plotWidth;
+  const pulseWidthNs = 5;
+  const outputWidthNs = Math.max(6, Math.min(18, resolutionNs * 0.28));
 
-  const pmtPath = pulses
-    .map((x) => `L ${x - 18} 30 L ${x - 12} 30 L ${x - 6} 78 L ${x + 6} 30 L ${x + 16} 30`)
+  const periodNs = 1e9 / countRate;
+  const firstPulseNs = 16;
+  const simulatedSpacingNs = Math.max(6, Math.min(windowNs - firstPulseNs - 10, periodNs));
+  const photonsNs = [firstPulseNs, firstPulseNs + simulatedSpacingNs];
+  const resolved = simulatedSpacingNs >= resolutionNs;
+
+  const pmtPath = photonsNs
+    .map((ns) => {
+      const x = nsToX(ns);
+      const halfWidth = Math.max(3, (pulseWidthNs / windowNs) * plotWidth);
+      return `L ${x - halfWidth * 1.6} 30 L ${x - halfWidth} 30 L ${x} 78 L ${x + halfWidth} 30 L ${x + halfWidth * 1.8} 30`;
+    })
     .join(" ");
+
+  const discriminatorPath = photonsNs.reduce((segments, ns, index) => {
+    const start = nsToX(ns);
+    const end = resolved || index === 0
+      ? nsToX(Math.min(windowNs, ns + outputWidthNs))
+      : null;
+
+    if (index > 0 && !resolved) {
+      const mergedEnd = nsToX(Math.min(windowNs, ns + outputWidthNs));
+      return segments.replace(/L [0-9.]+ 123$/, `L ${mergedEnd} 93 L ${mergedEnd} 123`);
+    }
+
+    return `${segments} L ${start} 123 L ${start} 93 L ${end} 93 L ${end} 123`;
+  }, `M ${plotStart} 123`);
+
+  const resolutionX = nsToX(Math.min(resolutionNs, windowNs));
 
   return (
     <svg viewBox="0 0 300 160" className="h-72 w-full rounded-xl bg-white" role="img" aria-label="PMT and discriminator pulse timing">
       <text x="14" y="28" className="fill-slate-800 text-[13px] font-semibold">PMT</text>
       <text x="14" y="44" className="fill-slate-800 text-[13px] font-semibold">OUTPUT</text>
-      <path d={`M 92 28 ${pmtPath} L ${windowEnd} 30`} fill="none" stroke="#1f2937" strokeWidth="2" />
-      <line x1="91" y1="51" x2="266" y2="51" stroke="#64748b" strokeWidth="1.5" strokeDasharray="6 6" />
-      <text x="246" y="47" className="fill-slate-700 text-[10px]">LLD</text>
+      <path d={`M ${plotStart} 30 ${pmtPath} L ${plotEnd} 30`} fill="none" stroke="#1f2937" strokeWidth="2" />
+      <line x1={plotStart} y1="51" x2={plotEnd} y2="51" stroke="#64748b" strokeWidth="1.5" strokeDasharray="6 6" />
+      <text x="260" y="47" className="fill-slate-700 text-[10px]">LLD</text>
 
       <text x="14" y="105" className="fill-slate-800 text-[13px] font-semibold">CIRCUIT</text>
       <text x="14" y="122" className="fill-slate-800 text-[13px] font-semibold">OUTPUT</text>
       <path
-        d={resolved
-          ? `M 91 123 L ${pulses[0] - 8} 123 L ${pulses[0] - 8} 93 L ${pulses[0] + 26} 93 L ${pulses[0] + 26} 123 L ${pulses[1] - 8} 123 L ${pulses[1] - 8} 93 L ${pulses[1] + 26} 93 L ${pulses[1] + 26} 123 L 266 123`
-          : `M 91 123 L ${pulses[0] - 8} 123 L ${pulses[0] - 8} 93 L ${circuitEnd} 93 L ${circuitEnd} 123 L 266 123`}
+        d={`${discriminatorPath} L ${plotEnd} 123`}
         fill="none"
         stroke="#1f2937"
         strokeWidth="2"
       />
-      <line x1={pulses[0] - 8} y1="132" x2={pulses[0] - 8 + 96} y2="132" stroke="#475569" />
-      <line x1={pulses[0] - 8} y1="126" x2={pulses[0] - 8} y2="145" stroke="#475569" />
-      <line x1={pulses[0] - 8 + 96} y1="126" x2={pulses[0] - 8 + 96} y2="145" stroke="#475569" />
-      <text x="101" y="151" className="fill-slate-800 text-[10px]">PULSE PAIR RESOLUTION</text>
-      <text x="108" y="15" className="fill-sky-700 text-[12px] font-semibold">{resolved ? "Resolved as two counts" : "Merged into one count"}</text>
+      <line x1={plotStart} y1="132" x2={resolutionX} y2="132" stroke="#475569" />
+      <line x1={plotStart} y1="126" x2={plotStart} y2="145" stroke="#475569" />
+      <line x1={resolutionX} y1="126" x2={resolutionX} y2="145" stroke="#475569" />
+      <text x={(plotStart + resolutionX) / 2} y="143" textAnchor="middle" className="fill-slate-800 text-[10px]">{resolutionNs.toFixed(0)} ns resolution</text>
+      <line x1={plotStart} y1="148" x2={plotEnd} y2="148" stroke="#94a3b8" />
+      <text x={plotStart} y="158" textAnchor="middle" className="fill-slate-600 text-[9px]">0 ns</text>
+      <text x={plotEnd} y="158" textAnchor="middle" className="fill-slate-600 text-[9px]">100 ns</text>
+      <text x="108" y="15" className="fill-sky-700 text-[12px] font-semibold">{resolved ? "Simulated as two counts" : "Simulated as one count"}</text>
     </svg>
   );
 }
@@ -129,8 +157,8 @@ export default function PhotonCountingLinearity() {
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={chartData} margin={{ top: 10, right: 24, left: 8, bottom: 28 }}>
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="rate" scale="log" type="number" domain={[1e3, 1e8]} tickFormatter={(v) => `10${Math.round(Math.log10(v))}`} label={{ value: "Count rate (s⁻¹)", position: "insideBottom", offset: -18 }} />
-                <YAxis domain={[-80, 5]} tickFormatter={(v) => `${v}%`} label={{ value: "Deviation", angle: -90, position: "insideLeft" }} />
+                <XAxis dataKey="rate" scale="log" type="number" domain={[1e3, 1e8]} ticks={[1e3, 1e4, 1e5, 1e6, 1e7, 1e8]} tickFormatter={(v) => `10^${Math.round(Math.log10(v))}`} label={{ value: "Input count rate (s⁻¹)", position: "insideBottom", offset: -18 }} />
+                <YAxis domain={[-80, 5]} ticks={[-80, -60, -40, -20, 0]} tickFormatter={(v) => `${v}%`} label={{ value: "Deviation from linear response", angle: -90, position: "insideLeft", offset: 0 }} />
                 <Tooltip formatter={(value) => `${Number(value).toFixed(2)}%`} labelFormatter={(value) => `${Number(value).toExponential(2)} s⁻¹`} />
                 <ReferenceLine x={countRate} stroke="#0f172a" strokeDasharray="5 5" />
                 <ReferenceLine y={0} stroke="#64748b" />
