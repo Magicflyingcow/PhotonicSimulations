@@ -579,12 +579,12 @@ export default function FTIR_Michelson_VCSEL_Sim() {
             </Button>
           </div>
 
-          <Card className="border-slate-200 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white">
+          <Card className="border-sky-200 bg-sky-50 text-slate-900">
             <CardContent className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
               <div className="space-y-1">
-                <p className="text-xs uppercase tracking-[0.3em] text-slate-200">Theory refresher</p>
+                <p className="text-xs uppercase tracking-[0.3em] text-slate-600">Theory refresher</p>
                 <p className="text-base font-semibold">Need intuition for superposition and Fourier transforms?</p>
-                <p className="text-sm text-slate-200">
+                <p className="text-sm text-slate-600">
                   Explore how interferograms are built from sinusoidal components and how the FFT exposes spectral peaks.
                 </p>
               </div>
@@ -799,9 +799,10 @@ export default function FTIR_Michelson_VCSEL_Sim() {
           {/* --- Graphs (side-by-side beneath settings) --- */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch">
             <Card className="flex h-full flex-col">
-              <CardHeader className="pb-2"><CardTitle>Live Interferogram</CardTitle></CardHeader>
+              <CardHeader className="pb-2"><CardTitle>Live Interferogram</CardTitle>
+                  <p className="sim-chart-caption">Optical path difference (µm) · Relative intensity</p></CardHeader>
               <CardContent className="flex flex-1 flex-col">
-                <div className="flex items-center gap-6 pb-2">
+                <div className="flex flex-wrap items-center gap-3 pb-2">
                   <div className="flex items-center gap-2">
                     <Switch checked={showInGaAs} onCheckedChange={setShowInGaAs} id="showInGaAs" />
                     <Label htmlFor="showInGaAs">InGaAs PD (red)</Label>
@@ -815,10 +816,10 @@ export default function FTIR_Michelson_VCSEL_Sim() {
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={interferogram} margin={{ left: 8, right: 8, top: 8, bottom: 8 }}>
                       <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis type="number" dataKey="x" tickFormatter={(v)=>`${fmt(v,0)}`} label={{ value: "OPD (µm)", position: "insideBottomRight", offset: -4 }} domain={[interferogram.length?interferogram[0].x:0, interferogram.length?interferogram[interferogram.length-1].x:0]} />
+                      <XAxis type="number" dataKey="x" tickFormatter={(v)=>`${fmt(v,0)}`} domain={[interferogram.length?interferogram[0].x:0, interferogram.length?interferogram[interferogram.length-1].x:0]} />
                       <YAxis tickFormatter={(v)=>fmt(v,2)} domain={["auto","auto"]} />
                       <Tooltip formatter={(v)=>fmt(v,4)} labelFormatter={(v)=>`OPD ${fmt(v,1)} µm`} />
-                      <Legend />
+                      <Legend wrapperStyle={{ paddingTop: 12 }} />
                       <>
                         {showInGaAs && (
                           <Line type="monotone" dataKey="ingaas" dot={false} isAnimationActive={false} name="InGaAs PD" stroke="#ef4444" />
@@ -845,16 +846,17 @@ export default function FTIR_Michelson_VCSEL_Sim() {
             </Card>
 
             <Card className="flex h-full flex-col">
-              <CardHeader className="pb-2"><CardTitle>Spectrum (FFT of interferogram)</CardTitle></CardHeader>
+              <CardHeader className="pb-2"><CardTitle>Spectrum (FFT of interferogram)</CardTitle>
+                  <p className="sim-chart-caption">Wavelength (nm) · Relative intensity</p></CardHeader>
               <CardContent className="flex flex-1 flex-col">
                 <div className="flex-1 min-h-[16rem]">
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={spectrum} margin={{ left: 8, right: 8, top: 8, bottom: 8 }}>
                       <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="nm" type="number" domain={[SENSOR_MIN_NM, SENSOR_MAX_NM]} tickCount={8} label={{ value: "Wavelength (nm)", position: "insideBottomRight", offset: -4 }} />
+                      <XAxis dataKey="nm" type="number" domain={[SENSOR_MIN_NM, SENSOR_MAX_NM]} tickCount={8} />
                       <YAxis domain={["auto","auto"]} tickFormatter={(v)=>fmt(v,1)} />
                       <Tooltip formatter={(v)=>fmt(v,3)} labelFormatter={(v)=>`${fmt(v,0)} nm`} />
-                      <Legend />
+                      <Legend wrapperStyle={{ paddingTop: 12 }} />
                       <Line
                         type="monotone"
                         dataKey="S"

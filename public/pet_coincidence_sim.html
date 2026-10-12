@@ -120,7 +120,7 @@
       display:flex;
       gap:12px;
       flex-wrap:wrap;
-      color:#cbd5e1;
+      color:var(--sim-muted);
       font-size:.85rem;
       margin-top:6px;
     }
@@ -167,8 +167,9 @@
       .vgrid{grid-template-columns:1fr}
     }
   </style>
+  <link rel="stylesheet" href="simulation-theme.css" />
 </head>
-<body>
+<body class="sim-standalone" data-simulation="medical">
 <div class="wrap">
   <h1>Interactive PET Coincidence Detection Simulator</h1>
   <div class="subtitle">
@@ -280,23 +281,23 @@
       <h2>Detector Ring and Reconstructed Image</h2>
       <div class="vgrid">
         <div class="card">
-          <div style="margin-bottom:8px;color:#cbd5e1;font-size:.9rem">Coincidence events in detector ring</div>
+          <div style="margin-bottom:8px;color:var(--sim-muted);font-size:.9rem">Coincidence events in detector ring</div>
           <canvas id="ringCanvas" width="520" height="520"></canvas>
           <div class="hint">Live mode animates each annihilation and outgoing gamma pair; accepted coincidences contribute to reconstruction.</div>
         </div>
         <div class="card">
-          <div style="margin-bottom:8px;color:#cbd5e1;font-size:.9rem">Reconstruction (backprojection)</div>
+          <div style="margin-bottom:8px;color:var(--sim-muted);font-size:.9rem">Reconstruction (backprojection)</div>
           <canvas id="reconCanvas" width="520" height="520"></canvas>
           <div class="hint">This map is formed only from accepted prompt coincidences and gradually fills during live mode.</div>
         </div>
       </div>
       <div class="vgrid" style="margin-top:12px;">
         <div class="card">
-          <div style="margin-bottom:8px;color:#cbd5e1;font-size:.9rem">True activity (ground truth)</div>
+          <div style="margin-bottom:8px;color:var(--sim-muted);font-size:.9rem">True activity (ground truth)</div>
           <canvas id="truthCanvas" width="520" height="520"></canvas>
         </div>
         <div class="card">
-          <div style="margin-bottom:8px;color:#cbd5e1;font-size:.9rem">Sinogram (θ vs s)</div>
+          <div style="margin-bottom:8px;color:var(--sim-muted);font-size:.9rem">Sinogram (θ vs s)</div>
           <canvas id="sinoCanvas" width="520" height="520"></canvas>
         </div>
       </div>

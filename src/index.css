@@ -1,3 +1,5 @@
+@import "../public/simulation-theme.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -32,10 +34,25 @@ svg text {
   }
 
   .sim-surface {
-    @apply rounded-2xl border border-white/15 bg-white/95 text-slate-900 shadow-2xl shadow-slate-950/30 backdrop-blur;
+    @apply min-w-0 rounded-2xl border border-slate-200 bg-white text-slate-900;
+    box-shadow: var(--sim-shadow);
   }
 
   .sim-back-link {
     @apply inline-flex items-center rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-700 shadow-sm transition hover:border-slate-400 hover:bg-slate-50;
   }
 }
+
+/* Allow grid/flex children and chart wrappers to shrink with the viewport. */
+.sim-app-bg { overflow-wrap: anywhere; }
+.sim-app-bg .grid > *, .sim-app-bg .flex > * { min-width: 0; }
+.sim-app-bg h1 { font-size: clamp(1.5rem, 1.15rem + 1.2vw, 2rem); line-height: 1.25; }
+.sim-app-bg button { height: auto; white-space: normal; }
+.sim-app-bg .recharts-responsive-container { min-width: 0; }
+.sim-frame { display: block; width: 100%; border: 0; background: var(--sim-bg); }
+
+.sim-chart-caption { font-size: .8125rem; line-height: 1.5; color: var(--sim-muted); }
+.sim-app-bg .recharts-tooltip-wrapper { max-width: 100%; }
+.sim-app-bg .recharts-default-tooltip { white-space: normal !important; overflow-wrap: anywhere; }
+/* Recharts positions hidden tooltips off-plot while measuring them. */
+.sim-app-bg .recharts-tooltip-wrapper[style*="visibility: hidden"] { display: none; }

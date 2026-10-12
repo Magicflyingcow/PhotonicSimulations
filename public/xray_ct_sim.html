@@ -32,8 +32,9 @@
     #sinogramCanvas{aspect-ratio:1.35}
     @media (max-width:1100px){.grid{grid-template-columns:1fr}.vgrid{grid-template-columns:1fr}}
   </style>
+  <link rel="stylesheet" href="simulation-theme.css" />
 </head>
-<body>
+<body class="sim-standalone" data-simulation="medical">
 <div class="wrap">
   <h1>Interactive X-ray CT Attenuation Simulator</h1>
   <div class="subtitle">Fan-beam style line-integral sampling with Beer–Lambert attenuation, Poisson counting noise, log correction, and Ram-Lak filtered backprojection (FBP) reconstruction.</div>

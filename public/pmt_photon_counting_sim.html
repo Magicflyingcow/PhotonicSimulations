@@ -193,8 +193,9 @@
   </script>
   <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
 
+  <link rel="stylesheet" href="simulation-theme.css" />
 </head>
-<body>
+<body class="sim-standalone" data-simulation="counting">
   <div class="container">
   <h1>Photon-counting PMT simulation: signal + dark + background counts (1 s chemiluminescence)</h1>
   <div class="sub">
@@ -321,6 +322,56 @@
 
 <script>
 (function(){
+  // HTML titles and legends can wrap naturally; SVG text cannot.
+  function renderPlot(id, traces, layout) {
+    const plot = document.getElementById(id);
+    let heading = document.getElementById(`${id}-heading`);
+    let caption = document.getElementById(`${id}-caption`);
+    let legend = document.getElementById(`${id}-legend`);
+    if (!heading) {
+      heading = document.createElement('h3');
+      heading.id = `${id}-heading`;
+      plot.before(heading);
+      caption = document.createElement('p');
+      caption.id = `${id}-caption`;
+      caption.className = 'plot-caption';
+      legend = document.createElement('div');
+      legend.id = `${id}-legend`;
+      legend.className = 'plot-legend';
+      plot.after(caption, legend);
+      plot.setAttribute('aria-labelledby', heading.id);
+    }
+    heading.textContent = layout.title.text;
+    caption.textContent = `Horizontal: ${layout.xaxis.title}. Vertical: ${layout.yaxis.title}.`;
+    const colors = ['#0369a1', '#b45309', '#15803d', '#be123c'];
+    const hidden = new Set([...legend.querySelectorAll('[aria-pressed="false"]')].map(button => button.textContent));
+    const styledTraces = traces.map((trace, i) => ({
+      ...trace, line: { ...trace.line, color: colors[i % colors.length] },
+      visible: hidden.has(trace.name) ? 'legendonly' : true,
+    }));
+    Plotly.react(id, styledTraces, {
+      ...layout, title: undefined, showlegend: false,
+      font: { family: 'Inter, system-ui, sans-serif', size: 12, color: '#475569' },
+      paper_bgcolor: '#ffffff', plot_bgcolor: '#ffffff',
+      xaxis: { ...layout.xaxis, title: undefined, automargin: true },
+      yaxis: { ...layout.yaxis, title: undefined, automargin: true },
+      margin: { l: 48, r: 18, t: 16, b: 36 },
+    }, { displayModeBar: false, responsive: true });
+    legend.replaceChildren(...styledTraces.map((trace, i) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = trace.name;
+      button.style.setProperty('--trace-color', trace.line.color);
+      button.setAttribute('aria-pressed', String(trace.visible !== 'legendonly'));
+      button.addEventListener('click', () => {
+        const visible = button.getAttribute('aria-pressed') !== 'true';
+        button.setAttribute('aria-pressed', String(visible));
+        Plotly.restyle(plot, { visible: visible ? true : 'legendonly' }, [i]);
+      });
+      return button;
+    }));
+  }
+
   const T = 1.0; // seconds
 
   // Fixed chemiluminescence shape parameters (fast rise + decay)
@@ -674,7 +725,7 @@
       legend: {orientation:"h"},
       margin: {l:55, r:15, t:45, b:45}
     };
-    Plotly.react("plot1", traces1, layout1, {displayModeBar:false, responsive:true});
+    renderPlot("plot1", traces1, layout1);
 
     // Plot 2: cumulative total (expected vs simulated)
         const cumExp = cumulative(expectedNoSat.sExp); // expected signal only (no dark/background), no saturation
@@ -690,7 +741,7 @@
       legend: {orientation:"h"},
       margin: {l:55, r:15, t:45, b:45}
     };
-    Plotly.react("plot2", traces2, layout2, {displayModeBar:false, responsive:true});
+    renderPlot("plot2", traces2, layout2);
   }
 
   // init
@@ -772,12 +823,12 @@
       y:x.map(ph=>computePcSnr(ph*(Math.max(0,Math.min(100,r.qe))/100), r.nb, r.nd)),
       type:'scatter', mode:'lines', name:`Sel ${r.idx+1}: ${r.name}`
     }));
-    Plotly.react('comparePlot', traces, {
+    renderPlot('comparePlot', traces, {
       title:{text:'SNR vs input photon count (log-scale x-axis)'},
       xaxis:{title:'Input photons over 1 s', type:'log'},
       yaxis:{title:'Photon-counting SNR (Eq. 6-6)'},
       margin:{l:60,r:20,t:45,b:55}, legend:{orientation:'h'}
-    }, {displayModeBar:false, responsive:true});
+    });
   }
 
   makeCompareControls();

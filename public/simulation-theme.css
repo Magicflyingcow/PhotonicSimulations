@@ -1,0 +1,132 @@
+/* Shared by the React application and directly opened HTML simulations. */
+:root {
+  color-scheme: light;
+  --sim-bg: #f8fafc;
+  --sim-surface: #ffffff;
+  --sim-subtle: #f1f5f9;
+  --sim-text: #0f172a;
+  --sim-muted: #475569;
+  --sim-border: #cbd5e1;
+  --sim-accent: #0369a1;
+  --sim-radius: 1rem;
+  --sim-shadow: 0 4px 18px rgb(15 23 42 / 6%);
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  line-height: 1.5;
+}
+*, *::before, *::after { box-sizing: border-box; }
+body { margin: 0; color: var(--sim-text); background: var(--sim-bg); }
+:where(h1, h2, h3, h4, p, label, button, a, th, td, output, pre) { overflow-wrap: anywhere; }
+:where(div, main, section, article, aside, header, nav, form, fieldset) { min-width: 0; }
+:where(button, input, select, textarea) { font: inherit; max-width: 100%; }
+:where(button) { white-space: normal; line-height: 1.5; }
+:where(button, a, input, select, textarea):focus-visible { outline: 3px solid #38bdf8; outline-offset: 3px; }
+:where(input, select, textarea) { min-width: 0; }
+:where(input[type="range"], input[type="checkbox"]) { accent-color: var(--sim-accent); }
+:where(input[type="checkbox"], input[type="radio"]) { flex-shrink: 0; }
+:where(img, canvas, iframe) { max-width: 100%; }
+svg text { font-family: inherit; }
+
+/* HTML simulations keep dark plotting surfaces for trace contrast; their UI
+   uses the same surfaces, typography, controls and spacing as the library. */
+body.sim-standalone {
+  --bg: var(--sim-bg); --panel: var(--sim-surface); --panel2: var(--sim-subtle);
+  --panel-2: var(--sim-subtle); --card: var(--sim-subtle);
+  --text: var(--sim-text); --ink: var(--sim-text); --muted: var(--sim-muted);
+  --accent: var(--sim-accent); --line: var(--sim-border);
+  --input: var(--sim-surface); --button: var(--sim-accent); --button2: #e2e8f0;
+  --good: #15803d; --warn: #a16207; --bad: #be123c;
+  min-height: 0;
+  background: var(--sim-bg); color: var(--sim-text);
+  font-family: inherit; line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.sim-standalone h1 { font-size: clamp(1.375rem, 1.1rem + 1vw, 1.875rem); line-height: 1.25; letter-spacing: -.025em; }
+.sim-standalone :is(h2, h3, h4) { color: var(--sim-text); line-height: 1.4; }
+.sim-standalone :is(.sub, .subtitle, .hint, .help, .mini, .tiny, .legend, label, .control .label, .chk) { color: var(--sim-muted); opacity: 1; }
+.sim-standalone > :is(.wrap, .container) { width: 100%; max-width: 80rem; margin: 0 auto; padding: clamp(1rem, 3vw, 2rem); }
+.sim-standalone > header { position: static; flex-wrap: wrap; background: var(--sim-surface); border-color: var(--sim-border); padding: 1rem clamp(1rem, 3vw, 2rem); }
+.sim-standalone > main { max-width: 96rem; margin: 0 auto; padding: clamp(.75rem, 2vw, 1.5rem); gap: 1rem; }
+.sim-standalone :is(.panel, .viz, section, .view, #controlsSidebar) {
+  background: var(--sim-surface); border: 1px solid var(--sim-border);
+  border-radius: var(--sim-radius); box-shadow: var(--sim-shadow);
+}
+.sim-standalone :is(.control, .card, .param, .seedbar, .presetbar, .compare-card, .stats, .note, .eqbox, .panelHeader, .sectionHeader, section h2, #readout, #peakAnalysis, .tabs) {
+  background: var(--sim-subtle); border-color: var(--sim-border); color: var(--sim-text);
+}
+.sim-standalone :is(.status, .status-pill, .pill, .check) { background: var(--sim-surface); border-color: var(--sim-border); color: var(--sim-muted); white-space: normal; }
+.sim-standalone :is(.control .value, .top .value) { color: var(--sim-accent); }
+.sim-standalone button {
+  min-height: 2.5rem; height: auto; padding: .5rem .75rem;
+  border: 1px solid var(--sim-border); border-radius: .625rem;
+  background: var(--sim-surface); color: var(--sim-text);
+  font-size: .875rem; font-weight: 600; line-height: 1.5; white-space: normal;
+}
+.sim-standalone button:hover { background: #e0f2fe; border-color: #7dd3fc; }
+.sim-standalone button:is(.primary, .active, .good) { background: var(--sim-accent); border-color: var(--sim-accent); color: white; }
+.sim-standalone button.secondary { background: #e2e8f0; color: var(--sim-text); border-color: var(--sim-border); }
+.sim-standalone button:is(.danger, .bad) { background: #fff1f2; color: #9f1239; border-color: #fda4af; }
+.sim-standalone button.warn { background: #fffbeb; color: #854d0e; border-color: #fcd34d; }
+.sim-standalone :is(input:not([type="range"]):not([type="checkbox"]), select, textarea) {
+  background: var(--sim-surface); color: var(--sim-text); border-color: var(--sim-border);
+  min-height: 2.5rem; font-size: .875rem; line-height: 1.5;
+}
+.sim-standalone select option { background: white; color: var(--sim-text); }
+.sim-standalone :is(th, td) { color: var(--sim-text); border-color: var(--sim-border); }
+.sim-standalone :is(.row, .row3, .vgrid, .plots) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.sim-standalone .row.one { grid-template-columns: minmax(0, 1fr); }
+.sim-standalone .row3 { grid-template-columns: minmax(0, 1fr); }
+.sim-standalone :is(.tabs, .top, .heartRateHeader, .panelHeader, .sectionHeader) { flex-wrap: wrap; }
+.sim-standalone :is(.buttons, .btns) { display: flex; flex-wrap: wrap; }
+.sim-standalone :is(.buttons, .btns) > button { flex: 1 1 7rem; }
+.sim-standalone .grid { grid-template-columns: minmax(17rem, 23rem) minmax(0, 1fr); }
+.sim-standalone .controls { grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); }
+.sim-standalone .compare-grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); }
+.sim-standalone :is(#compareResults, #peakTableWrap, .eqbox) { max-width: 100%; overflow: auto; }
+.sim-standalone #compareResults table { min-width: 36rem; }
+.sim-standalone :is(.log, #log) { background: var(--sim-subtle); color: var(--sim-text); border-color: var(--sim-border); }
+.sim-standalone[data-simulation="counting"] .row { grid-template-columns: minmax(0, 1fr) minmax(6rem, 7rem); }
+.sim-standalone[data-simulation="counting"] .seedbar .row { grid-template-columns: minmax(0, 1fr) minmax(0, 10rem); }
+.sim-standalone[data-simulation="counting"] .tabs { flex-wrap: wrap; }
+/* Viewport-independent heights allow embedding without nested page scrolling. */
+.sim-standalone[data-simulation="spectrometer"] main { grid-template-columns: minmax(18rem, 24rem) minmax(0, 1fr); min-height: 0; }
+.sim-standalone[data-simulation="spectrometer"] main.settings-collapsed { grid-template-columns: 3.5rem minmax(0, 1fr); }
+.sim-standalone #chartArea { position: static; }
+.sim-standalone #chartPanel { height: auto; min-height: 0; grid-template-rows: auto auto auto auto auto; }
+.sim-standalone #canvasWrap { height: clamp(20rem, 40vw, 34rem); }
+.sim-standalone .heartRateHeader .heartRateValue { white-space: normal; line-height: 1.2; }
+.sim-standalone .matchResult { position: static; min-width: 0; margin-top: .5rem; background: var(--sim-subtle); border-color: var(--sim-border); }
+.sim-standalone #canvasWrap:has(.matchResult) { height: auto; }
+.sim-standalone #canvasWrap:has(.matchResult) > canvas { height: clamp(20rem, 40vw, 34rem); }
+.sim-standalone[data-simulation="rangefinder"] main { height: auto; grid-template-columns: minmax(18rem, 24rem) minmax(0, 1fr); align-items: start; }
+.sim-standalone[data-simulation="rangefinder"] main.sidebar-hidden { grid-template-columns: minmax(0, 1fr); }
+.sim-standalone[data-simulation="rangefinder"] aside { overflow: visible; }
+.sim-standalone .view { height: auto; display: flex; flex-direction: column; padding: .75rem; gap: .75rem; }
+.sim-standalone .view > canvas { height: clamp(22rem, 45vw, 42rem); background: #0b1020; border-radius: .75rem; }
+.sim-standalone .sidebar-toggle { position: static; align-self: flex-end; box-shadow: none; }
+.sim-standalone .overlay { position: static; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr)); }
+.sim-standalone .metric { min-width: 0; background: var(--sim-subtle); border-color: var(--sim-border); }
+.sim-standalone .metric b { color: var(--sim-accent); }
+@media (max-width: 68rem) {
+  .sim-standalone .grid,
+  .sim-standalone[data-simulation] main,
+  .sim-standalone[data-simulation] main.settings-collapsed { grid-template-columns: minmax(0, 1fr); }
+  .sim-standalone #settingsPanel.collapsed .panelHeader { flex-direction: row; }
+  .sim-standalone #settingsPanel.collapsed .panelHeader h2 { writing-mode: initial; transform: none; }
+}
+@media (max-width: 40rem) {
+  .sim-standalone :is(.vgrid, .plots, .row) { grid-template-columns: minmax(0, 1fr); }
+  .sim-standalone[data-simulation="counting"] .row,
+  .sim-standalone[data-simulation="counting"] .seedbar .row,
+  .sim-standalone .compare-card .mini { grid-template-columns: minmax(0, 1fr); }
+  .sim-standalone input, .sim-standalone select, .sim-standalone textarea { font-size: 1rem; }
+}
+.sim-standalone input[type="range"] { accent-color: var(--sim-accent); }
+.sim-standalone[data-simulation="spectrometer"] .row { grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr)); }
+.sim-standalone[data-simulation="counting"] :is(#plot1, #plot2, #comparePlot) { height: 22rem !important; }
+.sim-standalone .plot-caption { color: var(--sim-muted); font-size: .8125rem; }
+.sim-standalone .plot-legend { display: flex; flex-wrap: wrap; gap: .5rem; }
+.sim-standalone .plot-legend button { display: flex; align-items: center; gap: .5rem; text-align: left; font-size: .8125rem; font-weight: 400; }
+.sim-standalone .plot-legend button::before { content: ''; flex: 0 0 1.25rem; height: .1875rem; background: var(--trace-color); }
+.sim-standalone .plot-legend button[aria-pressed="false"] { opacity: .6; text-decoration: line-through; }
+
+.sim-standalone .eqbox mjx-container > svg { max-width: 100%; height: auto; }

@@ -611,7 +611,7 @@ export default function PmtSimulator() {
         step={1}
         onValueChange={([value]) => setDeadTimeMs(Math.round(value))}
       />
-      <div className="flex items-center gap-4">
+      <div className="flex flex-wrap items-center gap-3">
         <Switch checked={running} onCheckedChange={setRunning} id="pmt-running" />
         <Label htmlFor="pmt-running" className="text-slate-600">
           {running ? "Running" : "Paused"}

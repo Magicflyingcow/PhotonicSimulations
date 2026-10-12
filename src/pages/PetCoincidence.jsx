@@ -1,3 +1,4 @@
+import SimulationFrame from "@/components/SimulationFrame";
 import React, { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -43,7 +44,7 @@ export default function PetCoincidence() {
           ← Back to library
         </Button>
 
-        <div className="sim-surface flex w-fit items-center gap-1 rounded-full p-1">
+        <div className="sim-surface flex max-w-full w-fit flex-wrap items-center gap-1 rounded-2xl p-1">
           {tabs.map((tab) => {
             const isActive = tab.id === activeTab;
             return (
@@ -53,7 +54,7 @@ export default function PetCoincidence() {
                 onClick={() => setActiveTab(tab.id)}
                 className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${
                   isActive
-                    ? "bg-slate-900 text-white shadow"
+                    ? "bg-sky-700 text-white shadow-sm"
                     : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
                 }`}
               >
@@ -65,11 +66,10 @@ export default function PetCoincidence() {
       </div>
 
       <div className="flex-1">
-        <iframe
+        <SimulationFrame
           key={activeTab}
           title={activeConfig.title}
           src={simulationPath}
-          className="min-h-[calc(100vh-8.5rem)] w-full border-0 bg-transparent"
         />
       </div>
     </div>

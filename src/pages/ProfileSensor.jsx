@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Slider as RangeSlider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
@@ -19,7 +20,7 @@ import { Switch } from "@/components/ui/switch";
 // ---------- Small UI helpers ----------
 function Section({ title, children }) {
   return (
-    <div className="sim-surface p-4 overflow-hidden">
+    <div className="sim-surface p-4">
       <h2 className="text-sm font-semibold text-slate-800 mb-3 uppercase tracking-wide">{title}</h2>
       {children}
     </div>
@@ -390,8 +391,8 @@ export default function ProfileSensorDemo() {
   // ---------- Pointer interactions ----------
   const onPointerDown = (e) => {
     const rect = e.currentTarget.getBoundingClientRect();
-    const px = e.clientX - rect.left;
-    const py = e.clientY - rect.top;
+    const px = (e.clientX - rect.left) * e.currentTarget.width / rect.width;
+    const py = (e.clientY - rect.top) * e.currentTarget.height / rect.height;
     const ix = Math.floor(px / scale);
     const iy = Math.floor(py / scale);
     if (ix >= 0 && ix < W && iy >= 0 && iy < H) {
@@ -404,8 +405,8 @@ export default function ProfileSensorDemo() {
   const onPointerMove = (e) => {
     if (!dragging) return;
     const rect = e.currentTarget.getBoundingClientRect();
-    const px = e.clientX - rect.left;
-    const py = e.clientY - rect.top;
+    const px = (e.clientX - rect.left) * e.currentTarget.width / rect.width;
+    const py = (e.clientY - rect.top) * e.currentTarget.height / rect.height;
     const dx = (px - dragStartRef.current.x) / scale;
     const dy = (py - dragStartRef.current.y) / scale;
     // Follow the mouse
@@ -437,9 +438,10 @@ export default function ProfileSensorDemo() {
   const regenerate = () => regenerateSpeckle(sigma);
 
   return (
-    <div className="sim-app-bg min-h-screen px-4 py-8 text-slate-900">
-      <div className="mx-auto w-full max-w-6xl">
-        <div className="mb-4">
+    <div className="sim-app-bg">
+      <div className="sim-page-wrap">
+        <div className="mb-6 space-y-3">
+          <Link className="sim-back-link" to="/">← Back to library</Link>
           <h1 className="text-xl font-semibold text-slate-900 drop-shadow-sm">Interactive Profile Sensor Demo</h1>
           <p className="text-sm text-slate-600 drop-shadow-sm">
             Tileable laser speckle-like texture; drag to pan. Bottom: X sums · Right: Y sums. Animate with X/Y frequency and magnitude.
@@ -450,15 +452,16 @@ export default function ProfileSensorDemo() {
         <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-12">
           {/* Canvas area */}
           <div className="lg:col-span-8 xl:col-span-9">
-            <div className="inline-block overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-lg">
+            <div className="sim-surface inline-block max-w-full">
               <canvas
                 ref={canvasRef}
-                className="block"
+                className="block max-w-full h-auto touch-none rounded-2xl"
                 width={compW * scale}
                 height={compH * scale}
                 onPointerDown={onPointerDown}
                 onPointerMove={onPointerMove}
                 onPointerUp={onPointerUp}
+                onPointerCancel={onPointerUp}
               />
             </div>
           </div>
@@ -492,7 +495,7 @@ export default function ProfileSensorDemo() {
                   onChange={setSigma}
                   format={(v) => v.toFixed(1)}
                 />
-                <div className="mt-3 flex items-center justify-between">
+                <div className="mt-3 flex flex-wrap gap-3 items-center justify-between">
                   <Toggle label="Smooth subpixel (bilinear)" checked={smooth} onChange={setSmooth} />
                   <button onClick={regenerate} className="rounded-xl border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 shadow-sm transition hover:border-slate-400 hover:bg-slate-50">Regenerate</button>
                 </div>
