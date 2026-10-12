@@ -153,12 +153,13 @@ export default function PhotonCountingLinearity() {
 
         <Card className="p-5">
           <CardHeader><CardTitle>Deviation from linear response</CardTitle></CardHeader>
+          <p className="sim-chart-caption mt-3">Horizontal: input count rate (s⁻¹). Vertical: deviation from linear response (%).</p>
           <CardContent className="h-[420px]">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={chartData} margin={{ top: 10, right: 24, left: 8, bottom: 28 }}>
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="rate" scale="log" type="number" domain={[1e3, 1e8]} ticks={[1e3, 1e4, 1e5, 1e6, 1e7, 1e8]} tickFormatter={(v) => `10^${Math.round(Math.log10(v))}`} label={{ value: "Input count rate (s⁻¹)", position: "insideBottom", offset: -18 }} />
-                <YAxis domain={[-80, 5]} ticks={[-80, -60, -40, -20, 0]} tickFormatter={(v) => `${v}%`} label={{ value: "Deviation from linear response", angle: -90, position: "insideLeft", offset: 0 }} />
+                <XAxis dataKey="rate" scale="log" type="number" domain={[1e3, 1e8]} ticks={[1e3, 1e4, 1e5, 1e6, 1e7, 1e8]} tickFormatter={(v) => `10^${Math.round(Math.log10(v))}`} />
+                <YAxis domain={[-80, 5]} ticks={[-80, -60, -40, -20, 0]} tickFormatter={(v) => `${v}%`} width={48} />
                 <Tooltip formatter={(value) => `${Number(value).toFixed(2)}%`} labelFormatter={(value) => `${Number(value).toExponential(2)} s⁻¹`} />
                 <ReferenceLine x={countRate} stroke="#0f172a" strokeDasharray="5 5" />
                 <ReferenceLine y={0} stroke="#64748b" />

@@ -3,7 +3,6 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, ReferenceLine } from "recharts";
 
 const referenceWavelength = 550;
@@ -132,9 +131,7 @@ export default function FourierConcepts() {
                 green, and blue wavelengths from the visible band.
               </p>
             </div>
-            <Button asChild variant="outline">
-              <Link to="/ftir">← Back to FTIR simulator</Link>
-            </Button>
+            <Link className="sim-back-link self-start" to="/ftir">← Back to FTIR simulator</Link>
           </div>
 
           <Card className="sim-surface">
@@ -175,19 +172,19 @@ export default function FourierConcepts() {
                 ))}
               </div>
             </div>
-            <div className="h-72 w-full">
+            <p className="sim-chart-caption">Horizontal: optical path difference (λref multiples). Vertical: relative amplitude.</p>
+            <div className="h-80 w-full">
               <ResponsiveContainer>
                 <LineChart data={waveData} margin={{ top: 10, left: 0, right: 10, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#cbd5f5" />
                   <XAxis
                     dataKey="opd"
                     domain={[minOpticalPathDifference, maxOpticalPathDifference]}
-                    label={{ value: "Optical path difference (λref multiples)", position: "insideBottomRight", offset: -5 }}
                     type="number"
                   />
-                  <YAxis domain={[-2.5, 2.5]} tickFormatter={formatNumber} />
+                  <YAxis width={44} domain={[-2.5, 2.5]} tickFormatter={formatNumber} />
                   <Tooltip formatter={(value) => formatNumber(value)} labelFormatter={(value) => `OPD: ${value}`} />
-                  <Legend />
+                  <Legend wrapperStyle={{ paddingTop: 12 }} />
                   {waveConfigs.map((wave) => (
                       <Line
                         key={wave.key}
@@ -224,7 +221,8 @@ export default function FourierConcepts() {
                 component becomes a narrow peak in the spectral domain. The plot below uses actual visible wavelengths so the
                 peaks line up with blue (~450 nm), green (~550 nm), and red (~650 nm) light.
               </p>
-              <div className="h-64 w-full">
+              <p className="sim-chart-caption">Horizontal: wavelength (nm). Vertical: relative intensity.</p>
+              <div className="h-80 w-full">
                 <ResponsiveContainer>
                   <LineChart data={activeSpectrumData} margin={{ top: 10, right: 10, bottom: 0, left: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#cbd5f5" />
@@ -232,11 +230,10 @@ export default function FourierConcepts() {
                       dataKey="wavelength"
                       domain={[400, 700]}
                       type="number"
-                      label={{ value: "Wavelength (nm)", position: "insideBottomRight", offset: -5 }}
                     />
-                    <YAxis label={{ value: "Relative intensity", angle: -90, position: "insideLeft" }} />
+                    <YAxis width={44} />
                     <Tooltip formatter={(value) => formatNumber(value)} labelFormatter={(value) => `${value} nm`} />
-                    <Legend />
+                    <Legend wrapperStyle={{ paddingTop: 12 }} />
                     {waveConfigs.map((wave) => (
                       <Line
                         key={`spectrum-${wave.key}`}
@@ -278,24 +275,22 @@ export default function FourierConcepts() {
             </CardContent>
           </Card>
 
-          <Card className="border-slate-200 bg-slate-900 text-slate-100">
+          <Card className="border-sky-200 bg-sky-50 text-slate-900">
             <CardHeader>
               <CardTitle className="text-xl">Quick mental model</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3 text-slate-100/90">
+            <CardContent className="space-y-3 text-slate-700">
               <ol className="list-decimal space-y-2 pl-6 text-sm">
                 <li>Each wavelength in the scene writes a sinusoid into the interferogram.</li>
                 <li>All sinusoids add (superposition) to form the detector signal.</li>
                 <li>The Fourier transform separates those sinusoids back into sharp spectral lines.</li>
               </ol>
-              <p className="text-sm text-slate-200">
+              <p className="text-sm text-slate-600">
                 Keep this loop in mind while adjusting the FTIR simulation parameters—the controls change the relative spacing and
                 visibility of the peaks you saw above.
               </p>
               <div>
-                <Button asChild variant="outline" className="text-slate-900">
-                  <Link to="/ftir">Launch the FTIR engine</Link>
-                </Button>
+                <Link className="sim-back-link" to="/ftir">Launch the FTIR engine</Link>
               </div>
             </CardContent>
           </Card>

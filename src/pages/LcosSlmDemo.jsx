@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import React, { useEffect, useRef, useState } from "react";
 import { Slider } from "@/components/ui/slider";
 
@@ -872,6 +873,7 @@ export default function CGHPlayground() {
   return (
     <div className="sim-app-bg w-full h-full">
       <div className="sim-page-wrap max-w-[1200px] mx-auto">
+        <Link className="sim-back-link mb-4" to="/">← Back to library</Link>
         <h1 className="text-2xl md:text-3xl font-semibold mb-3 text-slate-900">CGH Playground – {SIZE}×{SIZE} Phase-Only SLM Simulator</h1>
         <p className="text-sm text-slate-700 mb-4 leading-relaxed">
           Pick a hologram, then draw on it. The panel on the right shows the simulated far‑field reconstruction
@@ -879,7 +881,7 @@ export default function CGHPlayground() {
           and paint with different phases to see how the output moves and reshapes.
         </p>
 
-        <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr_1fr] gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)_minmax(0,1fr)] gap-4">
           {/* Left controls */}
           <div className="sim-surface p-4 space-y-4">
             <div>
@@ -932,7 +934,7 @@ export default function CGHPlayground() {
             {/* Draw tools */}
             <div>
               <div className="text-[13px] font-medium mb-2 uppercase tracking-wide text-neutral-500">Draw tools</div>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 {["set", "add", "erase"].map(m => (
                   <button key={m}
                     onClick={() => setDrawMode(m)}
@@ -985,7 +987,7 @@ export default function CGHPlayground() {
 
           {/* Middle: Hologram editor */}
           <div className="sim-surface p-4 flex flex-col items-center">
-            <div className="w-full flex items-center justify-between mb-2">
+            <div className="w-full flex flex-wrap gap-2 items-center justify-between mb-2">
               <div className="text-sm font-medium">Hologram (phase) – {SIZE}×{SIZE}</div>
               <button
                 onClick={() => { applyPreset(preset); }}
@@ -1008,7 +1010,7 @@ export default function CGHPlayground() {
 
           {/* Right: Reconstruction */}
           <div className="sim-surface p-4 flex flex-col items-center">
-            <div className="w-full flex items-center justify-between mb-2">
+            <div className="w-full flex flex-wrap gap-2 items-center justify-between mb-2">
               <div className="text-sm font-medium">Reconstruction (far field)</div>
               <button
                 onClick={() => { queueRecompute(0); }}

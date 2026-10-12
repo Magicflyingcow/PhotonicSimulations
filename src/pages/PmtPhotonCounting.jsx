@@ -1,3 +1,4 @@
+import SimulationFrame from "@/components/SimulationFrame";
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -21,10 +22,9 @@ export default function PmtPhotonCounting() {
       </div>
 
       <div className="flex-1">
-        <iframe
+        <SimulationFrame
           title="PMT photon counting simulation"
           src={simulationPath}
-          className="min-h-[calc(100vh-5.5rem)] w-full border-0 bg-transparent"
         />
       </div>
     </div>

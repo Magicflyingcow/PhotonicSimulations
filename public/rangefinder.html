@@ -167,8 +167,9 @@
       header { align-items: flex-start; flex-direction: column; }
     }
   </style>
+  <link rel="stylesheet" href="simulation-theme.css" />
 </head>
-<body>
+<body class="sim-standalone" data-simulation="rangefinder">
   <header>
     <div>
       <h1>LW20 Rangefinder Scene Mapper</h1>
@@ -213,14 +214,15 @@
         <div class="row one">
           <div>
             <label for="mode">Mode</label>
-            <select id="mode">
-              <option value="poll" selected>Poll servo angle + distance (?SP + ?LDF,0)</option>
+            <select id="mode" aria-describedby="pollModeHelp">
+              <option value="poll" selected>Poll angle + distance</option>
               <option value="stream">LW20 servo stream ($1,SS)</option>
               <option value="distanceSweep">Distance-only simulated sweep</option>
               <option value="fixed">Distance-only fixed beam</option>
             </select>
           </div>
         </div>
+        <p id="pollModeHelp" class="help">Poll angle + distance sends ?SP and ?LDF,0 to the LW20.</p>
         <div class="row">
           <div>
             <label for="hostHz">Host poll Hz</label>
