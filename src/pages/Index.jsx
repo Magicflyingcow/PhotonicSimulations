@@ -29,6 +29,11 @@ const simulations = [
     path: "/profile-sensor",
   },
   {
+    title: "Reflectance Lab",
+    description: "Simulate laser scanning and compare seven detectors imaging the same reflective surface.",
+    path: "/reflectance-lab",
+  },
+  {
     title: "Common Equations",
     description: "Quick converters for detector equations, starting with QE and count sensitivity.",
     path: "/common-equations",
