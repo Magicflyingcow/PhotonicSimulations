@@ -8,6 +8,11 @@
 
 .transit-control{display:flex;align-items:center;gap:8px;cursor:pointer}.transit-control input{accent-color:var(--teal);width:16px;height:16px;margin:0;flex:none}
 
+.more-settings{grid-column:1/-1;border-top:1px solid var(--border)}
+.more-settings summary{padding:10px 0 0;color:var(--teal);font-size:14px;font-weight:650;cursor:pointer}
+.more-settings summary:focus-visible{outline:2px solid var(--teal);outline-offset:3px}
+.more-settings-body{display:grid;gap:16px;padding-top:14px}
+
 .operating-map{margin-top:1.1rem}.operating-map summary{padding:1rem 1.2rem;cursor:pointer;font-size:1.1rem;font-weight:650}.operating-map figure{margin:0 auto;max-width:1120px;padding:0 1rem 1rem}.operating-map img{display:block;width:100%;height:auto}.operating-map figcaption{color:var(--muted);font-size:.9rem;line-height:1.5}.operating-map summary:focus-visible{outline:3px solid var(--teal)}
 
 #sipmCapture .labelrow{margin-top:6px;font-size:14px}#sipmCapture small{display:block;color:var(--muted);margin-top:7px;font-size:12px}
@@ -46,11 +51,16 @@ dialog.embedded-notes{position:fixed;inset-block:var(--notes-center) auto;max-he
 <div class="control"><div class="labelrow"><label for="beamUm">Return beam diameter</label><output id="beamOut" for="beamUm"></output></div><input type="range" id="beamUm" min="50" max="2000" step="10" value="2000"><div class="rangeends"><span>50 µm</span><span>2 mm</span></div></div>
 <div class="control"><label class="transit-control"><input type="checkbox" id="gaussianSiPM" aria-controls="sipmCapture">Gaussian profile on SiPM</label>
 <div id="sipmCapture" hidden><div class="labelrow"><span id="sipmPowerLabel">On SiPM</span><output id="sipmPower" for="beamUm gaussianSiPM flux" aria-labelledby="sipmPowerLabel"></output></div><div class="labelrow"><span id="sipmFluxLabel">On-SiPM photon flux</span><output id="sipmFlux" for="beamUm gaussianSiPM flux" aria-labelledby="sipmFluxLabel"></output></div><div class="labelrow"><span id="gaussianMissedLabel">Outside SiPM</span><output id="gaussianMissed" for="beamUm gaussianSiPM flux" aria-labelledby="gaussianMissedLabel"></output></div><small id="sipmGeometry"></small></div></div>
+<details id="moreSettings" class="more-settings">
+<summary>More settings</summary>
+<div class="more-settings-body">
 <div class="control"><div class="labelrow"><label for="bg">Background flux</label><output id="bgOut"></output></div><input id="bg" type="range" min="0" max="14" step="1" value="5"><div class="rangeends"><span>Dark</span><span>100 Mph/s</span></div></div>
 <div class="control"><div class="labelrow"><label for="pmtGain">Analog PMT gain</label><output id="pmtGainOut" for="pmtGain"></output></div><input id="pmtGain" type="range" min="4" max="6" step="0.01" value="6"><div class="rangeends"><span>10,000×</span><span>1,000,000×</span></div></div>
 <div class="control"><div class="labelrow"><label for="apdGain">APD gain</label><output id="apdGainOut" for="apdGain"></output></div><input id="apdGain" type="range" min="1" max="250" step="1" value="250"><div class="rangeends"><span>1×</span><span>250×</span></div></div>
 <label class="transit-control"><input type="checkbox" id="compensateTransit" checked>Compensate PMT transit delay</label>
 <div class="seedrow"><label for="seed">Noise seed</label><input id="seed" type="number" min="0" max="4294967295" value="42" required></div>
+</div>
+</details>
 <button class="run" id="run" type="submit"><svg><use href="#play"/></svg><span>Run scan</span></button>
 </div></form>
 <div class="rightcol"><section class="monitor"><div class="monitorhead"><h2><svg><use href="#wave"/></svg>Scan monitor</h2><div class="seg" aria-label="Scan display"><button id="splitbtn" aria-pressed="true"><svg><use href="#split"/></svg>Split view</button><button id="outbtn" aria-pressed="false"><svg><use href="#square"/></svg>Output</button></div></div>
@@ -1088,6 +1098,7 @@ function writeNotes(){
 $('includeHpd').addEventListener('change',updateOperatingMap);
 $('controls').addEventListener('input',controlsChanged);
 $('controls').addEventListener('submit',runScan);
+$('seed').addEventListener('invalid', () => { $('moreSettings').open = true; });
 $('resetbtn').onclick=()=>{$('controls').reset();controlsChanged()};
 $('splitbtn').onclick=()=>setView(true);$('outbtn').onclick=()=>setView(false);
 function showModelNotes(){
