@@ -12,6 +12,7 @@ import LcosSlmDemo from "./pages/LcosSlmDemo.jsx";
 import CommonEquations from "./pages/CommonEquations.jsx";
 import PetCoincidence from "./pages/PetCoincidence.jsx";
 import Rangefinder from "./pages/Rangefinder.jsx";
+import ReflectanceLab from "./pages/ReflectanceLab.jsx";
 import Microspectrometer from "./pages/Microspectrometer.jsx";
 import "./index.css";
 
@@ -63,6 +64,10 @@ const router = createHashRouter([
   {
     path: "/rangefinder",
     element: <Rangefinder />,
+  },
+  {
+    path: "/reflectance-lab",
+    element: <ReflectanceLab />,
   },
   {
     path: "/microspectrometer",
